@@ -70,7 +70,7 @@ export function heuristicPlan(opts: {
   const hook = fill(sample(HOOK_BANK[template]), petName);
   let segments: Segment[] = [];
 
-  if (template === "single_moment") {
+  if (template === "single_moment" || template === "text_overlay") {
     // Best continuous window of the full target length.
     const best = clips
       .filter((c) => c.energy?.length)

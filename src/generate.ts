@@ -3,6 +3,7 @@ import { config } from "./config.ts";
 import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
 import { planVideos } from "./ai/director.ts";
+import { currentTrends } from "./ai/trends.ts";
 import { renderVideo } from "./media/render.ts";
 import { renderQueue } from "./queue.ts";
 import type { GenerateRequest, Render, VideoPlan } from "./types.ts";
@@ -24,6 +25,7 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
         clips,
         petName,
         handle,
+        trends: currentTrends().formats,
       });
       if (plans.length) {
         // Models are approximate with arithmetic; snap each plan to the requested length.
@@ -41,15 +43,21 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
 
   const used = new Map<string, number>();
   const plans: VideoPlan[] = [];
+  const overlays = [...currentTrends().formats].sort(() => Math.random() - 0.5);
   for (let i = 0; i < req.count; i++) {
     const p = heuristicPlan({ template: req.template, targetSeconds: req.targetSeconds, clips, petName, used });
+    if (req.template === "text_overlay" && overlays.length) {
+      // Without the AI director, overlays are generic trend examples; review and edit them before posting.
+      p.hook = p.title = overlays[i % overlays.length].example.replaceAll("{pet}", petName);
+      p.postCaption = `${p.hook} 🐾`;
+    }
     for (const s of p.segments) used.set(s.clipId, (used.get(s.clipId) ?? 0) + 1);
     plans.push(p);
   }
   return { plans, warning };
 }
 
-export function queueRender(planned: VideoPlan, options: GenerateRequest["options"]): Render {
+export function queueRender(planned: VideoPlan, options: GenerateRequest["options"], batch?: string): Render {
   const render = store.addRender({
     id: newId(),
     createdAt: new Date().toISOString(),
@@ -57,6 +65,8 @@ export function queueRender(planned: VideoPlan, options: GenerateRequest["option
     options,
     status: "queued",
     progress: 0,
+    review: "pending",
+    batch,
   });
   renderQueue.push(async () => {
     store.updateRender(render.id, { status: "rendering" });

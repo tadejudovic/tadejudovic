@@ -1,4 +1,4 @@
-export type ClipSource = "google_photos" | "upload";
+export type ClipSource = "google_photos" | "shared_album" | "upload";
 export type ClipStatus = "importing" | "analyzing" | "ready" | "error";
 
 /** A short window inside a clip that is worth using in a video. */
@@ -42,7 +42,7 @@ export interface Clip {
   uses: number;
 }
 
-export type TemplateId = "quick_cuts" | "single_moment" | "pov_story" | "then_vs_now";
+export type TemplateId = "text_overlay" | "quick_cuts" | "single_moment" | "pov_story" | "then_vs_now";
 
 export interface Segment {
   clipId: string;
@@ -66,6 +66,7 @@ export interface VideoPlan {
 }
 
 export type RenderStatus = "queued" | "rendering" | "done" | "error";
+export type ReviewStatus = "pending" | "approved" | "rejected";
 
 export interface Render {
   id: string;
@@ -78,6 +79,9 @@ export interface Render {
   thumb?: string;
   duration?: number;
   error?: string;
+  /** Daily batch this render belongs to (YYYY-MM-DD), if it was made automatically. */
+  batch?: string;
+  review: ReviewStatus;
 }
 
 export interface RenderOptions {
@@ -97,4 +101,46 @@ export interface GenerateRequest {
   clipIds?: string[];
   useAi: boolean;
   options: RenderOptions;
+}
+
+/** A public Google Photos shared-album link the app watches for new videos. */
+export interface AlbumSource {
+  id: string;
+  url: string;
+  title?: string;
+  addedAt: string;
+  lastSyncAt?: string;
+  lastError?: string;
+  /** Item ids already handled (imported videos and skipped photos). */
+  seen: string[];
+  videoCount: number;
+}
+
+/** A text-overlay format that is currently performing on TikTok. */
+export interface TrendFormat {
+  /** The reusable pattern, e.g. "POV: the energy shift when ___". */
+  pattern: string;
+  /** A filled-in pet example. */
+  example: string;
+  /** What kind of footage it fits. */
+  fits: string;
+}
+
+export interface Trends {
+  updatedAt?: string;
+  source: "seed" | "claude_web_search";
+  formats: TrendFormat[];
+}
+
+export interface AutoSettings {
+  enabled: boolean;
+  /** Videos per daily batch. */
+  dailyCount: number;
+  /** Local time the batch is prepared, "HH:MM". */
+  dailyTime: string;
+  template: TemplateId;
+  targetSeconds: number;
+  /** How often to check shared albums for new videos. */
+  syncEveryHours: number;
+  lastBatchDate?: string;
 }

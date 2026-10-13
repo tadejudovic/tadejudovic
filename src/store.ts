@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { Clip, Render } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Render, Trends } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -12,7 +12,19 @@ interface DB {
   renders: Render[];
   google?: GoogleTokens;
   settings: { petName: string; handle: string };
+  albums: AlbumSource[];
+  trends?: Trends;
+  auto: AutoSettings;
 }
+
+const DEFAULT_AUTO: AutoSettings = {
+  enabled: true,
+  dailyCount: 4,
+  dailyTime: "08:00",
+  template: "text_overlay",
+  targetSeconds: 12,
+  syncEveryHours: 3,
+};
 
 export interface GoogleTokens {
   access_token: string;
@@ -25,9 +37,12 @@ function load(): DB {
   try {
     const db = JSON.parse(fs.readFileSync(config.dbFile, "utf8")) as DB;
     db.settings ??= { petName: "Lex", handle: "" };
+    db.albums ??= [];
+    db.auto = { ...DEFAULT_AUTO, ...db.auto };
+    for (const r of db.renders) r.review ??= "pending";
     return db;
   } catch {
-    return { clips: [], renders: [], settings: { petName: "Lex", handle: "" } };
+    return { clips: [], renders: [], settings: { petName: "Lex", handle: "" }, albums: [], auto: { ...DEFAULT_AUTO } };
   }
 }
 
@@ -90,6 +105,37 @@ export const store = {
   setGoogle(tokens: GoogleTokens | undefined) {
     db.google = tokens;
     save();
+  },
+
+  albums: () => db.albums,
+  album: (id: string) => db.albums.find((a) => a.id === id),
+  addAlbum(album: AlbumSource) {
+    db.albums.push(album);
+    save();
+    return album;
+  },
+  updateAlbum(id: string, patch: Partial<AlbumSource>) {
+    const album = db.albums.find((a) => a.id === id);
+    if (album) Object.assign(album, patch);
+    save();
+    return album;
+  },
+  removeAlbum(id: string) {
+    db.albums = db.albums.filter((a) => a.id !== id);
+    save();
+  },
+
+  trends: () => db.trends,
+  setTrends(trends: Trends) {
+    db.trends = trends;
+    save();
+  },
+
+  auto: () => db.auto,
+  updateAuto(patch: Partial<AutoSettings>) {
+    Object.assign(db.auto, patch);
+    save();
+    return db.auto;
   },
 
   settings: () => db.settings,

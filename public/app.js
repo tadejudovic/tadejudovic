@@ -61,6 +61,8 @@ async function loadStatus() {
       tpl.append(h("label", { class: "tpl" }, h("input", { type: "radio", name: "template", value: t.id, checked: i === 0 }), h("b", {}, t.name), h("span", {}, t.description))),
     );
   }
+  const autoTpl = $("#auto-template");
+  if (!autoTpl.children.length) autoTpl.append(...s.templates.map((t) => h("option", { value: t.id }, t.name)));
   const music = $("#music");
   const current = music.value;
   music.replaceChildren(music.options[0], ...s.music.map((m) => h("option", { value: m.id }, m.name)));
@@ -321,6 +323,7 @@ function renderPlans() {
 async function refreshRenders() {
   state.renders = await api("/api/renders");
   renderRenders();
+  renderBatch();
 }
 
 const renderEls = new Map();
@@ -378,6 +381,187 @@ function renderCard(r) {
   );
 }
 
+// ---- Shared albums ----------------------------------------------------------
+
+async function refreshAlbums() {
+  const albums = await api("/api/albums");
+  $("#albums").replaceChildren(
+    ...albums.map((a) =>
+      h("li", {},
+        h("div", { class: "grow" },
+          h("b", {}, a.title || "Shared album"), " ",
+          h("a", { href: a.url, target: "_blank", rel: "noopener", class: "muted" }, "open"),
+          h("div", { class: "muted" },
+            `${a.videoCount} video${a.videoCount === 1 ? "" : "s"} imported · `,
+            a.lastSyncAt ? `checked ${new Date(a.lastSyncAt).toLocaleString()}` : "not checked yet",
+          ),
+          a.lastError ? h("div", { class: "err" }, a.lastError) : null,
+        ),
+        h("button", {
+          class: "btn small",
+          onclick: (e) => withBusy(e.currentTarget, "Checking…", async () => {
+            const r = await api(`/api/albums/${a.id}/sync`, { method: "POST" });
+            banner(r.newItems ? `Found ${r.newItems} new item(s). Importing videos…` : "No new items in this album.", "ok");
+            await Promise.all([refreshAlbums(), refreshClips()]);
+          }),
+        }, "Check now"),
+        h("button", {
+          class: "btn small",
+          onclick: async () => {
+            if (!confirm("Stop watching this album? Imported videos stay in your library.")) return;
+            await api(`/api/albums/${a.id}`, { method: "DELETE" });
+            refreshAlbums();
+          },
+        }, "Remove"),
+      ),
+    ),
+  );
+}
+
+$("#album-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  withBusy(form.querySelector("button"), "Reading album…", async () => {
+    const r = await api("/api/albums", { method: "POST", body: { url: form.url.value } });
+    if (r.error) banner(`Album saved, but reading it failed: ${r.error}`);
+    else banner(`Watching “${r.album.title || "album"}”. ${r.newItems} item(s) found; videos are importing now.`, "ok");
+    form.reset();
+    await Promise.all([refreshAlbums(), refreshClips()]);
+  });
+});
+
+// ---- Daily batch --------------------------------------------------------------
+
+async function loadAuto() {
+  const a = await api("/api/auto");
+  const f = $("#auto");
+  f.enabled.checked = a.enabled;
+  f.dailyTime.value = a.dailyTime;
+  f.dailyCount.value = a.dailyCount;
+  f.targetSeconds.value = String(a.targetSeconds);
+  if (![...f.targetSeconds.options].some((o) => o.value === String(a.targetSeconds))) f.targetSeconds.append(h("option", { value: a.targetSeconds }, `${a.targetSeconds}s`)), (f.targetSeconds.value = String(a.targetSeconds));
+  f.template.value = a.template;
+  f.syncEveryHours.value = String(a.syncEveryHours);
+}
+
+$("#auto").addEventListener("change", async (e) => {
+  const f = e.currentTarget;
+  await api("/api/auto", {
+    method: "PUT",
+    body: {
+      enabled: f.enabled.checked,
+      dailyTime: f.dailyTime.value,
+      dailyCount: Number(f.dailyCount.value),
+      targetSeconds: Number(f.targetSeconds.value),
+      template: f.template.value,
+      syncEveryHours: Number(f.syncEveryHours.value),
+    },
+  });
+});
+
+$("#btn-batch").addEventListener("click", (e) =>
+  withBusy(e.currentTarget, "Preparing… (checking albums, writing overlays)", async () => {
+    const r = await api("/api/batch/run", { method: "POST" });
+    if (r.warning) banner(r.warning);
+    else banner(`Queued ${r.renders.length} videos for review.`, "ok");
+    await refreshRenders();
+  }),
+);
+
+async function loadTrends() {
+  const t = await api("/api/trends");
+  $("#trends-src").textContent = t.source === "claude_web_search" ? `· researched ${new Date(t.updatedAt).toLocaleDateString()}` : "· evergreen starter set";
+  const pet = state.status?.settings.petName || "Lex";
+  $("#trends").replaceChildren(...t.formats.map((f) => h("li", {}, f.example.replaceAll("{pet}", pet), " ", h("span", {}, `— ${f.fits}`))));
+  $("#btn-trends").disabled = !state.status?.claude.enabled;
+  $("#btn-trends").title = state.status?.claude.enabled ? "" : "Needs ANTHROPIC_API_KEY";
+}
+$("#btn-trends").addEventListener("click", (e) =>
+  withBusy(e.currentTarget, "Searching the web…", async () => {
+    await api("/api/trends/refresh", { method: "POST" });
+    await loadTrends();
+    banner("Trend list updated.", "ok");
+  }),
+);
+
+const batchEls = new Map();
+function renderBatch() {
+  const batches = [...new Set(state.renders.map((r) => r.batch).filter(Boolean))].sort().reverse();
+  const latest = batches[0];
+  const items = state.renders.filter((r) => r.batch && r.batch === latest);
+  $("#batch-empty").hidden = items.length > 0;
+  const approved = items.filter((r) => r.review === "approved").length;
+  $("#batch-date").textContent = latest ? `${latest} · ${approved}/${items.length} approved` : "";
+  $("#batch").replaceChildren(
+    ...items.map((r) => {
+      const key = `${r.id}:${r.status}:${r.review}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
+      const cached = batchEls.get(r.id);
+      if (cached?.key === key) return cached.node;
+      const node = reviewCard(r);
+      batchEls.set(r.id, { key, node });
+      return node;
+    }),
+  );
+}
+
+function reviewCard(r) {
+  const media =
+    r.status === "done"
+      ? h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, controls: true, loop: true, playsinline: true, preload: "none" })
+      : h("div", { class: "ph" },
+          h("div", {},
+            r.status === "error" ? "Render failed" : r.status === "queued" ? "Queued…" : `Rendering… ${Math.round(r.progress * 100)}%`,
+            r.status === "rendering" ? h("div", { class: "bar" }, h("i", { style: { width: `${r.progress * 100}%` } })) : null,
+          ),
+        );
+  const hookInput = h("input", { value: r.plan.hook, title: "On-screen overlay text" });
+  const captionText = [r.plan.postCaption, r.plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
+  const caption = h("textarea", { title: "Post caption" }, captionText);
+  const saveCaption = async () => {
+    const tags = caption.value.match(/#[\w\u00C0-\uFFFF]+/g) ?? [];
+    const text = caption.value.replace(/(^|\s)#[\w\u00C0-\uFFFF]+/g, "").trim();
+    await api(`/api/renders/${r.id}`, { method: "PATCH", body: { postCaption: text, hashtags: tags } });
+    r.plan.postCaption = text;
+    r.plan.hashtags = tags.map((t) => t.slice(1));
+  };
+  caption.addEventListener("change", saveCaption);
+  const setReview = async (review) => {
+    await saveCaption();
+    await api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } });
+    await refreshRenders();
+  };
+  return h("div", { class: `render ${r.review}` },
+    media,
+    h("div", { class: "body" },
+      h("span", { class: `pill ${r.review}` }, r.review === "pending" ? "needs review" : r.review),
+      r.error ? h("div", { class: "err" }, r.error) : null,
+      h("div", { class: "overlay-edit" },
+        hookInput,
+        h("button", {
+          class: "btn small", title: "Render again with this overlay text",
+          onclick: (e) => withBusy(e.currentTarget, "…", async () => {
+            await api(`/api/renders/${r.id}/rerender`, { method: "POST", body: { hook: hookInput.value } });
+            await refreshRenders();
+          }),
+        }, "Re-render"),
+      ),
+      caption,
+      h("div", { class: "row" },
+        r.status === "done" ? h("a", { class: "btn small primary", href: `/media/render/${r.id}.mp4?dl=1`, onclick: () => r.review !== "approved" && setReview("approved") }, "Approve & download") : null,
+        h("button", {
+          class: "btn small",
+          onclick: async (e) => {
+            await navigator.clipboard.writeText(caption.value);
+            e.target.textContent = "Copied!";
+            setTimeout(() => (e.target.textContent = "Copy caption"), 1500);
+          },
+        }, "Copy caption"),
+        r.review !== "rejected" ? h("button", { class: "btn small", onclick: () => setReview("rejected") }, "Reject") : h("button", { class: "btn small", onclick: () => setReview("pending") }, "Undo"),
+      ),
+    ),
+  );
+}
+
 // ---- Boot & polling ---------------------------------------------------------
 
 const params = new URLSearchParams(location.search);
@@ -386,11 +570,11 @@ if (params.get("google_error")) banner(`Google sign-in failed: ${params.get("goo
 if (params.size) history.replaceState(null, "", "/");
 
 await loadStatus();
-await Promise.all([refreshClips(), refreshRenders()]);
+await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadTrends()]);
 
 setInterval(async () => {
   const busyClips = state.clips.some((c) => c.status === "importing" || c.status === "analyzing");
   const busyRenders = state.renders.some((r) => r.status === "queued" || r.status === "rendering");
-  if (busyClips) await refreshClips().catch(() => {});
+  if (busyClips) await Promise.all([refreshClips(), refreshAlbums()]).catch(() => {});
   if (busyRenders) await refreshRenders().catch(() => {});
 }, 2000);

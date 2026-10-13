@@ -7,10 +7,33 @@ Turn the pile of pet footage in your Google Photos library into ready-to-post **
 3. **Create**: choose a proven format, a length (10/15/20/30s) and how many videos you want.
 4. **Post**: download 1080×1920 MP4s with hooks and captions burned in, plus a ready-to-paste caption and hashtags.
 
+## The daily flow
+
+1. **You curate in Google Photos.** Put the videos you think have potential into a shared album and turn on *link sharing*.
+2. **Paste the album link into PawCut** ("Watch album"). It is checked every few hours (1–24h, configurable), and new videos are imported and analyzed automatically. Photos in the album are skipped.
+3. **Every morning at a time you choose, PawCut prepares a batch** of 3–5 videos (configurable) for review. It favors footage that hasn't been used yet. For each video it writes:
+   - a **text overlay** in a currently popular format, fitted to what actually happens in the clip, e.g. *"POV: the energy shift when we pull into the airport"*;
+   - a **post caption** with hashtags.
+4. **You review** in the *Daily batch* section: watch each video, tweak the overlay (one-click re-render) or the caption, then **Approve & download** or **Reject**. Upload the approved ones to TikTok and paste the caption.
+
+Overlay formats come from a starter list of proven patterns ("POV: the energy shift when…", "nobody: / Lex at 6am:", "me: … / Lex:", …). If the AI director is on, Claude also searches the web once a day for the text formats pet accounts are using right now and adds them to the rotation. You can also trigger this with *Research what's trending now*. Without an API key, overlays are picked from the starter list and aren't matched to the clip, so read them before approving.
+
+> **Keep the app running** (a spare laptop, a Mac mini or a small server) so the scheduled checks and the morning batch fire. If it was off at the scheduled time, the batch is made as soon as it starts again. **Make today's batch now** runs it on demand.
+
+### About shared-album links
+
+Google has no official API for reading an album from its share link. PawCut reads the same data the album page loads for its own viewer, so it only sees what anyone with the link can see. That has two consequences:
+
+- The reader may need updating if Google changes the page.
+- Very large albums may only expose their first few hundred items. Keep the "high potential" album focused, or start a new album every so often.
+
+If you'd rather not use a public link, the **Google Photos picker** import (below) works through Google's official API.
+
 ## Formats
 
 | Format | What it does |
 |---|---|
+| **Text overlay (POV)** | One continuous clip with a trending line of text on screen the whole time. This is the daily-batch default. |
 | **Quick-cut montage** | 6–12 cuts of 1.2–2.2s each. The strongest moment goes first, with a bold hook on screen for the first ~2.5s. |
 | **One perfect moment** | One continuous setup → payoff ("wait for it…"). Built to loop. |
 | **POV / caption story** | 3–5 beats with escalating captions in the pet's voice. |
@@ -70,7 +93,9 @@ Create ─► planner (Claude or heuristic) ─► plan (segments, hook, caption
 | Path | Role |
 |---|---|
 | `src/server.ts` | Express API and static UI |
-| `src/google/` | OAuth and the Photos Picker API client |
+| `src/google/` | Shared-album reader, OAuth, Photos Picker API client |
+| `src/albums.ts`, `src/scheduler.ts` | Album watching, the daily batch |
+| `src/ai/trends.ts` | Trend research (Claude + web search) and the starter formats |
 | `src/media/analyze.ts` | Energy curve and moment detection |
 | `src/media/render.ts` | ffmpeg composition |
 | `src/ai/director.ts` | Claude tagging and planning (structured JSON outputs) |
@@ -79,7 +104,8 @@ Create ─► planner (Claude or heuristic) ─► plan (segments, hook, caption
 | `data/` | Media, renders and `db.json` (git-ignored) |
 
 ```bash
-npm test          # unit tests (planner, moment detection, text layout)
+npm test          # unit tests (planner, moment detection, text layout, album parsing)
+DATA_DIR=/tmp/pc FOOTAGE_DIR=/dir/with/portrait.mp4+landscape.mov npx tsx test/flow.integration.ts   # offline end-to-end of the daily flow
 npm run typecheck
 ```
 

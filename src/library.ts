@@ -11,6 +11,9 @@ import type { Clip, ClipSource } from "./types.ts";
 
 const PHOTO_SECONDS = 3;
 
+/** Thrown from a clip's fetch to drop it quietly (e.g. a shared-album item turned out to be a photo). */
+export class SkipItem extends Error {}
+
 /** Register a clip and queue its download/analysis. */
 export function enqueueClip(opts: {
   source: ClipSource;
@@ -19,6 +22,7 @@ export function enqueueClip(opts: {
   capturedAt?: string;
   /** Produces the original file at `dest`. */
   fetch: (dest: string) => Promise<void>;
+  onDone?: (result: "ready" | "skipped" | "error") => void;
 }): Clip {
   const id = newId();
   const ext = path.extname(opts.filename) || ".bin";
@@ -43,8 +47,15 @@ export function enqueueClip(opts: {
     try {
       await opts.fetch(original);
       await analyzeClip(id);
+      opts.onDone?.("ready");
     } catch (err) {
+      if (err instanceof SkipItem) {
+        deleteClip(id);
+        opts.onDone?.("skipped");
+        return;
+      }
       store.updateClip(id, { status: "error", error: (err as Error).message });
+      opts.onDone?.("error");
     }
   });
   return clip;

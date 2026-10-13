@@ -81,4 +81,6 @@ test("screenText strips emoji and wrap keeps lines short", () => {
   const lines = wrap("Me pretending I didn't hear the words bath time", 20);
   assert.ok(lines.every((l) => l.length <= 20), JSON.stringify(lines));
   assert.equal(lines.join(" "), "Me pretending I didn't hear the words bath time");
+  assert.deepEqual(wrap("tell me you have a poodle without telling me", 24), ["tell me you have", "a poodle without", "telling me"]);
+  assert.deepEqual(wrap("nobody: / Lex at 6am:", 24), ["nobody:", "Lex at 6am:"]);
 });

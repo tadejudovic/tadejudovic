@@ -25,12 +25,45 @@
   <main>
     <section class="panel">
       <div class="panel-head">
+        <h2><span class="step">★</span> Daily batch <small id="batch-date" class="muted"></small></h2>
+        <div class="actions">
+          <button id="btn-batch" class="btn primary">Make today's batch now</button>
+        </div>
+      </div>
+      <form id="auto" class="row auto">
+        <label class="check"><input type="checkbox" name="enabled" /> Auto-prepare every day at</label>
+        <input type="time" name="dailyTime" />
+        <label class="field inline"><span class="label">Videos</span><input type="number" name="dailyCount" min="1" max="10" class="num" /></label>
+        <label class="field inline"><span class="label">Length</span>
+          <select name="targetSeconds"><option value="10">10s</option><option value="12">12s</option><option value="15">15s</option><option value="20">20s</option></select>
+        </label>
+        <label class="field inline"><span class="label">Format</span><select name="template" id="auto-template"></select></label>
+        <label class="field inline"><span class="label">Check albums every</span>
+          <select name="syncEveryHours"><option value="1">1h</option><option value="3">3h</option><option value="6">6h</option><option value="12">12h</option><option value="24">24h</option></select>
+        </label>
+      </form>
+      <div id="batch" class="renders review"></div>
+      <p id="batch-empty" class="empty">No batch yet. Add a shared album below, then click “Make today's batch now”.</p>
+      <details class="trends">
+        <summary>Text overlay formats in rotation <span id="trends-src" class="muted"></span></summary>
+        <ul id="trends"></ul>
+        <button id="btn-trends" class="btn small">Research what's trending now</button>
+      </details>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
         <h2><span class="step">1</span> Footage</h2>
         <div class="actions">
           <button id="btn-google" class="btn primary">Import from Google Photos</button>
           <label class="btn">Upload files<input id="file-input" type="file" accept="video/*,image/*" multiple hidden /></label>
         </div>
       </div>
+      <form id="album-form" class="album-form">
+        <input name="url" type="url" placeholder="Paste a Google Photos shared-album link — new videos in it are picked up automatically" required />
+        <button class="btn primary" type="submit">Watch album</button>
+      </form>
+      <ul id="albums" class="albums"></ul>
       <p class="hint" id="google-hint"></p>
       <div id="drop" class="drop">
         <div id="clips" class="clips"></div>
@@ -40,7 +73,7 @@
     </section>
 
     <section class="panel">
-      <div class="panel-head"><h2><span class="step">2</span> Create</h2></div>
+      <div class="panel-head"><h2><span class="step">2</span> Create manually</h2></div>
       <form id="create" class="create">
         <div class="field">
           <span class="label">Format</span>
@@ -100,7 +133,7 @@
     </section>
 
     <section class="panel">
-      <div class="panel-head"><h2><span class="step">3</span> Videos</h2></div>
+      <div class="panel-head"><h2><span class="step">3</span> All videos</h2></div>
       <div id="renders" class="renders"></div>
       <p id="renders-empty" class="empty">Generated videos show up here, ready to download and post.</p>
     </section>

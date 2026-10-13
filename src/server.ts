@@ -10,6 +10,9 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip } from "./library.ts";
 import { plan, queueRender, deleteRender } from "./generate.ts";
+import { addAlbum, syncAlbum } from "./albums.ts";
+import { runDailyBatch, startScheduler } from "./scheduler.ts";
+import { currentTrends, refreshTrends } from "./ai/trends.ts";
 import type { GenerateRequest, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -91,6 +94,67 @@ app.get(
     const clips = importPicked(items);
     await deleteSession(id);
     res.json({ done: true, picked: items.length, imported: clips.length });
+  }),
+);
+
+// ---- Shared albums --------------------------------------------------------
+
+app.get("/api/albums", (_req, res) => {
+  res.json(store.albums().map(({ seen, ...a }) => ({ ...a, seenCount: seen.length })));
+});
+
+app.post(
+  "/api/albums",
+  h(async (req, res) => {
+    const album = addAlbum(String(req.body?.url ?? ""));
+    // First sync right away so the creator sees videos arriving.
+    const result = await syncAlbum(album.id).catch((err: Error) => ({ error: err.message }));
+    res.json({ album, ...result });
+  }),
+);
+
+app.post(
+  "/api/albums/:id/sync",
+  h(async (req, res) => {
+    res.json(await syncAlbum(String(req.params.id)));
+  }),
+);
+
+app.delete("/api/albums/:id", (req, res) => {
+  store.removeAlbum(String(req.params.id));
+  res.json({ ok: true });
+});
+
+// ---- Daily batch & trends -------------------------------------------------
+
+app.get("/api/auto", (_req, res) => res.json(store.auto()));
+
+app.put("/api/auto", (req, res) => {
+  const b = req.body ?? {};
+  const patch: Partial<ReturnType<typeof store.auto>> = {};
+  if (typeof b.enabled === "boolean") patch.enabled = b.enabled;
+  if (b.dailyCount !== undefined) patch.dailyCount = clamp(Math.round(Number(b.dailyCount) || 4), 1, 10);
+  if (typeof b.dailyTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(b.dailyTime)) patch.dailyTime = b.dailyTime;
+  if (b.template in TEMPLATES) patch.template = b.template;
+  if (b.targetSeconds !== undefined) patch.targetSeconds = clamp(Number(b.targetSeconds) || 12, 6, 60);
+  if (b.syncEveryHours !== undefined) patch.syncEveryHours = clamp(Number(b.syncEveryHours) || 3, 0.25, 48);
+  res.json(store.updateAuto(patch));
+});
+
+app.post(
+  "/api/batch/run",
+  h(async (_req, res) => {
+    res.json(await runDailyBatch({ force: true }));
+  }),
+);
+
+app.get("/api/trends", (_req, res) => res.json(currentTrends()));
+
+app.post(
+  "/api/trends/refresh",
+  h(async (_req, res) => {
+    if (!config.claude.enabled) return res.status(400).json({ error: "Set ANTHROPIC_API_KEY to research trends." });
+    res.json(await refreshTrends(store.settings().petName));
   }),
 );
 
@@ -222,6 +286,37 @@ app.get("/api/renders", (_req, res) => {
   res.json(store.renders().map(({ file, thumb, ...r }) => r));
 });
 
+/** Review: approve/reject, and edit the post caption (no re-render needed). */
+app.patch("/api/renders/:id", (req, res) => {
+  const r = store.render(String(req.params.id));
+  if (!r) return res.sendStatus(404);
+  const b = req.body ?? {};
+  const planPatch: Partial<VideoPlan> = {};
+  if (typeof b.postCaption === "string") planPatch.postCaption = b.postCaption.slice(0, 2200);
+  if (Array.isArray(b.hashtags)) planPatch.hashtags = b.hashtags.map((t: unknown) => String(t).replace(/^#/, "").slice(0, 40)).filter(Boolean).slice(0, 15);
+  store.updateRender(r.id, {
+    ...(["pending", "approved", "rejected"].includes(b.review) ? { review: b.review } : {}),
+    plan: { ...r.plan, ...planPatch },
+  });
+  res.json(store.render(r.id));
+});
+
+/** Change the on-screen text and render again; replaces the old version. */
+app.post("/api/renders/:id/rerender", (req, res) => {
+  const r = store.render(String(req.params.id));
+  if (!r) return res.sendStatus(404);
+  if (!r.plan.segments.every((s) => store.clip(s.clipId))) return res.status(400).json({ error: "A source clip was deleted." });
+  const b = req.body ?? {};
+  const next = sanitizePlan({
+    ...r.plan,
+    hook: typeof b.hook === "string" ? b.hook : r.plan.hook,
+    postCaption: typeof b.postCaption === "string" ? b.postCaption : r.plan.postCaption,
+  });
+  const fresh = queueRender(next, r.options, r.batch);
+  deleteRender(r.id);
+  res.json(fresh);
+});
+
 app.delete("/api/renders/:id", (req, res) => {
   deleteRender(String(req.params.id));
   res.json({ ok: true });
@@ -294,6 +389,8 @@ for (const r of store.renders()) {
     store.updateRender(r.id, { status: "error", error: "Interrupted by a restart." });
   }
 }
+
+startScheduler();
 
 const host = process.env.HOST ?? "127.0.0.1";
 app.listen(config.port, host, () => {

@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { TEMPLATES } from "../templates.ts";
-import type { Clip, Moment, Segment, TemplateId, VideoPlan } from "../types.ts";
+import type { Clip, Moment, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
 
 /**
  * The "AI director": Claude watches sampled frames of each clip once (cached on
@@ -151,6 +151,7 @@ export async function planVideos(opts: {
   clips: Clip[];
   petName: string;
   handle?: string;
+  trends?: TrendFormat[];
 }): Promise<VideoPlan[]> {
   const def = TEMPLATES[opts.template];
   const byId = new Map(opts.clips.map((c) => [c.id, c]));
@@ -173,6 +174,11 @@ export async function planVideos(opts: {
     `Segments must use clipIds from the library and stay within each clip's duration; prefer the listed moments. ` +
     `Make the ${opts.count} videos clearly different from each other (different clips, angles and hooks), and favor ` +
     `clips with a low timesAlreadyUsed so the account doesn't repeat itself.` +
+    (opts.trends?.length && (opts.template === "text_overlay" || opts.template === "pov_story")
+      ? `\n\nText formats trending for pet accounts right now — adapt one per video so it fits what actually ` +
+        `happens in the footage (don't force a format onto a clip it doesn't match, and use a different format ` +
+        `for each video):\n${opts.trends.map((t) => `- ${t.pattern} (e.g. "${t.example.replaceAll("{pet}", opts.petName)}"; fits: ${t.fits})`).join("\n")}`
+      : "") +
     (opts.brief ? `\n\nCreator's direction: ${opts.brief}` : "") +
     `\n\nLibrary:\n${JSON.stringify(catalog)}`;
 

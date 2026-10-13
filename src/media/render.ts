@@ -19,8 +19,20 @@ export function screenText(s: string): string {
     .trim();
 }
 
-/** Greedy word wrap. */
+/** Greedy word wrap. " / " forces a line break (as in "nobody: / my dog:"). */
 export function wrap(text: string, maxChars: number): string[] {
+  const parts = text.split(/\s+\/\s+/);
+  if (parts.length > 1) return parts.flatMap((p) => wrap(p, maxChars)).slice(0, 5);
+  const greedy = wrapGreedy(text, maxChars);
+  // Re-wrap to even line lengths so the last line isn't a lonely word.
+  for (let w = Math.ceil(text.length / greedy.length); w < maxChars; w++) {
+    const even = wrapGreedy(text, w);
+    if (even.length <= greedy.length) return even.slice(0, 4);
+  }
+  return greedy.slice(0, 4);
+}
+
+function wrapGreedy(text: string, maxChars: number): string[] {
   const words = text.split(" ").filter(Boolean);
   const lines: string[] = [];
   let line = "";
@@ -33,7 +45,7 @@ export function wrap(text: string, maxChars: number): string[] {
     }
   }
   if (line) lines.push(line);
-  return lines.slice(0, 4);
+  return lines;
 }
 
 /**
@@ -187,12 +199,13 @@ async function finalize(
   handle: string,
   tmp: string,
 ) {
-  const hookUntil = Math.min(2.8, duration);
+  // Text-overlay videos keep their line on screen the whole time; other formats flash a hook.
+  const hookUntil = plan.template === "text_overlay" ? duration + 1 : Math.min(2.8, duration);
   const filters = [
     ...textFilters(plan.hook, {
       yFrac: HOOK_Y,
-      size: 78,
-      maxChars: 20,
+      size: plan.template === "text_overlay" ? 70 : 78,
+      maxChars: plan.template === "text_overlay" ? 24 : 20,
       style: options.textStyle,
       enable: `lt(t,${hookUntil.toFixed(2)})`,
       tmp,

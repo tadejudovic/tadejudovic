@@ -42,11 +42,30 @@ export function isAlbumUrl(url: string): boolean {
   }
 }
 
+// Pre-accept Google's cookie-consent interstitial, which some server regions get instead of the album.
+const HEADERS = { "user-agent": UA, "accept-language": "en-US,en;q=0.9", cookie: "CONSENT=YES+cb; SOCS=CAI" };
+
 export async function fetchAlbum(url: string): Promise<AlbumPage> {
   if (!isAlbumUrl(url)) throw new Error("That doesn't look like a Google Photos shared-album link.");
-  const res = await fetch(url, { headers: { "user-agent": UA, "accept-language": "en" }, redirect: "follow" });
+  let res = await fetch(url, { headers: HEADERS, redirect: "follow" });
+  let html = await res.text();
+  // Short links sometimes answer with a page that redirects in the browser instead of an HTTP redirect.
+  const share = !res.url.includes("photos.google.com/share/") && html.match(/https:\/\/photos\.google\.com\/share\/[^"'\s<>\\]+/)?.[0];
+  if (share) {
+    res = await fetch(share.replace(/&amp;/g, "&"), { headers: HEADERS, redirect: "follow" });
+    html = await res.text();
+  }
   if (!res.ok) throw new Error(`Couldn't open the album (HTTP ${res.status}). Is link sharing turned on?`);
-  return parseAlbumHtml(await res.text());
+  const page = parseAlbumHtml(html);
+  if (!page.items.length) {
+    const blocks = html.split("AF_initDataCallback(").length - 1;
+    console.warn(`[album] no items found: url=${res.url} status=${res.status} bytes=${html.length} dataBlocks=${blocks} title=${page.title ?? "-"}`);
+    throw new Error(
+      `Opened the album page but found no photos or videos in it (landed on ${new URL(res.url).host}${new URL(res.url).pathname.slice(0, 30)}, ` +
+        `${blocks} data blocks). Check that link sharing is on; if it is, send this message to the developer.`,
+    );
+  }
+  return page;
 }
 
 export function parseAlbumHtml(html: string): AlbumPage {

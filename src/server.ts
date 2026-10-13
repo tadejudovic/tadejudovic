@@ -1,3 +1,4 @@
+import { recentLogs } from "./logbuffer.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,6 +50,40 @@ const upload = multer({
 type Handler = (req: Request, res: Response) => Promise<unknown> | unknown;
 const h = (fn: Handler) => (req: Request, res: Response, next: NextFunction) =>
   Promise.resolve(fn(req, res)).catch(next);
+
+// ---- Diagnostics ----------------------------------------------------------
+
+/** Everything needed to debug a problem remotely, in one copyable blob (behind the password gate). */
+app.get("/api/diagnostics", (_req, res) => {
+  const count = <T,>(xs: T[], key: (x: T) => string) =>
+    xs.reduce<Record<string, number>>((acc, x) => ((acc[key(x)] = (acc[key(x)] ?? 0) + 1), acc), {});
+  const clips = store.clips();
+  const renders = store.renders();
+  res.json({
+    version: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
+    now: new Date().toISOString(),
+    uptimeMin: Math.round(process.uptime() / 60),
+    memoryMb,
+    rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    paused,
+    aiEnabled: config.claude.enabled,
+    spend: { ...spendThisMonth(), limit: monthlyLimit() },
+    queuePending: ingestQueue.pending,
+    clips: {
+      byStatus: count(clips, (c) => c.status),
+      byScene: count(clips.filter((c) => c.status === "ready"), (c) => c.scene ?? "unsorted"),
+      landscape: clips.filter((c) => c.status === "ready" && c.width > c.height).length,
+      errors: [...new Set(clips.filter((c) => c.error).map((c) => c.error!))].slice(0, 10),
+    },
+    renders: {
+      byStatus: count(renders, (r) => r.status),
+      errors: [...new Set(renders.filter((r) => r.error).map((r) => r.error!))].slice(0, 10),
+    },
+    albums: store.albums().map(({ seen, url, ...a }) => ({ ...a, seen: seen.length })),
+    auto: store.auto(),
+    logs: recentLogs(150),
+  });
+});
 
 // ---- Status & settings ----------------------------------------------------
 

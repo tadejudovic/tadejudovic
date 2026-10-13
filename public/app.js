@@ -884,6 +884,23 @@ $("#example-form").addEventListener("submit", (e) => {
   });
 });
 
+// ---- Diagnostics --------------------------------------------------------------
+
+$("#btn-diag").addEventListener("click", (e) =>
+  withBusy(e.currentTarget, "Copying…", async () => {
+    const d = await api("/api/diagnostics");
+    const text = JSON.stringify(d, null, 1);
+    try {
+      await navigator.clipboard.writeText(text);
+      banner("Diagnostics copied. Paste them into the chat.", "ok");
+    } catch {
+      // Clipboard can be blocked; fall back to a download.
+      const a = h("a", { href: URL.createObjectURL(new Blob([text], { type: "text/plain" })), download: "lex-studio-diagnostics.txt" });
+      a.click();
+    }
+  }),
+);
+
 // ---- Budget & recovery ------------------------------------------------------
 
 $("#budget-form").addEventListener("change", async (e) => {

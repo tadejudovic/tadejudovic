@@ -513,6 +513,7 @@ $("#auto").addEventListener("change", async (e) => {
   });
 });
 
+$("#btn-batch-empty").addEventListener("click", () => $("#btn-batch").click());
 $("#btn-batch").addEventListener("click", (e) =>
   withBusy(e.currentTarget, "Making… (1–3 min)", async () => {
     const r = await api("/api/batch/run", { method: "POST" });
@@ -934,10 +935,20 @@ function renderHomeState() {
   if (making) parts.push(`Making ${making} video${making === 1 ? "" : "s"}…`);
   $("#activity").textContent = parts.join(" ");
   $("#activity").hidden = !parts.length;
-  const ready = state.clips.filter((c) => c.status === "ready").length;
-  $("#batch-empty-text").textContent = ready
-    ? `${ready} clips ready. New videos are made every morning at ${state.auto?.dailyTime ?? "8:00"}, or click “Make videos”.`
-    : "Your clips are being imported. Videos will follow.";
+  // Clips are raw footage; show them so "ready" means something, and offer to make videos right away.
+  const readyClips = state.clips.filter((c) => c.status === "ready" && c.height >= c.width);
+  const n = readyClips.length;
+  $("#batch-empty-title").textContent = n ? `${n} clip${n === 1 ? "" : "s"} ready to turn into videos` : "No videos yet today";
+  $("#batch-empty-text").textContent = n
+    ? `Videos are made automatically every morning at ${state.auto?.dailyTime ?? "08:00"}. Don't want to wait? Make them now.`
+    : importing
+      ? "Your clips are being imported. Videos will follow."
+      : "Add videos to your Google Photos album; new ones are picked up every few hours.";
+  $("#btn-batch-empty").hidden = !n;
+  $("#btn-batch-empty").textContent = n === 1 ? "Make a video now" : `Make ${Math.min(n, state.auto?.dailyCount ?? 4)} videos now`;
+  $("#ready-strip").replaceChildren(
+    ...readyClips.slice(0, 8).map((c) => h("img", { src: `/media/thumb/${c.id}`, alt: "", title: c.scene || c.filename, loading: "lazy" })),
+  );
 }
 
 $("#onboard-form").addEventListener("submit", (e) => {

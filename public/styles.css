@@ -311,3 +311,7 @@ main { max-width: 980px; }
 .meter i { display: block; height: 100%; width: 0; background: var(--ok); border-radius: 99px; transition: width .3s; }
 .meter i.high { background: var(--warn); }
 .meter i.full { background: var(--err); }
+.ready-strip { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 16px 0; }
+.ready-strip:empty { display: none; }
+.ready-strip img { width: 64px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 8px; background: var(--soft); }
+#batch-empty .btn { margin-top: 4px; }

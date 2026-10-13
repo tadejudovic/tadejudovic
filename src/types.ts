@@ -145,6 +145,8 @@ export interface Render {
   /** Daily batch this render belongs to (YYYY-MM-DD), if it was made automatically. */
   batch?: string;
   review: ReviewStatus;
+  /** Whether finishing this render should count as a use of its clips (false for re-renders). */
+  countUse?: boolean;
 }
 
 export interface RenderOptions {

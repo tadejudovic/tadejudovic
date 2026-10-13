@@ -189,24 +189,44 @@ export function queueRender(
     progress: 0,
     review: "pending",
     batch,
+    countUse,
   });
+  enqueueRenderJob(render.id);
+  return render;
+}
+
+/** Queue a failed or interrupted render again, with the same plan. */
+export function retryRender(id: string): Render | undefined {
+  const r = store.render(id);
+  if (!r) return undefined;
+  store.updateRender(id, { status: "queued", progress: 0, error: undefined, review: "pending" });
+  enqueueRenderJob(id);
+  return store.render(id);
+}
+
+function enqueueRenderJob(id: string) {
   renderQueue.push(async () => {
-    store.updateRender(render.id, { status: "rendering" });
+    const render = store.render(id);
+    if (!render) return; // deleted while waiting
+    store.updateRender(id, { status: "rendering" });
     try {
       const clips = new Map(store.clips().map((c) => [c.id, c]));
-      const result = await renderVideo(render.id, planned, clips, options, (p) =>
-        store.updateRender(render.id, { progress: Math.round(p * 100) / 100 }),
+      const result = await renderVideo(id, render.plan, clips, render.options, (p) =>
+        store.updateRender(id, { progress: Math.round(p * 100) / 100 }),
       );
-      store.updateRender(render.id, { status: "done", progress: 1, ...result });
-      for (const id of countUse ? new Set(planned.segments.map((s) => s.clipId)) : []) {
-        const c = store.clip(id);
-        if (c) store.updateClip(id, { uses: c.uses + 1 });
+      store.updateRender(id, { status: "done", progress: 1, ...result });
+      if (render.countUse !== false) {
+        for (const clipId of new Set(render.plan.segments.map((s) => s.clipId))) {
+          const c = store.clip(clipId);
+          if (c) store.updateClip(clipId, { uses: c.uses + 1 });
+        }
+        // Count once, even if this render is retried later.
+        store.updateRender(id, { countUse: false });
       }
     } catch (err) {
-      store.updateRender(render.id, { status: "error", error: (err as Error).message });
+      store.updateRender(id, { status: "error", error: (err as Error).message });
     }
   });
-  return render;
 }
 
 export function deleteRender(id: string) {

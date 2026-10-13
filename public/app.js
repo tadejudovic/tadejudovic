@@ -599,7 +599,18 @@ function reviewCard(r) {
   return h("div", { class: `render ${r.review}` },
     media,
     h("div", { class: "body" },
-      r.error ? h("div", { class: "err" }, r.error) : null,
+      r.status === "error"
+        ? h("div", { class: "err-box" },
+            h("span", {}, r.error || "Something went wrong."),
+            h("button", {
+              class: "btn small",
+              onclick: (e) => withBusy(e.currentTarget, "…", async () => {
+                await api(`/api/renders/${r.id}/retry`, { method: "POST" });
+                await refreshRenders();
+              }),
+            }, "Try again"),
+          )
+        : null,
       h("span", { class: "field-label" }, "Text on video"),
       ...overlayInputs.map((inp) => h("div", { class: "overlay-edit" }, inp)),
       update,

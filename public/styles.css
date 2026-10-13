@@ -304,3 +304,4 @@ main { max-width: 980px; }
   .look { grid-template-columns: 110px minmax(0, 1fr); }
   .look-preview { width: auto; }
 }
+.err-box { display: flex; gap: 10px; align-items: center; justify-content: space-between; background: #fef2f2; color: var(--err); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }

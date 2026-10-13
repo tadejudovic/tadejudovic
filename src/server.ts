@@ -9,7 +9,8 @@ import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip } from "./library.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait } from "./generate.ts";
+import { ingestQueue } from "./queue.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRender } from "./generate.ts";
 import { addAlbum, syncAlbum } from "./albums.ts";
 import { localDate, runDailyBatch, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
@@ -477,6 +478,12 @@ app.patch("/api/renders/:id", (req, res) => {
   res.json(store.render(r.id));
 });
 
+app.post("/api/renders/:id/retry", (req, res) => {
+  const r = retryRender(String(req.params.id));
+  if (!r) return res.sendStatus(404);
+  res.json(r);
+});
+
 /** Change the on-screen text and render again; replaces the old version. */
 app.post("/api/renders/:id/rerender", (req, res) => {
   const r = store.render(String(req.params.id));
@@ -576,16 +583,22 @@ function parseDates(v: unknown): (string | undefined)[] {
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 
-// Work queues live in memory; anything in flight when the server stopped is lost.
+// Work queues live in memory, so pick up anything that was in flight when the server stopped
+// (e.g. a deploy restarted it).
 for (const c of store.clips()) {
-  if (c.status === "importing" || c.status === "analyzing") {
-    store.updateClip(c.id, { status: "error", error: "Interrupted by a restart — re-import or re-analyze." });
+  if (c.status !== "importing" && c.status !== "analyzing") continue;
+  const downloaded = c.status === "analyzing" || (c.source === "upload" && fs.existsSync(c.file));
+  if (downloaded && fs.existsSync(c.file)) {
+    ingestQueue.push(() => analyzeClip(c.id).catch((err) => void store.updateClip(c.id, { status: "error", error: err.message })));
+  } else if (c.source === "shared_album") {
+    // Possibly a partial download: drop it; the next album check (right after startup) imports it again.
+    deleteClip(c.id);
+  } else {
+    store.updateClip(c.id, { status: "error", error: "Interrupted by a restart. Upload it again." });
   }
 }
 for (const r of store.renders()) {
-  if (r.status === "queued" || r.status === "rendering") {
-    store.updateRender(r.id, { status: "error", error: "Interrupted by a restart." });
-  }
+  if (r.status === "queued" || r.status === "rendering") retryRender(r.id);
 }
 
 startScheduler();

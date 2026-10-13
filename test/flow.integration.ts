@@ -9,9 +9,10 @@ const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: any, init?: any) => {
   const url = String(input);
   if (url.startsWith("https://photos.app.goo.gl/")) return new Response(html, { headers: { "content-type": "text/html" } });
-  const serve = (f: string) => new Response(fs.readFileSync(path.join(footage, f)), { headers: { "content-type": "video/mp4" } });
+  const serve = (f: string, type = "video/mp4") => new Response(fs.readFileSync(path.join(footage, f)), { headers: { "content-type": type } });
   if (url.endsWith("VIDEO1=dv")) return serve("portrait.mp4");
-  if (url.endsWith("VIDEO3=dv")) return serve("landscape.mov");
+  // A vague content type: detected by sniffing the file header.
+  if (url.endsWith("VIDEO3=dv")) return serve("portrait2.mp4", "application/octet-stream");
   if (url.endsWith("PHOTO2=dv")) return new Response("jpeg", { headers: { "content-type": "image/jpeg" } });
   return realFetch(input, init);
 }) as typeof fetch;
@@ -27,6 +28,7 @@ console.log("first sync:", await syncAlbum(album.id));
 await wait(ingestQueue);
 console.log("clips:", store.clips().map((c) => [c.source, c.status, c.duration, c.capturedAt]));
 console.log("album:", (({ seen, ...a }) => ({ ...a, seen: seen.length }))(store.album(album.id)!));
+if (store.album(album.id)!.videoCount !== 2) throw new Error("expected 2 videos imported");
 console.log("second sync:", await syncAlbum(album.id));
 
 store.updateAuto({ dailyCount: 3, template: "auto", targetSeconds: 10 });

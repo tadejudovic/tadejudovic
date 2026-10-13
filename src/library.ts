@@ -22,7 +22,7 @@ export function enqueueClip(opts: {
   capturedAt?: string;
   /** Produces the original file at `dest`. */
   fetch: (dest: string) => Promise<void>;
-  onDone?: (result: "ready" | "skipped" | "error") => void;
+  onDone?: (result: "ready" | "skipped" | "error", reason?: string) => void;
 }): Clip {
   const id = newId();
   const ext = path.extname(opts.filename) || ".bin";
@@ -51,7 +51,7 @@ export function enqueueClip(opts: {
     } catch (err) {
       if (err instanceof SkipItem) {
         deleteClip(id);
-        opts.onDone?.("skipped");
+        opts.onDone?.("skipped", err.message);
         return;
       }
       store.updateClip(id, { status: "error", error: (err as Error).message });

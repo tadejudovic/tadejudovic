@@ -415,6 +415,11 @@ async function refreshAlbums() {
             a.lastSyncAt ? `checked ${new Date(a.lastSyncAt).toLocaleString()}` : "not checked yet",
           ),
           a.lastError ? h("div", { class: "err" }, a.lastError) : null,
+          a.skipped && Object.keys(a.skipped).length
+            ? h("div", { class: "muted", title: "What Google returned for items that weren't recognized as videos" },
+                `Skipped ${Object.values(a.skipped).reduce((x, y) => x + y, 0)} item(s) as not video: `,
+                Object.entries(a.skipped).map(([k, n]) => `${k} ×${n}`).join(" · "))
+            : null,
         ),
         h("button", {
           class: "btn small",

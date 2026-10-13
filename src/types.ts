@@ -152,6 +152,10 @@ export interface AlbumSource {
   /** Item ids already handled (imported videos and skipped photos). */
   seen: string[];
   videoCount: number;
+  /** Version of the video-detection logic `seen` was built with; a newer version re-checks skipped items. */
+  detectVersion?: number;
+  /** What Google answered for items that weren't recognized as videos, counted ("=dv: image/jpeg" → 12). */
+  skipped?: Record<string, number>;
 }
 
 /** A text-overlay format that is currently performing on TikTok. */

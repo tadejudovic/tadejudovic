@@ -145,18 +145,86 @@ function collectItems(node: unknown, out: Map<string, AlbumItem>) {
   for (const child of node) collectItems(child, out);
 }
 
+/** Container signatures at bytes 4–8 of MP4/MOV files. */
+const VIDEO_BOXES = new Set(["ftyp", "moov", "mdat", "wide", "free", "skip"]);
+
+export interface VideoProbe {
+  res: Response | null;
+  /** What Google answered, for diagnostics ("image/jpeg 200", …). */
+  answer: string;
+}
+
 /**
  * Album pages don't reliably say which items are videos, so ask for the video
- * stream (`=dv`) and look at what comes back. Returns null for photos.
+ * stream and check what comes back: the declared content type, and if that's
+ * vague, the first bytes of the file. Tries the original (=dv) and then
+ * Google's 1080p/720p/360p transcodes.
  */
-export async function openVideo(item: AlbumItem): Promise<Response | null> {
-  const res = await fetch(`${item.baseUrl}=dv`, { headers: { "user-agent": UA }, redirect: "follow" });
-  const type = res.headers.get("content-type") ?? "";
-  if (!res.ok || !type.startsWith("video/")) {
-    await res.body?.cancel();
-    return null;
+export async function openVideo(item: AlbumItem): Promise<VideoProbe> {
+  const answers: string[] = [];
+  for (const suffix of ["=dv", "=m37", "=m22", "=m18"]) {
+    let res: Response;
+    try {
+      res = await fetch(`${item.baseUrl}${suffix}`, {
+        headers: { ...HEADERS, referer: "https://photos.google.com/" },
+        redirect: "follow",
+      });
+    } catch (err) {
+      answers.push(`${suffix}: ${(err as Error).message}`);
+      continue;
+    }
+    const type = (res.headers.get("content-type") ?? "?").split(";")[0];
+    if (!res.ok || !res.body) {
+      answers.push(`${suffix}: ${type} ${res.status}`);
+      await res.body?.cancel();
+      continue;
+    }
+    if (type.startsWith("video/")) return { res, answer: `${suffix}: ${type}` };
+    if (type.startsWith("image/") || type.startsWith("text/")) {
+      answers.push(`${suffix}: ${type}`);
+      await res.body.cancel();
+      // A photo answers =dv with the image itself; no point trying transcodes.
+      if (suffix === "=dv" && type.startsWith("image/")) break;
+      continue;
+    }
+    // Vague type (e.g. application/octet-stream): sniff the file header.
+    const { head, body } = await peek(res.body, 12);
+    const box = Buffer.from(head.subarray(4, 8)).toString("latin1");
+    if (VIDEO_BOXES.has(box)) {
+      return { res: new Response(body, { status: res.status, headers: res.headers }), answer: `${suffix}: ${type} (${box})` };
+    }
+    answers.push(`${suffix}: ${type} [${Buffer.from(head).toString("hex").slice(0, 16)}]`);
+    await body.cancel();
   }
-  return res;
+  return { res: null, answer: answers.join(", ") || "no answer" };
+}
+
+/** Read the first `n` bytes of a stream and return them plus a stream that still yields everything. */
+async function peek(stream: ReadableStream<Uint8Array>, n: number) {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (size < n) {
+    const { value, done } = await reader.read();
+    if (done || !value) break;
+    chunks.push(value);
+    size += value.length;
+  }
+  const head = Buffer.concat(chunks);
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (head.length) controller.enqueue(new Uint8Array(head));
+    },
+    async pull(controller) {
+      const { value, done } = await reader.read();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+  return { head: new Uint8Array(head), body };
 }
 
 export async function saveResponse(res: Response, dest: string) {

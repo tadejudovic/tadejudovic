@@ -13,6 +13,9 @@ export function addAlbum(url: string): AlbumSource {
 
 const syncing = new Set<string>();
 
+/** Bump when video detection changes, so items wrongly skipped as photos get another look. */
+const DETECT_VERSION = 2;
+
 /**
  * Check a shared album for items we haven't seen and import the videos.
  * Photos in the album are remembered and skipped.
@@ -24,7 +27,11 @@ export async function syncAlbum(id: string): Promise<{ newItems: number }> {
   syncing.add(id);
   try {
     const page = await fetchAlbum(album.url);
-    const seen = new Set(album.seen);
+    if (album.detectVersion !== DETECT_VERSION) {
+      // Keep only items that were actually imported; everything skipped gets re-checked.
+      store.updateAlbum(id, { seen: album.seen.filter((s) => store.hasSource(s)), skipped: {}, detectVersion: DETECT_VERSION });
+    }
+    const seen = new Set(store.album(id)!.seen);
     // Retry items whose earlier download failed.
     for (const c of store.clips()) {
       if (c.status === "error" && c.sourceId && page.items.some((it) => it.id === c.sourceId)) deleteClip(c.id);
@@ -37,13 +44,17 @@ export async function syncAlbum(id: string): Promise<{ newItems: number }> {
         filename: `${page.title ?? "album"}-${item.id.slice(-8)}.mp4`,
         capturedAt: item.takenAt ? new Date(item.takenAt).toISOString() : undefined,
         fetch: async (dest) => {
-          const res = await openVideo(item);
-          if (!res) throw new SkipItem("not a video");
+          const { res, answer } = await openVideo(item);
+          if (!res) throw new SkipItem(answer);
           await saveResponse(res, dest);
         },
-        onDone: (result) => {
+        onDone: (result, reason) => {
           const a = store.album(id);
           if (!a) return;
+          if (result === "skipped" && reason) {
+            const key = reason.slice(0, 120);
+            store.updateAlbum(id, { skipped: { ...a.skipped, [key]: (a.skipped?.[key] ?? 0) + 1 } });
+          }
           // Errors aren't marked as seen, so a failed download is retried on the next sync.
           if (result !== "error") store.updateAlbum(id, { seen: [...new Set([...a.seen, item.id])] });
           if (result === "ready") store.updateAlbum(id, { videoCount: a.videoCount + 1 });

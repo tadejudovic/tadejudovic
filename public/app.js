@@ -359,6 +359,7 @@ async function refreshRenders() {
   state.renders = await api("/api/renders");
   renderRenders();
   renderBatch();
+  renderHomeState();
 }
 
 const renderEls = new Map();
@@ -423,6 +424,7 @@ function renderCard(r) {
 
 async function refreshAlbums() {
   const albums = await api("/api/albums");
+  state.albumCount = albums.length;
   $("#albums").replaceChildren(
     ...albums.map((a) =>
       h("li", {},
@@ -476,7 +478,7 @@ $("#album-form").addEventListener("submit", (e) => {
 // ---- Daily batch --------------------------------------------------------------
 
 async function loadAuto() {
-  const a = await api("/api/auto");
+  const a = (state.auto = await api("/api/auto"));
   const f = $("#auto");
   f.enabled.checked = a.enabled;
   f.dailyTime.value = a.dailyTime;
@@ -503,10 +505,10 @@ $("#auto").addEventListener("change", async (e) => {
 });
 
 $("#btn-batch").addEventListener("click", (e) =>
-  withBusy(e.currentTarget, "Preparing… (1–3 min)", async () => {
+  withBusy(e.currentTarget, "Making… (1–3 min)", async () => {
     const r = await api("/api/batch/run", { method: "POST" });
     if (r.warning) banner(r.warning);
-    else banner(`${r.renders.length} videos are rendering — they appear below as they finish.`, "ok");
+    else banner(`Making ${r.renders.length} videos. They appear below as they finish.`, "ok");
     await refreshRenders();
   }),
 );
@@ -540,9 +542,10 @@ function renderBatch() {
   const when = latest
     ? new Date(`${latest}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
     : "";
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   $("#batch-date").textContent = latest
-    ? `${when} · ${approved} of ${items.length} approved`
-    : "Your daily batch, ready to review.";
+    ? `${when} · ${approved} of ${items.length} downloaded`
+    : today;
   $("#batch").replaceChildren(
     ...items.map((r) => {
       const key = `${r.id}:${r.status}:${r.review}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
@@ -561,15 +564,24 @@ function reviewCard(r) {
       ? h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, controls: true, loop: true, playsinline: true, preload: "none" })
       : h("div", { class: "ph" },
           h("div", {},
-            r.status === "error" ? "Render failed" : r.status === "queued" ? "Queued…" : `Rendering… ${Math.round(r.progress * 100)}%`,
+            r.status === "error" ? "Couldn't make this one" : r.status === "queued" ? "Waiting…" : `Making… ${Math.round(r.progress * 100)}%`,
             r.status === "rendering" ? h("div", { class: "bar" }, h("i", { style: { width: `${r.progress * 100}%` } })) : null,
           ),
         );
-  const overlayInputs = (r.plan.overlays?.length ? r.plan.overlays.map((o) => o.text) : [r.plan.hook]).map((t, i) =>
-    h("input", { value: t, title: i === 0 ? "On-screen overlay text" : "Second overlay (appears later)" }),
+  const texts = r.plan.overlays?.length ? r.plan.overlays.map((o) => o.text) : [r.plan.hook];
+  const update = h("button", { class: "btn small", hidden: true, title: "Make the video again with this text" }, "Update");
+  const overlayInputs = texts.map((t) => h("input", { value: t, oninput: () => (update.hidden = false) }));
+  update.addEventListener("click", (e) =>
+    withBusy(e.currentTarget, "…", async () => {
+      await api(`/api/renders/${r.id}/rerender`, {
+        method: "POST",
+        body: { overlays: overlayInputs.map((i) => i.value), options: { fontId: state.status.settings.fontId, textStyle: state.status.settings.textStyle } },
+      });
+      await refreshRenders();
+    }),
   );
   const captionText = [r.plan.postCaption, r.plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
-  const caption = h("textarea", { title: "Post caption" }, captionText);
+  const caption = h("textarea", { rows: 3 }, captionText);
   const saveCaption = async () => {
     const tags = caption.value.match(/#[\w\u00C0-\uFFFF]+/g) ?? [];
     const text = caption.value.replace(/(^|\s)#[\w\u00C0-\uFFFF]+/g, "").trim();
@@ -583,39 +595,36 @@ function reviewCard(r) {
     await api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } });
     await refreshRenders();
   };
+  const done = r.status === "done";
   return h("div", { class: `render ${r.review}` },
     media,
     h("div", { class: "body" },
-      h("span", { class: `pill ${r.review}` }, r.review === "pending" ? "needs review" : r.review),
       r.error ? h("div", { class: "err" }, r.error) : null,
-      r.plan.concept ? h("div", { class: "concept" }, r.plan.concept) : null,
-      basedOnLine(r.plan),
-      h("div", { class: "overlay-edit" },
-        overlayInputs[0],
+      h("span", { class: "field-label" }, "Text on video"),
+      ...overlayInputs.map((inp) => h("div", { class: "overlay-edit" }, inp)),
+      update,
+      h("span", { class: "field-label with-action" }, "Caption",
         h("button", {
-          class: "btn small", title: "Render again with this overlay text and the current font/style",
-          onclick: (e) => withBusy(e.currentTarget, "…", async () => {
-            await api(`/api/renders/${r.id}/rerender`, {
-              method: "POST",
-              body: { overlays: overlayInputs.map((i) => i.value), options: { fontId: state.status.settings.fontId, textStyle: state.status.settings.textStyle } },
-            });
-            await refreshRenders();
-          }),
-        }, "Re-render"),
-      ),
-      ...overlayInputs.slice(1).map((inp) => h("div", { class: "overlay-edit" }, inp)),
-      caption,
-      h("div", { class: "row" },
-        r.status === "done" ? h("a", { class: "btn small primary", href: `/media/render/${r.id}.mp4?dl=1`, onclick: () => r.review !== "approved" && setReview("approved") }, "Approve & download") : null,
-        h("button", {
-          class: "btn small",
+          class: "link-btn",
           onclick: async (e) => {
             await navigator.clipboard.writeText(caption.value);
-            e.target.textContent = "Copied!";
-            setTimeout(() => (e.target.textContent = "Copy caption"), 1500);
+            e.target.textContent = "Copied ✓";
+            setTimeout(() => (e.target.textContent = "Copy"), 1500);
           },
-        }, "Copy caption"),
-        r.review !== "rejected" ? h("button", { class: "btn small", onclick: () => setReview("rejected") }, "Reject") : h("button", { class: "btn small", onclick: () => setReview("pending") }, "Undo"),
+        }, "Copy"),
+      ),
+      caption,
+      basedOnLine(r.plan),
+      h("div", { class: "card-actions" },
+        r.review === "rejected"
+          ? h("button", { class: "btn small", onclick: () => setReview("pending") }, "Undo skip")
+          : [
+              done
+                ? h("a", { class: `btn primary grow ${r.review === "approved" ? "done" : ""}`, href: `/media/render/${r.id}.mp4?dl=1`, onclick: () => r.review !== "approved" && setReview("approved") },
+                    r.review === "approved" ? "Downloaded ✓" : "Download")
+                : null,
+              h("button", { class: "btn quiet-btn", title: "Don't post this one", onclick: () => setReview("rejected") }, "Skip"),
+            ],
       ),
     ),
   );
@@ -627,7 +636,7 @@ async function makeFromClip(btn, clipId) {
   return withBusy(btn, "Creating…", async () => {
     const r = await api("/api/generate", { method: "POST", body: { template: "auto", count: 1, clipIds: [clipId], useAi: true, batch: "today" } });
     if (r.warning) banner(r.warning);
-    else banner("Creating your video. It appears at the top of Create when it's ready.", "ok");
+    else banner("Making your video. It appears under Videos in a minute or two.", "ok");
     await Promise.all([refreshRenders(), refreshSuggestions()]);
   });
 }
@@ -657,10 +666,9 @@ const fmtViews = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}
 
 function basedOnLine(plan) {
   const b = plan.basedOn;
-  const where = plan.scene ? `${plan.scene} · ` : "";
-  if (!b) return plan.scene ? h("div", { class: "based" }, `${where}original caption`) : null;
-  return h("div", { class: "based" },
-    `${where}based on “${b.text}”`,
+  if (!b) return null;
+  return h("div", { class: "based", title: plan.scene ? `Situation: ${plan.scene}` : "" },
+    `Inspired by “${b.text}”`,
     b.views ? ` · ${fmtViews(b.views)} views` : "",
     b.url ? [" · ", h("a", { href: b.url, target: "_blank", rel: "noopener noreferrer" }, "source")] : null,
   );
@@ -782,23 +790,18 @@ async function loadFonts() {
   $("#look-sample").style.fontFamily = `"${fontFamily(current)}"`;
   $("#look-preview").className = `look-preview ${textStyle}`;
   for (const r of document.querySelectorAll("#text-style input")) r.checked = r.value === textStyle;
-  $("#fonts").replaceChildren(
+  // Font names in the dropdown are shown in their own typeface where the browser supports it.
+  $("#font-select").replaceChildren(
     ...fonts.map((f) =>
-      h("button", {
-        type: "button",
-        class: `font ${f.id === current?.id ? "on" : ""}`,
-        title: f.vibe,
-        onclick: async () => {
-          state.status.settings = await api("/api/settings", { method: "PUT", body: { fontId: f.id } });
-          loadFonts();
-        },
-      },
-        h("span", { class: "fname", style: { fontFamily: `"${fontFamily(f)}", sans-serif` } }, f.name),
-        h("span", { class: "fvibe" }, f.vibe),
-      ),
+      h("option", { value: f.id, selected: f.id === current?.id, style: { fontFamily: `"${fontFamily(f)}", sans-serif` } }, `${f.name} — ${f.vibe}`),
     ),
   );
 }
+
+$("#font-select").addEventListener("change", async (e) => {
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { fontId: e.target.value } });
+  loadFonts();
+});
 
 $("#text-style").addEventListener("change", async (e) => {
   state.status.settings = await api("/api/settings", { method: "PUT", body: { textStyle: e.target.value } });
@@ -861,10 +864,46 @@ $("#example-form").addEventListener("submit", (e) => {
   });
 });
 
+// ---- Onboarding & activity ---------------------------------------------------
+
+function renderHomeState() {
+  const noSource = state.albumCount === 0 && state.clips.length === 0;
+  $("#onboard").hidden = !noSource;
+  $("#btn-batch").hidden = noSource;
+  const latest = latestBatch();
+  const hasToday = state.renders.some((r) => r.batch && r.batch === latest);
+  $("#batch-empty").hidden = noSource || hasToday;
+  const importing = state.clips.filter((c) => c.status === "importing" || c.status === "analyzing").length;
+  const making = state.renders.filter((r) => r.status === "queued" || r.status === "rendering").length;
+  const parts = [];
+  if (importing) parts.push(`Importing ${importing} clip${importing === 1 ? "" : "s"} from your album…`);
+  if (making) parts.push(`Making ${making} video${making === 1 ? "" : "s"}…`);
+  $("#activity").textContent = parts.join(" ");
+  $("#activity").hidden = !parts.length;
+  const ready = state.clips.filter((c) => c.status === "ready").length;
+  $("#batch-empty-text").textContent = ready
+    ? `${ready} clips ready. New videos are made every morning at ${state.auto?.dailyTime ?? "8:00"}, or click “Make videos”.`
+    : "Your clips are being imported. Videos will follow.";
+}
+
+$("#onboard-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  withBusy(form.querySelector("button"), "Connecting…", async () => {
+    const r = await api("/api/albums", { method: "POST", body: { url: form.url.value } });
+    if (r.error) banner(`Couldn't read the album: ${r.error}`);
+    else banner(`Connected “${r.album.title || "your album"}”. Importing videos now.`, "ok");
+    form.reset();
+    await Promise.all([refreshAlbums(), refreshClips()]);
+    renderHomeState();
+  });
+});
+
 // ---- Tabs -------------------------------------------------------------------
 
-const TABS = ["review", "clips", "captions", "style", "settings"];
+const TABS = ["review", "settings"];
 function showTab(name) {
+  if (["clips", "captions", "style"].includes(name)) name = "settings";
   if (!TABS.includes(name)) name = "review";
   for (const sec of document.querySelectorAll("main > section[data-tab]")) sec.hidden = sec.dataset.tab !== name;
   for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("on", b.dataset.tab === name);
@@ -888,11 +927,13 @@ if (params.size) history.replaceState(null, "", `/${location.hash}`);
 await loadStatus();
 await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadTrends(), loadFonts(), refreshExamples(), refreshScenes()]);
 await refreshSuggestions();
+renderHomeState();
 
 setInterval(async () => {
   const busyClips = state.clips.some((c) => c.status === "importing" || c.status === "analyzing");
   const busyRenders = state.renders.some((r) => r.status === "queued" || r.status === "rendering");
   if (busyClips) await Promise.all([refreshClips(), refreshAlbums(), refreshScenes(), refreshSuggestions()]).catch(() => {});
+  if (busyClips || busyRenders) renderHomeState();
   if (busyRenders) await refreshRenders().catch(() => {});
   if (state.examplesBusy) await refreshExamples().catch(() => {});
 }, 2000);

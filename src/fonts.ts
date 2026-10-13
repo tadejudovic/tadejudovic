@@ -51,7 +51,7 @@ export const FONTS: FontDef[] = [
   { id: "dm-serif-display", name: "DM Serif Display", query: "DM+Serif+Display", family: "DM Serif Display", weight: 400, vibe: "Classy high-contrast serif" },
 ];
 
-export const DEFAULT_FONT_ID = "tiktok-sans";
+export const DEFAULT_FONT_ID = "montserrat";
 const fontsDir = path.join(config.dataDir, "fonts");
 const customDir = path.join(fontsDir, "custom");
 fs.mkdirSync(customDir, { recursive: true });

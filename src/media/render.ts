@@ -77,6 +77,8 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
     classic: "fontcolor=white:borderw=7:bordercolor=black@0.95:shadowcolor=black@0.45:shadowx=0:shadowy=4",
     box: "fontcolor=black:box=1:boxcolor=white@0.97:boxborderw=18",
     plain: "fontcolor=white:shadowcolor=black@0.7:shadowx=0:shadowy=3",
+    // CapCut's yellow preset: yellow fill, thin dark outline, drop shadow down and to the right.
+    yellow: "fontcolor=0xFFE41A:borderw=4:bordercolor=0x1A1400@0.95:shadowcolor=black@0.55:shadowx=5:shadowy=5",
   }[opts.style];
   const filters = lines.map((line, i) => {
     const file = path.join(opts.tmp, `${opts.key}-${i}.txt`);

@@ -156,7 +156,7 @@ export interface RenderOptions {
   fontId: string;
 }
 
-export type TextStyle = "classic" | "box" | "plain";
+export type TextStyle = "yellow" | "classic" | "box" | "plain";
 
 export interface GenerateRequest {
   template: TemplateId;

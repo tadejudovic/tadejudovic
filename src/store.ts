@@ -29,6 +29,8 @@ export interface Settings {
   scenes: string[];
   /** Monthly cap on estimated AI (Claude API) spend, in USD. */
   aiMonthlyBudget: number;
+  /** Set once the yellow CapCut look became the default (keeps later manual choices). */
+  lookV2?: boolean;
 }
 
 export const DEFAULT_SCENES = [
@@ -43,8 +45,8 @@ export const DEFAULT_SCENES = [
 const DEFAULT_SETTINGS: Settings = {
   petName: "Lex",
   handle: "",
-  fontId: "tiktok-sans",
-  textStyle: "classic",
+  fontId: "montserrat",
+  textStyle: "yellow",
   scenes: DEFAULT_SCENES,
   aiMonthlyBudget: Number(process.env.AI_MONTHLY_BUDGET) || 20,
 };
@@ -69,6 +71,12 @@ function load(): DB {
   try {
     const db = JSON.parse(fs.readFileSync(config.dbFile, "utf8")) as DB;
     db.settings = { ...DEFAULT_SETTINGS, ...db.settings };
+    // One-time switch to the creator's CapCut look (yellow preset) if the old defaults were never changed.
+    if (!db.settings.lookV2) {
+      if (db.settings.textStyle === "classic") db.settings.textStyle = "yellow";
+      if (db.settings.fontId === "tiktok-sans") db.settings.fontId = "montserrat";
+      db.settings.lookV2 = true;
+    }
     db.albums ??= [];
     for (const a of db.albums) a.kind ??= "google_photos_album";
     db.examples ??= [];

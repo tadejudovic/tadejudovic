@@ -213,6 +213,7 @@ select { max-width: 100%; }
 .look-preview span { font-size: 20px; line-height: 1.24; color: #fff; max-width: 92%; }
 .look-preview.classic span { -webkit-text-stroke: 3px #000; paint-order: stroke fill; text-shadow: 0 2px 2px rgba(0,0,0,.35); }
 .look-preview.box span { color: #000; background: #fff; padding: 2px 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; height: max-content; }
+.look-preview.yellow span { color: #ffe41a; -webkit-text-stroke: 2px #1a1400; paint-order: stroke fill; text-shadow: 2px 2px 1px rgba(0,0,0,.55); }
 .look-preview.plain span { text-shadow: 0 2px 3px rgba(0,0,0,.6); }
 .look-controls { display: grid; gap: 16px; min-width: 0; }
 .fonts { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }

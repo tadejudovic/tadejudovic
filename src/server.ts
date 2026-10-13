@@ -109,7 +109,7 @@ app.put("/api/settings", (req, res) => {
       ...(typeof petName === "string" && petName.trim() ? { petName: petName.trim().slice(0, 40) } : {}),
       ...(typeof handle === "string" ? { handle: handle.trim().slice(0, 40) } : {}),
       ...(fontOk ? { fontId } : {}),
-      ...(["classic", "box", "plain"].includes(textStyle) ? { textStyle } : {}),
+      ...(["yellow", "classic", "box", "plain"].includes(textStyle) ? { textStyle } : {}),
       ...(Number.isFinite(Number(aiMonthlyBudget)) && aiMonthlyBudget !== "" && aiMonthlyBudget !== undefined
         ? { aiMonthlyBudget: clamp(Number(aiMonthlyBudget), 0, 1000) }
         : {}),
@@ -453,7 +453,7 @@ function parseOptions(body: any): RenderOptions {
   const fontId = typeof body?.fontId === "string" && listFonts().some((f) => f.id === body.fontId) ? body.fontId : settings.fontId;
   return {
     keepOriginalAudio: body?.keepOriginalAudio !== false,
-    textStyle: ["classic", "box", "plain"].includes(body?.textStyle) ? body.textStyle : settings.textStyle,
+    textStyle: ["yellow", "classic", "box", "plain"].includes(body?.textStyle) ? body.textStyle : settings.textStyle,
     fontId,
     musicFile,
   };

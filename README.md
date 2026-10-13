@@ -107,6 +107,10 @@ Set `ANTHROPIC_API_KEY` in `.env`. Claude then:
 
 Because the frames are only analyzed once, planning a day's worth of videos is a single cheap text-only call. Requests use server-side refusal fallbacks (`fallbacks: "default"`). If the API is unavailable, the app falls back to the heuristic planner. Use **Preview plans** to edit hooks and captions before rendering.
 
+### Search TikTok for proven captions (optional)
+
+Set `APIFY_TOKEN` (from [apify.com](https://apify.com) → Settings → API & Integrations). Caption research then searches TikTok itself for each situation (e.g. "dog boarding gate", "pov dog boarding gate"), keeps the most-viewed videos (20K+ views), and has Claude read the text on each video's cover. Every proven caption then has a real view count and a link to the video. It runs once a week per situation and costs roughly $0.30 per search on Apify; Apify's free plan includes $5 a month. This cost counts toward the app's monthly spending limit. Without the token, research falls back to Claude's web search, which rarely sees view counts.
+
 ## Put it online behind a password (studio.lexintheair.com)
 
 The app needs an always-on server with ffmpeg and a disk. Serverless hosts like Vercel can't run long video renders or the daily schedule. The repo ships a `Dockerfile` and a Render blueprint (`render.yaml`).

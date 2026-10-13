@@ -37,6 +37,11 @@ export const config = {
     enabled: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
     model: process.env.CLAUDE_MODEL ?? "claude-opus-5-5",
   },
+  /** Apify (apify.com) token: lets caption research search TikTok itself, with real view counts. */
+  apify: {
+    token: process.env.APIFY_TOKEN ?? "",
+    actor: process.env.APIFY_TIKTOK_ACTOR ?? "clockworks~tiktok-scraper",
+  },
   fontFile: findFont(),
   output: { width: 1080, height: 1920, fps: 30 },
 };

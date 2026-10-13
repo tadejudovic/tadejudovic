@@ -742,6 +742,9 @@ function basedOnLine(plan) {
 const openScenes = new Set();
 async function refreshScenes() {
   const list = await api("/api/scenes");
+  $("#research-source").textContent = state.status?.tiktokSearch
+    ? "Captions come from TikTok search (via Apify): the most-viewed videos for each situation, with real view counts."
+    : "Captions come from web search, which rarely shows view counts. Add an APIFY_TOKEN on Render to search TikTok directly.";
   $("#scenes").replaceChildren(
     ...list.map((s) => {
       const r = s.research;
@@ -749,7 +752,7 @@ async function refreshScenes() {
       const status = s.scene === "other"
         ? "clips that don't fit a situation"
         : r?.updatedAt
-          ? `${caps.length} proven caption${caps.length === 1 ? "" : "s"} · researched ${new Date(r.updatedAt).toLocaleDateString()}`
+          ? `${caps.length} proven caption${caps.length === 1 ? "" : "s"} · ${r.source === "tiktok" ? "searched on TikTok" : "web search"} ${new Date(r.updatedAt).toLocaleDateString()}`
           : caps.length ? `${caps.length} caption(s) you added · not researched yet` : "not researched yet";
       const details = h("details", { class: "scene", open: openScenes.has(s.scene), ontoggle: (e) => (e.target.open ? openScenes.add(s.scene) : openScenes.delete(s.scene)) },
         h("summary", {},

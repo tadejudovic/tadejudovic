@@ -64,6 +64,8 @@ export interface SceneResearch {
   scene: string;
   updatedAt?: string;
   error?: string;
+  /** Where the captions came from: TikTok search via Apify, or Claude's web search. */
+  source?: "tiktok" | "web";
   captions: ProvenCaption[];
 }
 

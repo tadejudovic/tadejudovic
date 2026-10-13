@@ -15,6 +15,7 @@ import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRend
 import { addAlbum, forgetItem, syncAlbum } from "./albums.ts";
 import { localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
+import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
@@ -95,6 +96,7 @@ app.get("/api/status", (_req, res) => {
     paused,
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     memoryMb,
+    tiktokSearch: apifyEnabled(),
     settings: store.settings(),
     templates: Object.values(TEMPLATES).map(({ id, name, description }) => ({ id, name, description })),
     music: listMusic(),

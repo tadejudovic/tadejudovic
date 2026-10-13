@@ -14,6 +14,8 @@ services:
         sync: false # you type it in when deploying
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: APIFY_TOKEN
+        sync: false # optional: apify.com API token; caption research then searches TikTok with real view counts
       - key: APP_URL
         value: https://studio.lexintheair.com
       - key: MEMORY_MB

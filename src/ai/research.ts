@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { assertBudget, BudgetExceeded, recordUsage } from "./budget.ts";
 import { store, newId } from "../store.ts";
+import { apifyEnabled, researchSceneOnTikTok } from "./tiktokSearch.ts";
 import type { ProvenCaption, SceneResearch } from "../types.ts";
 
 /**
@@ -9,17 +10,21 @@ import type { ProvenCaption, SceneResearch } from "../types.ts";
  * search TikTok for videos of a dog in the same situation (e.g. "security
  * check"), find the ones with lots of views, and note the text they used.
  *
- * Claude does this with server-side web search and web fetch. It can only see
- * what's publicly indexed (post descriptions, TikTok "discover" pages,
- * articles), so view counts are reported only when a source shows them. The
- * creator can add captions they found themselves; those are always kept.
+ * With an Apify token this searches TikTok itself (real results, real view
+ * counts; see tiktokSearch.ts). Without one, Claude uses server-side web search
+ * and web fetch, which only sees what's publicly indexed (post descriptions,
+ * TikTok "discover" pages, articles), so view counts are reported only when a
+ * source shows them. The creator's own captions are always kept.
  */
 
 export const RESEARCH_MAX_AGE_MS = 7 * 86400_000;
 
 export function researchStale(scene: string): boolean {
   const r = store.research(scene);
-  return !r?.updatedAt || Date.now() - Date.parse(r.updatedAt) > RESEARCH_MAX_AGE_MS;
+  if (!r?.updatedAt) return true;
+  // Once TikTok search is connected, older web-search results are redone right away.
+  if (apifyEnabled() && r.source !== "tiktok") return true;
+  return Date.now() - Date.parse(r.updatedAt) > RESEARCH_MAX_AGE_MS;
 }
 
 /** Proven captions for a situation, most-viewed first; creator-added ones always included. */
@@ -45,6 +50,16 @@ async function doResearch(scene: string): Promise<SceneResearch> {
   const { petName } = store.settings();
   const previous = store.research(scene);
   const creatorCaptions = (previous?.captions ?? []).filter((c) => c.kind === "creator");
+  if (apifyEnabled()) {
+    try {
+      const found = await researchSceneOnTikTok(scene, petName);
+      return store.setResearch({ scene, source: "tiktok", updatedAt: new Date().toISOString(), captions: [...creatorCaptions, ...found] });
+    } catch (err) {
+      if (err instanceof BudgetExceeded) throw err;
+      store.setResearch({ scene, source: previous?.source, updatedAt: previous?.updatedAt, error: (err as Error).message, captions: previous?.captions ?? [] });
+      throw err;
+    }
+  }
   const client = new Anthropic();
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     {
@@ -92,6 +107,7 @@ async function doResearch(scene: string): Promise<SceneResearch> {
     const found = parseCaptions(text);
     const result: SceneResearch = {
       scene,
+      source: "web",
       updatedAt: new Date().toISOString(),
       captions: [...creatorCaptions, ...found],
     };
@@ -101,6 +117,7 @@ async function doResearch(scene: string): Promise<SceneResearch> {
     if (err instanceof BudgetExceeded) throw err;
     const failed: SceneResearch = {
       scene,
+      source: previous?.source,
       updatedAt: previous?.updatedAt,
       error: (err as Error).message,
       captions: previous?.captions ?? [],

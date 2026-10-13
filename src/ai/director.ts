@@ -18,7 +18,7 @@ const anthropic = () => (client ??= new Anthropic());
 // Anthropic's recommended fallback model instead of returning a refusal.
 const FALLBACK = { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const };
 
-async function structured<T>(params: {
+export async function structured<T>(params: {
   system: string;
   content: Anthropic.Beta.BetaContentBlockParam[];
   schema: Record<string, unknown>;

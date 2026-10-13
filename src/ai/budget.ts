@@ -54,3 +54,9 @@ export function recordUsage(msg: Pick<Anthropic.Beta.BetaMessage, "usage" | "mod
   store.setSpend({ month: current.month, usd: current.usd + usd, calls: current.calls + 1 });
   return usd;
 }
+
+/** Add a non-Claude cost (e.g. an Apify TikTok search) to this month's total. */
+export function recordCost(usd: number) {
+  const current = spendThisMonth();
+  store.setSpend({ month: current.month, usd: current.usd + usd, calls: current.calls + 1 });
+}

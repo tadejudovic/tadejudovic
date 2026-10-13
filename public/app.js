@@ -1,0 +1,396 @@
+const $ = (s, el = document) => el.querySelector(s);
+const state = { status: null, clips: [], renders: [], selected: new Set(), plans: null, planOptions: null };
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: opts.body && !(opts.body instanceof FormData) ? { "content-type": "application/json" } : {},
+    body: opts.body && !(opts.body instanceof FormData) ? JSON.stringify(opts.body) : opts.body,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
+  return data;
+}
+
+/** Tiny element builder; children strings become text nodes (never HTML). */
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) el.append(c);
+  return el;
+}
+
+function banner(msg, kind = "warn") {
+  const b = $("#banner");
+  b.textContent = msg;
+  b.className = `banner ${kind}`;
+  b.hidden = !msg;
+  if (msg) clearTimeout(banner.t), (banner.t = setTimeout(() => (b.hidden = true), 9000));
+}
+
+const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : `${s.toFixed(1)}s`);
+
+// ---- Status ---------------------------------------------------------------
+
+async function loadStatus() {
+  const s = (state.status = await api("/api/status"));
+  $("#chip-google").classList.toggle("on", s.google.connected);
+  $("#chip-ai").classList.toggle("on", s.claude.enabled);
+  $("#chip-ai").title = s.claude.enabled ? `Using ${s.claude.model}` : "Set ANTHROPIC_API_KEY to enable";
+  const form = $("#settings");
+  if (document.activeElement?.form !== form) {
+    form.petName.value = s.settings.petName;
+    form.handle.value = s.settings.handle;
+  }
+  const btn = $("#btn-google");
+  btn.textContent = s.google.connected ? "Import from Google Photos" : "Connect Google Photos";
+  $("#google-hint").textContent = !s.google.configured
+    ? "Google Photos isn't configured yet — add GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET to .env (see README). Uploading files works now."
+    : s.google.connected
+      ? "You'll pick clips in Google Photos' own picker. Tip: search “Lex” or a pet-face group there to grab everything at once."
+      : "";
+  if (!s.fontAvailable) banner("No bold font found, so on-screen text is disabled. Set FONT_FILE in .env.");
+  const tpl = $("#templates");
+  if (!tpl.children.length) {
+    s.templates.forEach((t, i) =>
+      tpl.append(h("label", { class: "tpl" }, h("input", { type: "radio", name: "template", value: t.id, checked: i === 0 }), h("b", {}, t.name), h("span", {}, t.description))),
+    );
+  }
+  const music = $("#music");
+  const current = music.value;
+  music.replaceChildren(music.options[0], ...s.music.map((m) => h("option", { value: m.id }, m.name)));
+  music.value = current;
+  $("input[name=useAi]").disabled = !s.claude.enabled;
+  if (!s.claude.enabled) $("input[name=useAi]").checked = false;
+}
+
+$("#settings").addEventListener("change", async (e) => {
+  const f = e.currentTarget;
+  await api("/api/settings", { method: "PUT", body: { petName: f.petName.value, handle: f.handle.value } });
+});
+$("#settings").addEventListener("submit", (e) => e.preventDefault());
+
+// ---- Google Photos picker ---------------------------------------------------
+
+$("#btn-google").addEventListener("click", async () => {
+  const s = state.status;
+  if (!s.google.configured) return banner("Add Google OAuth credentials to .env first (see README).");
+  if (!s.google.connected) return (location.href = "/auth/google");
+  const btn = $("#btn-google");
+  // Open the window synchronously so popup blockers allow it.
+  const win = window.open("", "gphotos-picker", "width=1100,height=800");
+  try {
+    btn.disabled = true;
+    btn.textContent = "Waiting for your picks…";
+    const session = await api("/api/google/picker", { method: "POST" });
+    if (win) win.location.href = `${session.pickerUri}/autoclose`;
+    else window.open(`${session.pickerUri}/autoclose`, "_blank");
+    const interval = Math.max(2000, parseFloat(session.pollInterval || "3") * 1000);
+    const deadline = Date.now() + 20 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, interval));
+      const r = await api(`/api/google/picker/${encodeURIComponent(session.id)}`);
+      if (r.done) {
+        banner(`Imported ${r.imported} new item${r.imported === 1 ? "" : "s"} (${r.picked - r.imported} already in your library). Analyzing…`, "ok");
+        refreshClips();
+        return;
+      }
+    }
+    banner("The Google Photos picker timed out. Try again.");
+  } catch (err) {
+    win?.close();
+    banner(err.message);
+  } finally {
+    btn.disabled = false;
+    loadStatus();
+  }
+});
+
+// ---- Uploads ----------------------------------------------------------------
+
+async function uploadFiles(files) {
+  if (!files.length) return;
+  const fd = new FormData();
+  for (const f of files) {
+    fd.append("files", f);
+    fd.append("lastModified", String(f.lastModified || ""));
+  }
+  banner(`Uploading ${files.length} file(s)…`, "ok");
+  try {
+    await api("/api/clips/upload", { method: "POST", body: fd });
+    banner(`Uploaded ${files.length} file(s). Analyzing…`, "ok");
+  } catch (err) {
+    banner(err.message);
+  }
+  refreshClips();
+}
+$("#file-input").addEventListener("change", (e) => uploadFiles([...e.target.files]).then(() => (e.target.value = "")));
+const drop = $("#drop");
+drop.addEventListener("dragover", (e) => (e.preventDefault(), drop.classList.add("over")));
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.classList.remove("over");
+  uploadFiles([...e.dataTransfer.files].filter((f) => /^(video|image)\//.test(f.type)));
+});
+
+$("#music-input").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append("file", f);
+  const { id } = await api("/api/music", { method: "POST", body: fd });
+  await loadStatus();
+  $("#music").value = id;
+  e.target.value = "";
+});
+
+// ---- Library ----------------------------------------------------------------
+
+async function refreshClips() {
+  state.clips = await api("/api/clips");
+  for (const id of state.selected) if (!state.clips.some((c) => c.id === id)) state.selected.delete(id);
+  renderClips();
+}
+
+function energyBars(curve = []) {
+  const n = 28;
+  const bins = Array.from({ length: n }, (_, i) => {
+    const a = Math.floor((i * curve.length) / n);
+    const b = Math.max(a + 1, Math.floor(((i + 1) * curve.length) / n));
+    return Math.max(0, ...curve.slice(a, b));
+  });
+  return h("div", { class: "energy", title: "Motion + sound energy" }, bins.map((v) => h("i", { style: { height: `${Math.max(4, v * 100)}%` } })));
+}
+
+function renderClips() {
+  const el = $("#clips");
+  $("#clips-empty").hidden = state.clips.length > 0;
+  el.replaceChildren(
+    ...state.clips.map((c) => {
+      const tags = c.ai?.tags?.slice(0, 3) ?? [];
+      const badge =
+        c.status === "ready"
+          ? c.kind === "photo" ? "photo" : null
+          : c.status === "error" ? "error" : `${c.status}…`;
+      return h(
+        "div",
+        {
+          class: `clip ${state.selected.has(c.id) ? "selected" : ""}`,
+          title: c.error || c.ai?.summary || c.filename,
+          onclick: () => {
+            if (c.status !== "ready") return;
+            state.selected.has(c.id) ? state.selected.delete(c.id) : state.selected.add(c.id);
+            renderClips();
+          },
+        },
+        c.status === "ready" ? h("img", { class: "thumb", src: `/media/thumb/${c.id}`, loading: "lazy", alt: "" }) : h("div", { class: "thumb" }),
+        badge && h("span", { class: `badge ${c.status === "error" ? "err" : ""}` }, badge),
+        h("button", {
+          class: "del", title: "Remove from library",
+          onclick: async (e) => {
+            e.stopPropagation();
+            await api(`/api/clips/${c.id}`, { method: "DELETE" });
+            refreshClips();
+          },
+        }, "×"),
+        h("div", { class: "meta" },
+          h("div", { class: "name" }, c.filename),
+          h("div", { class: "sub" },
+            h("span", {}, c.duration ? fmt(c.duration) : "–"),
+            h("span", {}, c.capturedAt ? new Date(c.capturedAt).toLocaleDateString() : ""),
+            c.uses ? h("span", { title: "Used in this many videos" }, `×${c.uses}`) : null,
+          ),
+          c.energy?.length ? energyBars(c.energy) : null,
+          tags.length ? h("div", { class: "tags" }, tags.map((t) => h("span", { class: "tag" }, t))) : null,
+        ),
+      );
+    }),
+  );
+  const n = state.selected.size;
+  $("#selection-hint").textContent = state.clips.length
+    ? n ? `${n} clip${n === 1 ? "" : "s"} selected — videos will only use these. Click again to deselect.` : "Click clips to restrict generation to them; otherwise the whole library is used."
+    : "";
+}
+
+// ---- Create -----------------------------------------------------------------
+
+function readForm() {
+  const f = $("#create");
+  return {
+    template: f.template.value,
+    targetSeconds: Number(f.targetSeconds.value),
+    count: Number(f.count.value),
+    brief: f.brief.value.trim() || undefined,
+    useAi: f.useAi.checked,
+    clipIds: state.selected.size ? [...state.selected] : undefined,
+    options: {
+      framing: f.framing.value,
+      textStyle: f.textStyle.value,
+      keepOriginalAudio: f.keepOriginalAudio.checked,
+      musicId: f.musicId.value || undefined,
+    },
+  };
+}
+
+async function withBusy(btn, label, fn) {
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = label;
+  try {
+    return await fn();
+  } catch (err) {
+    banner(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+
+$("#create").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const btn = e.submitter || $("#create button[type=submit]");
+  withBusy(btn, readForm().useAi ? "Directing…" : "Planning…", async () => {
+    const r = await api("/api/generate", { method: "POST", body: readForm() });
+    if (r.warning) banner(r.warning);
+    $("#plans").hidden = true;
+    await refreshRenders();
+    $("#renders").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
+
+$("#btn-plan").addEventListener("click", (e) =>
+  withBusy(e.currentTarget, "Planning…", async () => {
+    const req = readForm();
+    const r = await api("/api/plan", { method: "POST", body: req });
+    if (r.warning) banner(r.warning);
+    state.plans = r.plans;
+    state.planOptions = req.options;
+    renderPlans();
+  }),
+);
+
+function renderPlans() {
+  const el = $("#plans");
+  el.hidden = false;
+  el.replaceChildren(
+    ...state.plans.map((p, i) => {
+      const total = p.segments.reduce((a, s) => a + (s.end - s.start) / (s.speed || 1), 0);
+      return h("div", { class: "plan" },
+        h("div", { class: "plan-head" },
+          h("b", {}, `Video ${i + 1}: ${p.title}`),
+          h("span", { class: "by" }, `${fmt(total)} · ${p.segments.length} cuts · ${p.plannedBy === "claude" ? "AI director" : "heuristic"}`),
+        ),
+        h("input", { class: "hook", value: p.hook, placeholder: "Hook text", oninput: (e) => (p.hook = e.target.value) }),
+        h("div", { class: "segs" },
+          p.segments.map((s) =>
+            h("div", { class: "segcard" },
+              h("img", { src: `/media/thumb/${s.clipId}`, alt: "", loading: "lazy" }),
+              h("div", {}, `${s.start.toFixed(1)}–${s.end.toFixed(1)}s${s.speed && s.speed !== 1 ? ` @${s.speed}x` : ""}`),
+              h("input", { value: s.caption || "", placeholder: "caption", oninput: (e) => (s.caption = e.target.value) }),
+            ),
+          ),
+        ),
+        h("textarea", { oninput: (e) => (p.postCaption = e.target.value) }, p.postCaption),
+        h("div", { class: "by" }, p.hashtags.map((t) => `#${t}`).join(" ")),
+      );
+    }),
+    h("div", { class: "actions end" },
+      h("button", { class: "btn", onclick: () => ((el.hidden = true), (state.plans = null)) }, "Discard"),
+      h("button", {
+        class: "btn primary",
+        onclick: (e) =>
+          withBusy(e.currentTarget, "Queuing…", async () => {
+            await api("/api/render", { method: "POST", body: { plans: state.plans, options: state.planOptions } });
+            el.hidden = true;
+            await refreshRenders();
+            $("#renders").scrollIntoView({ behavior: "smooth", block: "start" });
+          }),
+      }, `Render ${state.plans.length} video${state.plans.length === 1 ? "" : "s"}`),
+    ),
+  );
+}
+
+// ---- Renders ----------------------------------------------------------------
+
+async function refreshRenders() {
+  state.renders = await api("/api/renders");
+  renderRenders();
+}
+
+const renderEls = new Map();
+function renderRenders() {
+  const el = $("#renders");
+  $("#renders-empty").hidden = state.renders.length > 0;
+  const nodes = state.renders.map((r) => {
+    const key = `${r.id}:${r.status}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
+    const cached = renderEls.get(r.id);
+    if (cached?.key === key) return cached.node;
+    const node = renderCard(r);
+    renderEls.set(r.id, { key, node });
+    return node;
+  });
+  el.replaceChildren(...nodes);
+}
+
+function renderCard(r) {
+  const caption = [r.plan.postCaption, r.plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
+  const media =
+    r.status === "done"
+      ? h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, controls: true, loop: true, playsinline: true, preload: "none" })
+      : h("div", { class: "ph" },
+          h("div", {},
+            r.status === "error" ? "Render failed" : r.status === "queued" ? "Queued…" : `Rendering… ${Math.round(r.progress * 100)}%`,
+            r.status === "rendering" ? h("div", { class: "bar" }, h("i", { style: { width: `${r.progress * 100}%` } })) : null,
+          ),
+        );
+  return h("div", { class: "render" },
+    media,
+    h("div", { class: "body" },
+      h("div", { class: "title" }, r.plan.hook || r.plan.title),
+      r.error ? h("div", { class: "err" }, r.error) : null,
+      h("div", { class: "caption" }, caption),
+      h("div", { class: "row" },
+        r.status === "done" ? h("a", { class: "btn small primary", href: `/media/render/${r.id}.mp4?dl=1` }, "Download") : null,
+        h("button", {
+          class: "btn small",
+          onclick: async (e) => {
+            await navigator.clipboard.writeText(caption);
+            e.target.textContent = "Copied!";
+            setTimeout(() => (e.target.textContent = "Copy caption"), 1500);
+          },
+        }, "Copy caption"),
+        h("button", {
+          class: "btn small", title: "Delete",
+          onclick: async () => {
+            await api(`/api/renders/${r.id}`, { method: "DELETE" });
+            renderEls.delete(r.id);
+            refreshRenders();
+          },
+        }, "Delete"),
+      ),
+    ),
+  );
+}
+
+// ---- Boot & polling ---------------------------------------------------------
+
+const params = new URLSearchParams(location.search);
+if (params.get("google") === "connected") banner("Google Photos connected. Now pick the clips you want to use.", "ok");
+if (params.get("google_error")) banner(`Google sign-in failed: ${params.get("google_error")}`);
+if (params.size) history.replaceState(null, "", "/");
+
+await loadStatus();
+await Promise.all([refreshClips(), refreshRenders()]);
+
+setInterval(async () => {
+  const busyClips = state.clips.some((c) => c.status === "importing" || c.status === "analyzing");
+  const busyRenders = state.renders.some((r) => r.status === "queued" || r.status === "rendering");
+  if (busyClips) await refreshClips().catch(() => {});
+  if (busyRenders) await refreshRenders().catch(() => {});
+}, 2000);

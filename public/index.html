@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PawCut</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐾</text></svg>" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo">🐾</span> PawCut <small>pet footage → shorts</small></div>
+    <div class="chips">
+      <span id="chip-google" class="chip">Google Photos</span>
+      <span id="chip-ai" class="chip">AI director</span>
+    </div>
+    <form id="settings" class="settings">
+      <label>Pet <input name="petName" placeholder="Lex" maxlength="40" /></label>
+      <label>Handle <input name="handle" placeholder="@lex.poodle" maxlength="40" /></label>
+    </form>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main>
+    <section class="panel">
+      <div class="panel-head">
+        <h2><span class="step">1</span> Footage</h2>
+        <div class="actions">
+          <button id="btn-google" class="btn primary">Import from Google Photos</button>
+          <label class="btn">Upload files<input id="file-input" type="file" accept="video/*,image/*" multiple hidden /></label>
+        </div>
+      </div>
+      <p class="hint" id="google-hint"></p>
+      <div id="drop" class="drop">
+        <div id="clips" class="clips"></div>
+        <p id="clips-empty" class="empty">Drop videos or photos here, or import them from Google Photos.</p>
+      </div>
+      <p class="hint" id="selection-hint"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2><span class="step">2</span> Create</h2></div>
+      <form id="create" class="create">
+        <div class="field">
+          <span class="label">Format</span>
+          <div id="templates" class="templates"></div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <span class="label">Length</span>
+            <div class="seg" id="length">
+              <label><input type="radio" name="targetSeconds" value="10" />10s</label>
+              <label><input type="radio" name="targetSeconds" value="15" checked />15s</label>
+              <label><input type="radio" name="targetSeconds" value="20" />20s</label>
+              <label><input type="radio" name="targetSeconds" value="30" />30s</label>
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">How many</span>
+            <input type="number" name="count" min="1" max="10" value="3" class="num" />
+          </div>
+          <div class="field">
+            <span class="label">Framing</span>
+            <select name="framing">
+              <option value="auto">Auto</option>
+              <option value="fill">Crop to fill</option>
+              <option value="blur">Blurred backdrop</option>
+            </select>
+          </div>
+          <div class="field">
+            <span class="label">Text style</span>
+            <select name="textStyle">
+              <option value="classic">White + outline</option>
+              <option value="box">Black on white box</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field grow">
+            <span class="label">Direction (optional)</span>
+            <input name="brief" placeholder="e.g. Lex being dramatic about bath time; keep it wholesome" maxlength="500" />
+          </div>
+        </div>
+        <div class="row">
+          <label class="check"><input type="checkbox" name="keepOriginalAudio" checked /> Keep original audio</label>
+          <label class="check"><input type="checkbox" name="useAi" checked /> Use AI director</label>
+          <div class="field music">
+            <span class="label">Music bed</span>
+            <select name="musicId" id="music"><option value="">None (add a trending sound in TikTok)</option></select>
+            <label class="link">Upload…<input id="music-input" type="file" accept="audio/*" hidden /></label>
+          </div>
+        </div>
+        <div class="actions end">
+          <button type="button" id="btn-plan" class="btn">Preview plans</button>
+          <button type="submit" class="btn primary">Generate videos</button>
+        </div>
+      </form>
+      <div id="plans" class="plans" hidden></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2><span class="step">3</span> Videos</h2></div>
+      <div id="renders" class="renders"></div>
+      <p id="renders-empty" class="empty">Generated videos show up here, ready to download and post.</p>
+    </section>
+  </main>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

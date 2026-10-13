@@ -100,6 +100,13 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
 /** Escape a value for use inside single quotes in an ffmpeg filter graph. */
 const esc = (s: string) => s.replace(/\\/g, "/").replace(/'/g, "'\\''").replace(/:/g, "\\:");
 
+/**
+ * Memory-lean encoding for small servers (Render Starter has 512 MB including the app):
+ * one thread and a short look-ahead keep each ffmpeg run around 250 MB instead of 600 MB.
+ */
+const SINGLE_THREAD = ["-threads", "1", "-filter_threads", "1", "-filter_complex_threads", "1"];
+const LEAN_X264 = ["-x264-params", "rc-lookahead=10:sync-lookahead=0"];
+
 export interface RenderResult {
   file: string;
   thumb: string;
@@ -187,14 +194,17 @@ async function renderSegment(
     "-y", "-v", "error",
     "-ss", start.toFixed(3),
     "-t", len.toFixed(3),
+    "-threads", "1",
     "-i", clip.file,
     "-f", "lavfi", "-t", outLen.toFixed(3), "-i", "anullsrc=r=44100:cl=stereo",
     "-filter_complex", `${base};[v0]${video}[vout];${audio}`,
     "-map", "[vout]", "-map", "[aout]",
     "-t", outLen.toFixed(3),
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-r", String(FPS),
+    ...LEAN_X264,
     "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2",
     "-video_track_timescale", "15360",
+    ...SINGLE_THREAD,
     out,
   ]);
 }
@@ -243,24 +253,43 @@ async function finalize(
     filters.push(...f);
     placed.push({ o, bottom: offset + height });
   }
-  const vf = filters.length ? `[0:v]${filters.join(",")}[vout]` : `[0:v]null[vout]`;
   const music = options.musicFile && fs.existsSync(options.musicFile);
   const fadeAt = Math.max(0, duration - 1).toFixed(2);
+
+  // Audio and video are finished in separate passes: loudness normalization alone needs ~100 MB,
+  // and running it next to the video encoder pushed a render past a 512 MB server's limit.
+  const audio = path.join(tmp, "audio.m4a");
   const af = music
     ? `[1:a]atrim=0:${duration.toFixed(3)},volume=${options.keepOriginalAudio ? 0.35 : 1},afade=t=out:st=${fadeAt}:d=1[m];` +
       `[0:a][m]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[aout]`
     : `[0:a]loudnorm=I=-14:TP=-1.5:LRA=11[aout]`;
-
   await run("ffmpeg", [
     "-y", "-v", "error",
+    "-vn", "-threads", "1",
     "-i", input,
     ...(music ? ["-i", options.musicFile!] : []),
-    "-filter_complex", `${vf};${af}`,
-    "-map", "[vout]", "-map", "[aout]",
-    "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-profile:v", "high", "-pix_fmt", "yuv420p",
+    "-filter_complex", af,
+    "-map", "[aout]",
     "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
+    "-t", duration.toFixed(3),
+    ...SINGLE_THREAD,
+    audio,
+  ]);
+
+  const vf = filters.length ? filters.join(",") : "null";
+  await run("ffmpeg", [
+    "-y", "-v", "error",
+    "-an", "-threads", "1",
+    "-i", input,
+    "-i", audio,
+    "-map", "0:v:0", "-map", "1:a:0",
+    "-vf", vf,
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-profile:v", "high", "-pix_fmt", "yuv420p",
+    ...LEAN_X264,
+    "-c:a", "copy",
     "-r", String(FPS), "-movflags", "+faststart",
     "-t", duration.toFixed(3),
+    ...SINGLE_THREAD,
     out,
   ]);
 }

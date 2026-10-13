@@ -184,6 +184,8 @@ export interface AlbumSource {
   videoCount: number;
   /** Version of the video-detection logic `seen` was built with; a newer version re-checks skipped items. */
   detectVersion?: number;
+  /** How many times each item's import has failed; items stop being retried after 3. */
+  failures?: Record<string, number>;
   /** What Google answered for items that weren't recognized as videos, counted ("=dv: image/jpeg" → 12). */
   skipped?: Record<string, number>;
 }

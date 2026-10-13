@@ -12,7 +12,7 @@ import { createSession, getSession, listPicked, deleteSession } from "./google/p
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy } from "./library.ts";
 import { ingestQueue, jobsFromLastCrash } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRender } from "./generate.ts";
-import { addAlbum, syncAlbum } from "./albums.ts";
+import { addAlbum, forgetItem, syncAlbum } from "./albums.ts";
 import { localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
@@ -670,6 +670,11 @@ const uncleanBoots = recordBoot();
 let paused = uncleanBoots >= 3;
 if (paused) console.warn(`[recovery] ${uncleanBoots} crashes in 20 minutes: automatic work is paused until resumed in Settings`);
 
+// Failed videos whose clips no longer exist can't be retried; remove them so they don't clutter the page.
+for (const r of store.renders()) {
+  if (r.status === "error" && r.plan.segments.some((s) => !store.clip(s.clipId))) deleteRender(r.id);
+}
+
 function recoverWork() {
   for (const c of store.clips()) {
     if (crashedIds.has(c.id) || (c.status !== "importing" && c.status !== "analyzing")) continue;
@@ -679,6 +684,7 @@ function recoverWork() {
     } else if (c.source === "shared_album") {
       // Possibly a partial download: drop it; the next album check imports it again.
       deleteClip(c.id);
+      if (c.sourceId) forgetItem(c.sourceId);
     } else {
       store.updateClip(c.id, { status: "error", error: "Interrupted by a restart. Upload it again." });
     }

@@ -14,7 +14,14 @@ export function addAlbum(url: string): AlbumSource {
 const syncing = new Set<string>();
 
 /** Bump when video detection changes, so items wrongly skipped as photos get another look. */
-const DETECT_VERSION = 2;
+const DETECT_VERSION = 3;
+
+/** Forget an album item so the next check imports it again (e.g. its clip failed and was removed). */
+export function forgetItem(sourceId: string) {
+  for (const a of store.albums()) {
+    if (a.seen.includes(sourceId)) store.updateAlbum(a.id, { seen: a.seen.filter((s) => s !== sourceId) });
+  }
+}
 
 /**
  * Check a shared album for items we haven't seen and import the videos.
@@ -29,13 +36,23 @@ export async function syncAlbum(id: string): Promise<{ newItems: number }> {
     const page = await fetchAlbum(album.url);
     if (album.detectVersion !== DETECT_VERSION) {
       // Keep only items that were actually imported; everything skipped gets re-checked.
-      store.updateAlbum(id, { seen: album.seen.filter((s) => store.hasSource(s)), skipped: {}, detectVersion: DETECT_VERSION });
+      // Also repairs albums where a video's clip was removed but the item stayed marked as handled.
+      const kept = album.seen.filter((s) => store.hasSource(s));
+      store.updateAlbum(id, { seen: kept, videoCount: kept.length, skipped: {}, detectVersion: DETECT_VERSION });
     }
-    const seen = new Set(store.album(id)!.seen);
     // Retry items whose earlier download failed.
     for (const c of store.clips()) {
-      if (c.status === "error" && c.sourceId && page.items.some((it) => it.id === c.sourceId)) deleteClip(c.id);
+      if (c.status === "error" && c.sourceId && page.items.some((it) => it.id === c.sourceId)) {
+        const failures = { ...store.album(id)!.failures };
+        failures[c.sourceId] = (failures[c.sourceId] ?? 0) + 1;
+        store.updateAlbum(id, { failures });
+        // Give up after 3 failed attempts; the clip stays in the library with its error.
+        if (failures[c.sourceId] > 3) continue;
+        deleteClip(c.id);
+        forgetItem(c.sourceId);
+      }
     }
+    const seen = new Set(store.album(id)!.seen);
     const fresh = page.items.filter((it) => !seen.has(it.id) && !store.hasSource(it.id));
     for (const item of fresh) {
       enqueueClip({

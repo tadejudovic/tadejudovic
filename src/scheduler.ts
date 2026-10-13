@@ -21,6 +21,11 @@ export const localDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 let lastSync = 0;
+let paused = false;
+/** While paused (after repeated crashes), nothing runs on its own: no album checks, research or batches. */
+export function setPaused(value: boolean) {
+  paused = value;
+}
 let lastAttempt = 0;
 let batchRunning = false;
 
@@ -34,7 +39,7 @@ export function startScheduler() {
 
 async function runDue() {
   const auto = store.auto();
-  if (!auto.enabled) return;
+  if (!auto.enabled || paused) return;
   if (store.albums().length && Date.now() - lastSync > auto.syncEveryHours * 3600_000) {
     lastSync = Date.now();
     const { newItems } = await syncAll();

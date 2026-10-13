@@ -37,7 +37,7 @@ export function addExample(opts: {
     views: opts.views,
     status: file ? "analyzing" : "ready",
   });
-  if (file) ingestQueue.push(() => analyze(id));
+  if (file) ingestQueue.push(() => analyze(id), { kind: "example", id });
   return ex;
 }
 
@@ -60,7 +60,7 @@ async function analyze(id: string) {
 
 export function reanalyzeExample(id: string) {
   store.updateExample(id, { status: "analyzing" });
-  ingestQueue.push(() => analyze(id));
+  ingestQueue.push(() => analyze(id), { kind: "example", id });
 }
 
 export function deleteExample(id: string) {

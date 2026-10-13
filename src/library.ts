@@ -7,6 +7,8 @@ import { energyCurve, findMoments } from "./media/analyze.ts";
 import { tagClip } from "./ai/director.ts";
 import { download, type PickedMediaItem } from "./google/picker.ts";
 import { ingestQueue } from "./queue.ts";
+import { canDecode4K } from "./config.ts";
+import { fetchAlbum, openVideo, saveResponse } from "./google/sharedAlbum.ts";
 import type { Clip, ClipSource } from "./types.ts";
 
 const PHOTO_SECONDS = 3;
@@ -57,7 +59,7 @@ export function enqueueClip(opts: {
       store.updateClip(id, { status: "error", error: (err as Error).message });
       opts.onDone?.("error");
     }
-  });
+  }, { kind: "clip", id });
   return clip;
 }
 
@@ -90,6 +92,7 @@ export async function analyzeClip(id: string) {
     kind = "photo";
     info = await probe(file);
   } else if (needsProxy(info)) {
+    if (isBig(info) && !canDecode4K) throw new Error(TOO_BIG);
     // 4K / HDR / HEVC phone footage: convert once to a light 1080p copy that everything else uses,
     // then drop the heavy original (saves memory on every later step, and disk).
     const proxy = path.join(config.mediaDir, `${id}.mp4`);
@@ -132,10 +135,18 @@ export async function analyzeClip(id: string) {
   }
 }
 
+const TOO_BIG =
+  "This is a 4K video, too heavy for this server's memory. Add it through your Google Photos album instead " +
+  "(the app then uses Google's 1080p version), or move to a bigger server plan.";
+const isBig = (p: { width: number; height: number }) => Math.max(p.width, p.height) > 1920 || Math.min(p.width, p.height) > 1080;
+
 /**
- * Convert a clip imported before proxies existed (a 4K/HDR original) to the light 1080p copy,
- * so rendering it doesn't run a small server out of memory.
+ * Clips imported before working copies existed may still be 4K/HDR originals. Album clips are
+ * swapped for Google's own 1080p version (no 4K decoding here); others are converted if this
+ * machine has the memory for it, otherwise taken out of rotation with an explanation.
  */
+const albumPages = new Map<string, Promise<Awaited<ReturnType<typeof fetchAlbum>> | null>>();
+
 export async function ensureProxy(id: string) {
   const clip = store.clip(id);
   if (!clip || clip.status !== "ready" || clip.kind !== "video" || !fs.existsSync(clip.file)) return;
@@ -143,6 +154,38 @@ export async function ensureProxy(id: string) {
   if (!needsProxy(info)) return;
   const proxy = path.join(config.mediaDir, `${id}.mp4`);
   const target = clip.file === proxy ? path.join(config.mediaDir, `${id}.proxy.mp4`) : proxy;
+
+  if (clip.source === "shared_album" && clip.sourceId) {
+    for (const album of store.albums()) {
+      if (!albumPages.has(album.url)) albumPages.set(album.url, fetchAlbum(album.url).catch(() => null));
+      const item = (await albumPages.get(album.url))?.items.find((it) => it.id === clip.sourceId);
+      if (!item) continue;
+      const { res } = await openVideo(item, ["=m37", "=m22"]);
+      if (!res) break;
+      await saveResponse(res, target);
+      let light = await probe(target);
+      if (needsProxy(light)) {
+        // Google's version should already be light; if it's still 4K, give up on it here.
+        if (isBig(light)) {
+          fs.rmSync(target, { force: true });
+          break;
+        }
+        const tmp = `${target}.tmp.mp4`;
+        await makeProxy(target, tmp, light);
+        fs.renameSync(tmp, target);
+        light = await probe(target);
+      }
+      if (clip.file !== target) fs.rmSync(clip.file, { force: true });
+      store.updateClip(id, { file: target, width: light.width, height: light.height });
+      console.log(`[proxy] swapped ${clip.filename} for Google's 1080p version`);
+      return;
+    }
+  }
+
+  if (isBig(info) && !canDecode4K) {
+    store.updateClip(id, { status: "error", error: TOO_BIG });
+    return;
+  }
   await makeProxy(clip.file, target, info);
   if (clip.file !== target) fs.rmSync(clip.file, { force: true });
   store.updateClip(id, { file: target });

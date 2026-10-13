@@ -39,6 +39,10 @@
         </form>
       </div>
 
+      <div id="paused" class="paused-box" hidden>
+        <span>The server restarted several times in a row (it likely ran out of memory), so automatic work is paused. Whatever was running when it crashed won't be retried.</span>
+        <button id="btn-resume" class="btn small">Resume</button>
+      </div>
       <p id="activity" class="activity" hidden></p>
 
       <div id="batch" class="renders review"></div>
@@ -88,6 +92,16 @@
           <select name="template" id="auto-template" hidden></select>
           <select name="syncEveryHours" hidden><option value="1">1h</option><option value="3">3h</option><option value="6">6h</option><option value="12">12h</option><option value="24">24h</option></select>
         </form>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">AI spending</h2>
+        <p class="spend"><b id="spend-used">$0.00</b> of <b id="spend-limit">$20</b> used this month <span id="spend-calls" class="muted"></span></p>
+        <div class="meter"><i id="spend-bar"></i></div>
+        <form id="budget-form" class="grid-form spaced">
+          <label>Monthly limit (USD) <input type="number" name="aiMonthlyBudget" min="0" max="1000" step="1" /></label>
+        </form>
+        <p class="hint">An estimate from Claude's reported usage. When the limit is reached, the app stops calling Claude and uses its free method until next month. For a hard cap, also set a spend limit in the Anthropic Console.</p>
       </div>
 
       <div class="card">

@@ -125,6 +125,12 @@ The gate covers every page, API call and media file. Sessions last 30 days, and 
 
 The same image runs anywhere with a persistent volume (Railway, Fly.io, a VPS): `docker build -t pawcut . && docker run -p 3000:3000 -v pawcut-data:/data -e APP_PASSWORD=… -e ANTHROPIC_API_KEY=… pawcut`.
 
+## Costs and safety nets
+
+- **AI budget:** every Claude call is priced from the usage the API reports and added to a monthly total (Settings → AI spending, default $20, or `AI_MONTHLY_BUDGET`). At the limit the app stops calling Claude and uses its free heuristics until next month. Also set a hard spend limit in the Anthropic Console.
+- **Crash safety:** the job that was running when the server died (e.g. out of memory) is marked failed and never retried automatically; after 3 crashes in 20 minutes all automatic work pauses until you click Resume. Deploys are clean restarts and don't count.
+- **Memory:** album videos are downloaded as Google's 1080p version; anything heavier is converted once to a 1080p working copy. On machines under ~1 GB (`MEMORY_MB`, auto-detected), 4K files are never decoded: add them through the album instead.
+
 ## How it works
 
 ```

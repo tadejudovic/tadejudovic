@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
+import { assertBudget, recordUsage } from "./budget.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { TEMPLATES } from "../templates.ts";
 import type { Clip, Example, Moment, Overlay, ProvenCaption, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
@@ -23,6 +24,7 @@ async function structured<T>(params: {
   schema: Record<string, unknown>;
   effort: "low" | "medium" | "high";
 }): Promise<T> {
+  assertBudget();
   const stream = anthropic().beta.messages.stream({
     ...FALLBACK,
     model: config.claude.model,
@@ -33,6 +35,7 @@ async function structured<T>(params: {
     messages: [{ role: "user", content: params.content }],
   });
   const msg = await stream.finalMessage();
+  recordUsage(msg);
   if (msg.stop_reason === "refusal") {
     throw new Error(`Claude declined this request (${msg.stop_details?.category ?? "unspecified"}).`);
   }

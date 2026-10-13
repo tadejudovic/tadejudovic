@@ -44,6 +44,15 @@ const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)
 async function loadStatus() {
   const s = (state.status = await api("/api/status"));
   $("#chip-google").classList.toggle("on", s.google.connected);
+  $("#paused").hidden = !s.paused;
+  const sp = s.spend;
+  $("#spend-used").textContent = `$${sp.usd.toFixed(2)}`;
+  $("#spend-limit").textContent = `$${sp.limit.toFixed(0)}`;
+  $("#spend-calls").textContent = sp.calls ? `· ${sp.calls} AI calls` : "";
+  const pct = sp.limit > 0 ? Math.min(100, (sp.usd / sp.limit) * 100) : 100;
+  $("#spend-bar").style.width = `${pct}%`;
+  $("#spend-bar").className = pct >= 100 ? "full" : pct >= 75 ? "high" : "";
+  if (document.activeElement?.form !== $("#budget-form")) $("#budget-form").aiMonthlyBudget.value = String(s.settings.aiMonthlyBudget);
   $("#logout").hidden = !s.gate;
   $("#chip-ai").classList.toggle("on", s.claude.enabled);
   $("#chip-ai").title = s.claude.enabled ? `Using ${s.claude.model}` : "Set ANTHROPIC_API_KEY to enable";
@@ -874,6 +883,23 @@ $("#example-form").addEventListener("submit", (e) => {
     await refreshExamples();
   });
 });
+
+// ---- Budget & recovery ------------------------------------------------------
+
+$("#budget-form").addEventListener("change", async (e) => {
+  await api("/api/settings", { method: "PUT", body: { aiMonthlyBudget: Number(e.currentTarget.aiMonthlyBudget.value) } });
+  await loadStatus();
+  banner("Monthly AI limit saved.", "ok");
+});
+$("#budget-form").addEventListener("submit", (e) => e.preventDefault());
+
+$("#btn-resume").addEventListener("click", (e) =>
+  withBusy(e.currentTarget, "…", async () => {
+    await api("/api/resume", { method: "POST" });
+    await loadStatus();
+    banner("Resumed. Interrupted work is being picked up again.", "ok");
+  }),
+);
 
 // ---- Onboarding & activity ---------------------------------------------------
 

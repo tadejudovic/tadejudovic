@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { config } from "../config.ts";
+import { config, canDecode4K } from "../config.ts";
 import { run, frameAt, probe } from "./ffmpeg.ts";
 import { fontPath } from "../fonts.ts";
 import type { Clip, Overlay, RenderOptions, VideoPlan } from "../types.ts";
@@ -115,6 +115,15 @@ export async function renderVideo(
 ): Promise<RenderResult> {
   const tmp = path.join(config.tmpDir, id);
   fs.mkdirSync(tmp, { recursive: true });
+  // Never decode a 4K original on a small machine: it's what runs the server out of memory.
+  for (const id of new Set(plan.segments.map((s) => s.clipId))) {
+    const clip = clips.get(id);
+    if (!clip || canDecode4K) continue;
+    const info = await probe(clip.file);
+    if (Math.max(info.width, info.height) > 1920 || Math.min(info.width, info.height) > 1080) {
+      throw new Error("A clip in this video is still a 4K original; it's being converted. Try again in a few minutes.");
+    }
+  }
   const font = await fontPath(options.fontId);
   if (!font) throw new Error("No font available for on-screen text. Pick a font or set FONT_FILE.");
   const steps = plan.segments.length + 2;

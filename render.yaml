@@ -16,5 +16,9 @@ services:
         sync: false
       - key: APP_URL
         value: https://studio.lexintheair.com
+      - key: MEMORY_MB
+        value: "512" # Starter plan; raise if you upgrade (2048 on Standard enables 4K uploads)
+      - key: AI_MONTHLY_BUDGET
+        value: "20" # default monthly AI cap in USD; can be changed in Settings
       - key: TZ
         sync: false # your time zone, e.g. Europe/London, so the morning batch runs at your 8:00

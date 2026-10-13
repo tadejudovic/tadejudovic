@@ -19,4 +19,5 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     FONT_FILE=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
 EXPOSE 3000
-CMD ["npx", "tsx", "src/server.ts"]
+# Run node directly (not via npx) so Render's stop signal reaches the app and deploys are recorded as clean restarts.
+CMD ["node", "--import", "tsx", "src/server.ts"]

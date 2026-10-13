@@ -1,5 +1,6 @@
 import "dotenv/config";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const dataDir = path.resolve(process.env.DATA_DIR ?? "./data");
@@ -39,6 +40,23 @@ export const config = {
   fontFile: findFont(),
   output: { width: 1080, height: 1920, fps: 30 },
 };
+
+/** Memory available to this process: the container's limit if there is one (Render, Docker), else the machine's. */
+function memoryLimitMb(): number {
+  if (process.env.MEMORY_MB) return Number(process.env.MEMORY_MB);
+  for (const f of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
+    try {
+      const v = fs.readFileSync(f, "utf8").trim();
+      const n = Number(v);
+      if (v !== "max" && Number.isFinite(n) && n > 0 && n < 1e15) return Math.round(n / 1024 / 1024);
+    } catch {}
+  }
+  return Math.round(os.totalmem() / 1024 / 1024);
+}
+
+export const memoryMb = memoryLimitMb();
+/** Decoding 4K phone video needs ~300 MB on top of the app; below ~1 GB we avoid it entirely. */
+export const canDecode4K = memoryMb >= 1024;
 
 for (const dir of [config.mediaDir, config.thumbsDir, config.rendersDir, config.tmpDir]) {
   fs.mkdirSync(dir, { recursive: true });

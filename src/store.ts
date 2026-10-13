@@ -17,6 +17,7 @@ interface DB {
   trends?: Trends;
   auto: AutoSettings;
   research: Record<string, SceneResearch>;
+  spend: { month: string; usd: number; calls: number };
 }
 
 export interface Settings {
@@ -26,6 +27,8 @@ export interface Settings {
   textStyle: TextStyle;
   /** Situations that work for this account; clips are sorted into these and captions researched per situation. */
   scenes: string[];
+  /** Monthly cap on estimated AI (Claude API) spend, in USD. */
+  aiMonthlyBudget: number;
 }
 
 export const DEFAULT_SCENES = [
@@ -43,6 +46,7 @@ const DEFAULT_SETTINGS: Settings = {
   fontId: "tiktok-sans",
   textStyle: "classic",
   scenes: DEFAULT_SCENES,
+  aiMonthlyBudget: Number(process.env.AI_MONTHLY_BUDGET) || 20,
 };
 
 const DEFAULT_AUTO: AutoSettings = {
@@ -69,16 +73,23 @@ function load(): DB {
     for (const a of db.albums) a.kind ??= "google_photos_album";
     db.examples ??= [];
     db.research ??= {};
+    db.spend ??= { month: "", usd: 0, calls: 0 };
     db.auto = { ...DEFAULT_AUTO, ...db.auto };
     for (const r of db.renders) r.review ??= "pending";
     return db;
   } catch {
-    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], auto: { ...DEFAULT_AUTO }, research: {} };
+    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], auto: { ...DEFAULT_AUTO }, research: {}, spend: { month: "", usd: 0, calls: 0 } };
   }
 }
 
 const db: DB = load();
 let saveTimer: NodeJS.Timeout | null = null;
+
+function writeNow() {
+  const tmp = `${config.dbFile}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, config.dbFile);
+}
 
 function save() {
   if (saveTimer) return;
@@ -93,6 +104,12 @@ function save() {
 export const newId = () => crypto.randomBytes(8).toString("hex");
 
 export const store = {
+  /** Write pending changes immediately (on shutdown). */
+  flush() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = null;
+    writeNow();
+  },
   clips: () => db.clips,
   clip: (id: string) => db.clips.find((c) => c.id === id),
   addClip(clip: Clip) {
@@ -180,6 +197,12 @@ export const store = {
     db.research[r.scene] = r;
     save();
     return r;
+  },
+
+  spend: () => db.spend,
+  setSpend(spend: DB["spend"]) {
+    db.spend = spend;
+    save();
   },
 
   trends: () => db.trends,

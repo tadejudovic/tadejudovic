@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
+import { assertBudget, BudgetExceeded, recordUsage } from "./budget.ts";
 import { store, newId } from "../store.ts";
 import type { ProvenCaption, SceneResearch } from "../types.ts";
 
@@ -67,6 +68,7 @@ async function doResearch(scene: string): Promise<SceneResearch> {
   let text = "";
   try {
     for (let turn = 0; turn < 5; turn++) {
+      assertBudget();
       const stream = client.beta.messages.stream({
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
@@ -81,6 +83,7 @@ async function doResearch(scene: string): Promise<SceneResearch> {
         messages,
       });
       const msg = await stream.finalMessage();
+      recordUsage(msg);
       if (msg.stop_reason === "refusal") throw new Error("Research was declined.");
       messages.push({ role: "assistant", content: msg.content });
       text = msg.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
@@ -94,6 +97,8 @@ async function doResearch(scene: string): Promise<SceneResearch> {
     };
     return store.setResearch(result);
   } catch (err) {
+    // Budget stops aren't failures of the research itself; let it run again once there's budget.
+    if (err instanceof BudgetExceeded) throw err;
     const failed: SceneResearch = {
       scene,
       updatedAt: previous?.updatedAt,

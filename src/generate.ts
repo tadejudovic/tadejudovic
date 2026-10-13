@@ -6,7 +6,7 @@ import { directClip, planVideos, type DirectContext } from "./ai/director.ts";
 import { currentTrends } from "./ai/trends.ts";
 import { provenCaptions, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
-import { renderQueue } from "./queue.ts";
+import { ingestQueue, renderQueue } from "./queue.ts";
 import type { Clip, GenerateRequest, Render, VideoPlan } from "./types.ts";
 
 /** Portrait footage only: landscape clips are kept in the library but never used. */
@@ -196,16 +196,16 @@ export function queueRender(
 }
 
 /** Queue a failed or interrupted render again, with the same plan. */
-export function retryRender(id: string): Render | undefined {
+export function retryRender(id: string, { urgent = true } = {}): Render | undefined {
   const r = store.render(id);
   if (!r) return undefined;
   store.updateRender(id, { status: "queued", progress: 0, error: undefined, review: "pending" });
-  enqueueRenderJob(id);
+  enqueueRenderJob(id, urgent);
   return store.render(id);
 }
 
-function enqueueRenderJob(id: string) {
-  renderQueue.push(async () => {
+function enqueueRenderJob(id: string, urgent = true) {
+  (urgent ? renderQueue : ingestQueue).push(async () => {
     const render = store.render(id);
     if (!render) return; // deleted while waiting
     store.updateRender(id, { status: "rendering" });
@@ -226,7 +226,7 @@ function enqueueRenderJob(id: string) {
     } catch (err) {
       store.updateRender(id, { status: "error", error: (err as Error).message });
     }
-  });
+  }, { kind: "render", id });
 }
 
 export function deleteRender(id: string) {

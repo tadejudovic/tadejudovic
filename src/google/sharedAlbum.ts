@@ -160,11 +160,11 @@ export interface VideoProbe {
  * vague, the first bytes of the file. Tries Google's 1080p and 720p versions,
  * then the original (=dv), then 360p.
  */
-export async function openVideo(item: AlbumItem): Promise<VideoProbe> {
+export async function openVideo(item: AlbumItem, suffixes = ["=m37", "=m22", "=dv", "=m18"]): Promise<VideoProbe> {
   const answers: string[] = [];
   // Google's own 1080p/720p H.264 versions first: SDR, already rotated, far smaller than a 4K HDR
   // original, and light to decode on a small server. The original (=dv) is the fallback.
-  for (const suffix of ["=m37", "=m22", "=dv", "=m18"]) {
+  for (const suffix of suffixes) {
     let res: Response;
     try {
       res = await fetch(`${item.baseUrl}${suffix}`, {

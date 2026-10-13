@@ -3,21 +3,22 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
-import { config } from "./config.ts";
+import { config, memoryMb } from "./config.ts";
 import { store, newId } from "./store.ts";
 import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy } from "./library.ts";
-import { ingestQueue } from "./queue.ts";
+import { ingestQueue, jobsFromLastCrash } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRender } from "./generate.ts";
 import { addAlbum, syncAlbum } from "./albums.ts";
-import { localDate, runDailyBatch, startScheduler } from "./scheduler.ts";
+import { localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import { gateEnabled, login, loginPage, logout, requireAuth } from "./auth.ts";
+import { monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import type { Clip, GenerateRequest, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -56,6 +57,9 @@ app.get("/api/status", (_req, res) => {
     google: { configured: googleConfigured(), connected: Boolean(store.google()) },
     claude: { enabled: config.claude.enabled, model: config.claude.model },
     gate: gateEnabled,
+    paused,
+    spend: { ...spendThisMonth(), limit: monthlyLimit() },
+    memoryMb,
     settings: store.settings(),
     templates: Object.values(TEMPLATES).map(({ id, name, description }) => ({ id, name, description })),
     music: listMusic(),
@@ -63,7 +67,7 @@ app.get("/api/status", (_req, res) => {
 });
 
 app.put("/api/settings", (req, res) => {
-  const { petName, handle, fontId, textStyle } = req.body ?? {};
+  const { petName, handle, fontId, textStyle, aiMonthlyBudget } = req.body ?? {};
   const fontOk = typeof fontId === "string" && listFonts().some((f) => f.id === fontId);
   res.json(
     store.updateSettings({
@@ -71,6 +75,9 @@ app.put("/api/settings", (req, res) => {
       ...(typeof handle === "string" ? { handle: handle.trim().slice(0, 40) } : {}),
       ...(fontOk ? { fontId } : {}),
       ...(["classic", "box", "plain"].includes(textStyle) ? { textStyle } : {}),
+      ...(Number.isFinite(Number(aiMonthlyBudget)) && aiMonthlyBudget !== "" && aiMonthlyBudget !== undefined
+        ? { aiMonthlyBudget: clamp(Number(aiMonthlyBudget), 0, 1000) }
+        : {}),
     }),
   );
 });
@@ -583,29 +590,88 @@ function parseDates(v: unknown): (string | undefined)[] {
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 
-// Work queues live in memory, so pick up anything that was in flight when the server stopped
-// (e.g. a deploy restarted it).
-for (const c of store.clips()) {
-  if (c.status !== "importing" && c.status !== "analyzing") continue;
-  const downloaded = c.status === "analyzing" || (c.source === "upload" && fs.existsSync(c.file));
-  if (downloaded && fs.existsSync(c.file)) {
-    ingestQueue.push(() => analyzeClip(c.id).catch((err) => void store.updateClip(c.id, { status: "error", error: err.message })));
-  } else if (c.source === "shared_album") {
-    // Possibly a partial download: drop it; the next album check (right after startup) imports it again.
-    deleteClip(c.id);
-  } else {
-    store.updateClip(c.id, { status: "error", error: "Interrupted by a restart. Upload it again." });
+// ---- Startup recovery -----------------------------------------------------
+//
+// Work queues live in memory. After a restart: skip whatever crashed the server last time,
+// pause everything if it keeps crashing, and otherwise pick up interrupted work.
+
+const CRASHED = "This crashed the server (it ran out of memory), so it won't be retried automatically.";
+const crashed = jobsFromLastCrash();
+for (const j of crashed) {
+  console.warn(`[recovery] ${j.kind} ${j.id} was running when the server died; not retrying it`);
+  if (j.kind === "render") store.updateRender(j.id, { status: "error", error: CRASHED });
+  if (j.kind === "clip") store.updateClip(j.id, { status: "error", error: CRASHED });
+  if (j.kind === "example") store.updateExample(j.id, { status: "error", error: CRASHED });
+}
+const crashedIds = new Set(crashed.map((j) => j.id));
+
+/** Unclean starts (no graceful shutdown before them) in the last 20 minutes. */
+function recordBoot(): number {
+  const file = path.join(config.dataDir, ".boots.json");
+  const cleanMarker = path.join(config.dataDir, ".clean-exit");
+  const clean = fs.existsSync(cleanMarker);
+  fs.rmSync(cleanMarker, { force: true });
+  let boots: number[] = [];
+  try {
+    boots = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {}
+  if (!clean) boots.push(Date.now());
+  boots = boots.filter((t) => Date.now() - t < 20 * 60_000);
+  fs.writeFileSync(file, JSON.stringify(boots));
+  return boots.length;
+}
+// Deploys stop the server with SIGTERM; mark those so they don't count as crashes.
+for (const sig of ["SIGTERM", "SIGINT"] as const) {
+  process.on(sig, () => {
+    try {
+      store.flush();
+      fs.writeFileSync(path.join(config.dataDir, ".clean-exit"), String(Date.now()));
+    } catch {}
+    process.exit(0);
+  });
+}
+
+const uncleanBoots = recordBoot();
+let paused = uncleanBoots >= 3;
+if (paused) console.warn(`[recovery] ${uncleanBoots} crashes in 20 minutes: automatic work is paused until resumed in Settings`);
+
+function recoverWork() {
+  for (const c of store.clips()) {
+    if (crashedIds.has(c.id) || (c.status !== "importing" && c.status !== "analyzing")) continue;
+    const downloaded = c.status === "analyzing" || (c.source === "upload" && fs.existsSync(c.file));
+    if (downloaded && fs.existsSync(c.file)) {
+      ingestQueue.push(() => analyzeClip(c.id).catch((err) => void store.updateClip(c.id, { status: "error", error: err.message })), { kind: "clip", id: c.id });
+    } else if (c.source === "shared_album") {
+      // Possibly a partial download: drop it; the next album check imports it again.
+      deleteClip(c.id);
+    } else {
+      store.updateClip(c.id, { status: "error", error: "Interrupted by a restart. Upload it again." });
+    }
+  }
+  // Clips imported before 1080p working copies existed: swap/convert them first...
+  for (const c of store.clips()) {
+    if (c.status === "ready" && c.kind === "video" && !crashedIds.has(c.id)) {
+      ingestQueue.push(() => ensureProxy(c.id).catch((err) => console.warn(`[proxy] ${c.filename}:`, err.message)), { kind: "clip", id: c.id });
+    }
+  }
+  // ...then finish interrupted videos.
+  for (const r of store.renders()) {
+    if (!crashedIds.has(r.id) && (r.status === "queued" || r.status === "rendering")) retryRender(r.id, { urgent: false });
   }
 }
-for (const r of store.renders()) {
-  if (r.status === "queued" || r.status === "rendering") retryRender(r.id);
-}
-// Clips imported before 1080p working copies existed: convert them once, in the background.
-for (const c of store.clips()) {
-  if (c.status === "ready" && c.kind === "video") {
-    ingestQueue.push(() => ensureProxy(c.id).catch((err) => console.warn(`[proxy] ${c.filename}:`, err.message)));
+
+if (!paused) recoverWork();
+setPaused(paused);
+
+app.post("/api/resume", (_req, res) => {
+  fs.rmSync(path.join(config.dataDir, ".boots.json"), { force: true });
+  if (paused) {
+    paused = false;
+    setPaused(false);
+    recoverWork();
   }
-}
+  res.json({ ok: true });
+});
 
 startScheduler();
 

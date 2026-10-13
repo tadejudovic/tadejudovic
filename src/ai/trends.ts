@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
+import { assertBudget, recordUsage } from "./budget.ts";
 import { store } from "../store.ts";
 import { SEED_TRENDS } from "../templates.ts";
 import type { TrendFormat, Trends } from "../types.ts";
@@ -43,6 +44,7 @@ export async function refreshTrends(petName: string): Promise<Trends> {
   let text = "";
   // Server-side web search can pause long turns; continue until the model finishes.
   for (let turn = 0; turn < 4; turn++) {
+    assertBudget();
     const stream = client.beta.messages.stream({
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
@@ -54,6 +56,7 @@ export async function refreshTrends(petName: string): Promise<Trends> {
       messages,
     });
     const msg = await stream.finalMessage();
+    recordUsage(msg);
     if (msg.stop_reason === "refusal") throw new Error("Trend research was declined.");
     messages.push({ role: "assistant", content: msg.content });
     text = msg.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");

@@ -8,7 +8,7 @@ import { store, newId } from "./store.ts";
 import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
-import { enqueueClip, importPicked, analyzeClip, deleteClip } from "./library.ts";
+import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy } from "./library.ts";
 import { ingestQueue } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRender } from "./generate.ts";
 import { addAlbum, syncAlbum } from "./albums.ts";
@@ -599,6 +599,12 @@ for (const c of store.clips()) {
 }
 for (const r of store.renders()) {
   if (r.status === "queued" || r.status === "rendering") retryRender(r.id);
+}
+// Clips imported before 1080p working copies existed: convert them once, in the background.
+for (const c of store.clips()) {
+  if (c.status === "ready" && c.kind === "video") {
+    ingestQueue.push(() => ensureProxy(c.id).catch((err) => console.warn(`[proxy] ${c.filename}:`, err.message)));
+  }
 }
 
 startScheduler();

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.ts";
 import { store, newId } from "./store.ts";
-import { probe, frameAt, photoToClip } from "./media/ffmpeg.ts";
+import { probe, frameAt, photoToClip, needsProxy, makeProxy } from "./media/ffmpeg.ts";
 import { energyCurve, findMoments } from "./media/analyze.ts";
 import { tagClip } from "./ai/director.ts";
 import { download, type PickedMediaItem } from "./google/picker.ts";
@@ -89,6 +89,15 @@ export async function analyzeClip(id: string) {
     await photoToClip(clip.file, file, PHOTO_SECONDS);
     kind = "photo";
     info = await probe(file);
+  } else if (needsProxy(info)) {
+    // 4K / HDR / HEVC phone footage: convert once to a light 1080p copy that everything else uses,
+    // then drop the heavy original (saves memory on every later step, and disk).
+    const proxy = path.join(config.mediaDir, `${id}.mp4`);
+    await makeProxy(clip.file, proxy, info);
+    if (clip.file !== proxy) fs.rmSync(clip.file, { force: true });
+    file = proxy;
+    store.updateClip(id, { file });
+    info = await probe(file);
   }
 
   const thumb = path.join(config.thumbsDir, `${id}.jpg`);
@@ -121,6 +130,23 @@ export async function analyzeClip(id: string) {
       console.warn(`[ai] tagging ${clip.filename} failed:`, (err as Error).message);
     }
   }
+}
+
+/**
+ * Convert a clip imported before proxies existed (a 4K/HDR original) to the light 1080p copy,
+ * so rendering it doesn't run a small server out of memory.
+ */
+export async function ensureProxy(id: string) {
+  const clip = store.clip(id);
+  if (!clip || clip.status !== "ready" || clip.kind !== "video" || !fs.existsSync(clip.file)) return;
+  const info = await probe(clip.file);
+  if (!needsProxy(info)) return;
+  const proxy = path.join(config.mediaDir, `${id}.mp4`);
+  const target = clip.file === proxy ? path.join(config.mediaDir, `${id}.proxy.mp4`) : proxy;
+  await makeProxy(clip.file, target, info);
+  if (clip.file !== target) fs.rmSync(clip.file, { force: true });
+  store.updateClip(id, { file: target });
+  console.log(`[proxy] converted ${clip.filename} to a 1080p working copy`);
 }
 
 export function deleteClip(id: string) {

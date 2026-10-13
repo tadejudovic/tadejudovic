@@ -13,7 +13,8 @@ globalThis.fetch = (async (input: any, init?: any) => {
   if (url.endsWith("VIDEO1=dv")) return serve("portrait.mp4");
   // A vague content type: detected by sniffing the file header.
   if (url.endsWith("VIDEO3=dv")) return serve("portrait2.mp4", "application/octet-stream");
-  if (url.endsWith("PHOTO2=dv")) return new Response("jpeg", { headers: { "content-type": "image/jpeg" } });
+  if (url.includes("PHOTO2=")) return new Response("jpeg", { headers: { "content-type": "image/jpeg" } });
+  if (url.includes("googleusercontent.com")) return new Response("not found", { status: 404, headers: { "content-type": "text/html" } });
   return realFetch(input, init);
 }) as typeof fetch;
 

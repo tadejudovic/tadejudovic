@@ -157,12 +157,14 @@ export interface VideoProbe {
 /**
  * Album pages don't reliably say which items are videos, so ask for the video
  * stream and check what comes back: the declared content type, and if that's
- * vague, the first bytes of the file. Tries the original (=dv) and then
- * Google's 1080p/720p/360p transcodes.
+ * vague, the first bytes of the file. Tries Google's 1080p and 720p versions,
+ * then the original (=dv), then 360p.
  */
 export async function openVideo(item: AlbumItem): Promise<VideoProbe> {
   const answers: string[] = [];
-  for (const suffix of ["=dv", "=m37", "=m22", "=m18"]) {
+  // Google's own 1080p/720p H.264 versions first: SDR, already rotated, far smaller than a 4K HDR
+  // original, and light to decode on a small server. The original (=dv) is the fallback.
+  for (const suffix of ["=m37", "=m22", "=dv", "=m18"]) {
     let res: Response;
     try {
       res = await fetch(`${item.baseUrl}${suffix}`, {
@@ -183,7 +185,8 @@ export async function openVideo(item: AlbumItem): Promise<VideoProbe> {
     if (type.startsWith("image/") || type.startsWith("text/")) {
       answers.push(`${suffix}: ${type}`);
       await res.body.cancel();
-      // A photo answers =dv with the image itself; no point trying transcodes.
+      // A photo answers the original (=dv) request with the image itself: stop there. (A video whose
+      // 1080p version isn't ready may answer =m37 with a still frame, so only trust this for =dv.)
       if (suffix === "=dv" && type.startsWith("image/")) break;
       continue;
     }

@@ -1,0 +1,20 @@
+# One-click deploy on Render: New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: pawcut
+    runtime: docker
+    plan: starter # always on; needed for the album checks and the morning batch
+    healthCheckPath: /healthz
+    disk:
+      name: pawcut-data
+      mountPath: /data
+      sizeGB: 10
+    envVars:
+      - key: APP_PASSWORD
+        sync: false # you type it in when deploying
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: APP_URL
+        value: https://studio.lexintheair.com
+      - key: TZ
+        sync: false # your time zone, e.g. Europe/London, so the morning batch runs at your 8:00

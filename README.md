@@ -93,6 +93,24 @@ Set `ANTHROPIC_API_KEY` in `.env`. Claude then:
 
 Because the frames are only analyzed once, planning a day's worth of videos is a single cheap text-only call. Requests use server-side refusal fallbacks (`fallbacks: "default"`). If the API is unavailable, the app falls back to the heuristic planner. Use **Preview plans** to edit hooks and captions before rendering.
 
+## Put it online behind a password (studio.lexintheair.com)
+
+The app needs an always-on server with ffmpeg and a disk. Serverless hosts like Vercel can't run long video renders or the daily schedule. The repo ships a `Dockerfile` and a Render blueprint (`render.yaml`).
+
+1. **Deploy on [Render](https://render.com):** *New → Blueprint*, pick this GitHub repo and branch. When prompted, fill in:
+   - `APP_PASSWORD`: the password for the gate (use a long one);
+   - `ANTHROPIC_API_KEY`;
+   - `TZ`: your time zone, e.g. `Europe/London`, so the morning batch runs at your local time.
+
+   This creates an always-on web service (Starter plan) with a 10 GB persistent disk at `/data` for clips, renders and settings.
+2. **Add the domain in Render:** *Settings → Custom Domains → Add* `studio.lexintheair.com`. Render shows a target like `pawcut-xxxx.onrender.com`.
+3. **Point DNS at it.** lexintheair.com's DNS is at Namecheap: *Domain List → Manage → Advanced DNS → Add new record*, type `CNAME`, host `studio`, value = the Render target. Render issues the HTTPS certificate automatically.
+4. Open https://studio.lexintheair.com and sign in with `APP_PASSWORD`.
+
+The gate covers every page, API call and media file. Sessions last 30 days, and changing `APP_PASSWORD` signs everyone out. Repeated wrong passwords are throttled. Pages are marked `noindex`. The server refuses to listen publicly without `APP_PASSWORD`.
+
+The same image runs anywhere with a persistent volume (Railway, Fly.io, a VPS): `docker build -t pawcut . && docker run -p 3000:3000 -v pawcut-data:/data -e APP_PASSWORD=… -e ANTHROPIC_API_KEY=… pawcut`.
+
 ## How it works
 
 ```
@@ -125,7 +143,7 @@ DATA_DIR=/tmp/pc FOOTAGE_DIR=/dir/with/portrait.mp4+landscape.mov npx tsx test/f
 npm run typecheck
 ```
 
-The server binds to `127.0.0.1` by default because it has no user accounts yet. Set `HOST=0.0.0.0` only behind your own auth.
+Without `APP_PASSWORD` the server only listens on `127.0.0.1`.
 
 ## Roadmap to a commercial product
 

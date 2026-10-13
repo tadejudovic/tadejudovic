@@ -7,6 +7,10 @@ async function api(path, opts = {}) {
     headers: opts.body && !(opts.body instanceof FormData) ? { "content-type": "application/json" } : {},
     body: opts.body && !(opts.body instanceof FormData) ? JSON.stringify(opts.body) : opts.body,
   });
+  if (res.status === 401) {
+    location.href = `/login?next=${encodeURIComponent(location.pathname)}`;
+    throw new Error("Signed out");
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
   return data;
@@ -40,6 +44,7 @@ const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)
 async function loadStatus() {
   const s = (state.status = await api("/api/status"));
   $("#chip-google").classList.toggle("on", s.google.connected);
+  $("#logout").hidden = !s.gate;
   $("#chip-ai").classList.toggle("on", s.claude.enabled);
   $("#chip-ai").title = s.claude.enabled ? `Using ${s.claude.model}` : "Set ANTHROPIC_API_KEY to enable";
   const form = $("#settings");

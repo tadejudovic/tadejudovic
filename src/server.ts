@@ -15,11 +15,24 @@ import { runDailyBatch, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
+import { gateEnabled, login, loginPage, logout, requireAuth } from "./auth.ts";
 import type { GenerateRequest, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+// Behind a hosting proxy (Render, Railway, Fly…): trust X-Forwarded-* for HTTPS detection and client IPs.
+app.set("trust proxy", 1);
+app.use((_req, res, next) => {
+  res.setHeader("x-robots-tag", "noindex, nofollow");
+  next();
+});
 app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: false, limit: "10kb" }));
+app.get("/healthz", (_req, res) => res.send("ok"));
+app.get("/login", loginPage);
+app.post("/login", login);
+app.get("/logout", logout);
+app.use(requireAuth);
 app.use(express.static(path.join(here, "..", "public")));
 
 const upload = multer({
@@ -40,7 +53,7 @@ app.get("/api/status", (_req, res) => {
   res.json({
     google: { configured: googleConfigured(), connected: Boolean(store.google()) },
     claude: { enabled: config.claude.enabled, model: config.claude.model },
-    fontAvailable: Boolean(config.fontFile),
+    gate: gateEnabled,
     settings: store.settings(),
     templates: Object.values(TEMPLATES).map(({ id, name, description }) => ({ id, name, description })),
     music: listMusic(),
@@ -494,10 +507,15 @@ for (const r of store.renders()) {
 
 startScheduler();
 
-const host = process.env.HOST ?? "127.0.0.1";
+// Public by default only when the password gate is on.
+const host = process.env.HOST ?? (gateEnabled ? "0.0.0.0" : "127.0.0.1");
+if (!gateEnabled && !["127.0.0.1", "localhost", "::1"].includes(host)) {
+  console.error("Refusing to listen on a public address without APP_PASSWORD. Set APP_PASSWORD (or HOST=127.0.0.1).");
+  process.exit(1);
+}
 app.listen(config.port, host, () => {
   console.log(`PawCut running at ${config.appUrl}`);
   console.log(`  Google Photos: ${googleConfigured() ? "configured" : "not configured (set GOOGLE_CLIENT_ID/SECRET)"}`);
   console.log(`  AI director:   ${config.claude.enabled ? config.claude.model : "off (set ANTHROPIC_API_KEY)"}`);
-  console.log(`  Text font:     ${config.fontFile ?? "none found — set FONT_FILE to enable on-screen text"}`);
+  console.log(`  Password gate: ${gateEnabled ? "on" : "off (local only)"}`);
 });

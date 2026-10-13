@@ -28,5 +28,6 @@ export class Queue {
 }
 
 /** Ingest: download + analysis. Render: ffmpeg encodes are CPU-heavy, so one at a time. */
-export const ingestQueue = new Queue(2);
+// One import at a time by default: decoding phone video is memory-hungry on small instances.
+export const ingestQueue = new Queue(Math.max(1, Number(process.env.INGEST_CONCURRENCY) || 1));
 export const renderQueue = new Queue(1);

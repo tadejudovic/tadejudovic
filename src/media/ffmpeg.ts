@@ -5,12 +5,32 @@ export interface RunResult {
   stderr: string;
 }
 
+/**
+ * Cap ffmpeg's threads. Left alone, ffmpeg starts a worker (and frame buffers)
+ * per CPU it can see, which in a container is often the whole host, enough to
+ * run a small instance out of memory on 4K phone footage.
+ */
+const THREADS = String(Math.max(1, Number(process.env.FFMPEG_THREADS) || 2));
+
+export function withThreadLimit(args: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    // Before each input: limits the decoder.
+    if (args[i] === "-i") out.push("-threads", THREADS);
+    // Before the output (last arg): limits the encoder and filters.
+    if (i === args.length - 1) out.push("-threads", THREADS, "-filter_threads", THREADS, "-filter_complex_threads", THREADS);
+    out.push(args[i]);
+  }
+  return out;
+}
+
 /** Run ffmpeg/ffprobe and collect output. Rejects with the tail of stderr on failure. */
 export function run(
   bin: "ffmpeg" | "ffprobe",
   args: string[],
   onStderr?: (line: string) => void,
 ): Promise<RunResult> {
+  if (bin === "ffmpeg") args = withThreadLimit(args);
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
     const out: Buffer[] = [];

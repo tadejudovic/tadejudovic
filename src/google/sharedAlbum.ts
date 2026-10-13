@@ -45,24 +45,90 @@ export function isAlbumUrl(url: string): boolean {
 // Pre-accept Google's cookie-consent interstitial, which some server regions get instead of the album.
 const HEADERS = { "user-agent": UA, "accept-language": "en-US,en;q=0.9", cookie: "CONSENT=YES+cb; SOCS=CAI" };
 
+/** Undo the escaping Google uses when it embeds a URL in a script or attribute. */
+function unescapeUrlText(s: string): string {
+  return s
+    .replace(/\\\//g, "/")
+    .replace(/\\u002[fF]/g, "/")
+    .replace(/\\u003[dD]/g, "=")
+    .replace(/\\u0026/g, "&")
+    .replace(/\\x2[fF]/g, "/")
+    .replace(/&amp;/g, "&")
+    .replace(/https?%3A%2F%2F[^"'\s<>&]+/gi, (m) => {
+      try {
+        return decodeURIComponent(m);
+      } catch {
+        return m;
+      }
+    });
+}
+
+/** Find the full album address inside a page that redirects with a script or meta refresh. */
+export function findShareUrl(html: string): string | undefined {
+  return unescapeUrlText(html).match(/https:\/\/photos\.google\.com\/(?:u\/\d+\/)?share\/[A-Za-z0-9_-]+(?:\?key=[A-Za-z0-9_-]+)?/)?.[0];
+}
+
+const isShareUrl = (u: string) => /^https:\/\/photos\.google\.com\/(u\/\d+\/)?share\//.test(u);
+
+/**
+ * Turn a short link (photos.app.goo.gl/…) into the full photos.google.com/share/… address.
+ * Follows HTTP redirects by hand (so every hop can be checked), and if a hop answers with a
+ * page instead, looks for the address inside it. Google answers different clients
+ * differently, so a few user agents are tried.
+ */
+async function resolveShareUrl(url: string): Promise<{ url: string; html?: string; trail: string[] }> {
+  const trail: string[] = [];
+  if (isShareUrl(url)) return { url, trail };
+  const agents = [UA, "curl/8.5.0", "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"];
+  for (const agent of agents) {
+    let current = url;
+    for (let hop = 0; hop < 8; hop++) {
+      const res = await fetch(current, { headers: { ...HEADERS, "user-agent": agent }, redirect: "manual" });
+      const location = res.headers.get("location");
+      if (location && res.status >= 300 && res.status < 400) {
+        await res.body?.cancel();
+        current = new URL(location, current).toString();
+        trail.push(`${res.status}→${new URL(current).host}${new URL(current).pathname.slice(0, 24)}`);
+        if (isShareUrl(current)) return { url: current, trail };
+        continue;
+      }
+      const html = await res.text();
+      const found = findShareUrl(html);
+      if (found) {
+        trail.push(`page→share`);
+        return { url: found, trail };
+      }
+      const title = html.match(/<title>([^<]*)<\/title>/i)?.[1]?.trim();
+      trail.push(`${res.status} page "${(title ?? "").slice(0, 40)}" (${html.length}b, ${agent.split("/")[0]})`);
+      // Some hops already are the album page under another address.
+      if (html.includes("AF_initDataCallback(")) return { url: current, html, trail };
+      break;
+    }
+  }
+  return { url, trail };
+}
+
 export async function fetchAlbum(url: string): Promise<AlbumPage> {
   if (!isAlbumUrl(url)) throw new Error("That doesn't look like a Google Photos shared-album link.");
-  let res = await fetch(url, { headers: HEADERS, redirect: "follow" });
-  let html = await res.text();
-  // Short links sometimes answer with a page that redirects in the browser instead of an HTTP redirect.
-  const share = !res.url.includes("photos.google.com/share/") && html.match(/https:\/\/photos\.google\.com\/share\/[^"'\s<>\\]+/)?.[0];
-  if (share) {
-    res = await fetch(share.replace(/&amp;/g, "&"), { headers: HEADERS, redirect: "follow" });
+  const resolved = await resolveShareUrl(url);
+  let html = resolved.html;
+  let finalUrl = resolved.url;
+  if (!html) {
+    const res = await fetch(resolved.url, { headers: HEADERS, redirect: "follow" });
+    if (!res.ok) throw new Error(`Couldn't open the album (HTTP ${res.status}). Is link sharing turned on?`);
     html = await res.text();
+    finalUrl = res.url;
   }
-  if (!res.ok) throw new Error(`Couldn't open the album (HTTP ${res.status}). Is link sharing turned on?`);
   const page = parseAlbumHtml(html);
   if (!page.items.length) {
     const blocks = html.split("AF_initDataCallback(").length - 1;
-    console.warn(`[album] no items found: url=${res.url} status=${res.status} bytes=${html.length} dataBlocks=${blocks} title=${page.title ?? "-"}`);
+    console.warn(`[album] no items found: url=${finalUrl} bytes=${html.length} dataBlocks=${blocks} title=${page.title ?? "-"} trail=${resolved.trail.join(" | ")}`);
+    const short = !isShareUrl(resolved.url);
     throw new Error(
-      `Opened the album page but found no photos or videos in it (landed on ${new URL(res.url).host}${new URL(res.url).pathname.slice(0, 30)}, ` +
-        `${blocks} data blocks). Check that link sharing is on; if it is, send this message to the developer.`,
+      short
+        ? "Couldn't follow this short link to the album. Open it in your browser, copy the full address " +
+          "(it starts with https://photos.google.com/share/) and add that instead."
+        : `Opened the album page but found no photos or videos in it (${blocks} data blocks). Check that link sharing is on.`,
     );
   }
   return page;

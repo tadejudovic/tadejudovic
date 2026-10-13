@@ -13,6 +13,7 @@
     <a class="brand" href="#review">Lex Studio</a>
     <nav class="tabs" id="tabs">
       <button data-tab="review" class="on">Videos</button>
+      <button data-tab="clips">Clips</button>
       <button data-tab="settings">Settings</button>
     </nav>
   </header>
@@ -60,6 +61,28 @@
       </details>
     </section>
 
+    <!-- CLIPS: the footage ---------------------------------------------------- -->
+    <section data-tab="clips" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Clips</h1>
+          <p class="sub">The videos from your album that new TikToks are made from. Tap one to play it.</p>
+        </div>
+      </div>
+
+      <h2 class="section-title first">Up next</h2>
+      <p class="sub">The clips the next videos will be made from.</p>
+      <div id="suggestions" class="suggestions"></div>
+      <p id="suggestions-empty" class="muted" hidden>Every clip has been used. Add more videos to your album.</p>
+
+      <h2 class="section-title">All clips</h2>
+      <div id="drop" class="drop">
+        <div id="clips" class="clips"></div>
+        <p id="clips-empty" class="muted">No clips yet. Add videos to your Google Photos album (Settings).</p>
+      </div>
+      <p class="hint" id="selection-hint" hidden></p>
+    </section>
+
     <!-- SETTINGS ------------------------------------------------------------ -->
     <section data-tab="settings" hidden>
       <div class="page-head"><h1>Settings</h1></div>
@@ -67,7 +90,7 @@
       <div class="card">
         <h2 class="card-title">Google Photos album</h2>
         <form id="album-form" class="inline-form">
-          <input name="url" type="url" placeholder="Paste a shared-album link" required />
+          <input name="url" type="url" placeholder="Paste a shared-album link (photos.google.com/share/… works best)" required />
           <button class="btn" type="submit">Add</button>
         </form>
         <ul id="albums" class="albums"></ul>
@@ -147,19 +170,6 @@
             <button class="btn small" type="submit">Add</button>
           </form>
           <div id="examples" class="examples"></div>
-        </div>
-
-        <div class="card">
-          <h2 class="card-title">Clip library</h2>
-          <p class="hint top">Every imported clip. Fix a clip's situation, add a note, or make a video from it.</p>
-          <div id="drop" class="drop">
-            <div id="clips" class="clips"></div>
-            <p id="clips-empty" class="muted">No clips yet.</p>
-          </div>
-          <p class="hint" id="selection-hint" hidden></p>
-          <h3 class="mini-title">Up next</h3>
-          <div id="suggestions" class="suggestions"></div>
-          <p id="suggestions-empty" class="muted" hidden>No unused clips.</p>
         </div>
 
         <div class="card">

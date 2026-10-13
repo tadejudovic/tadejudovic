@@ -31,3 +31,36 @@ test("parseFormats tolerates prose around the JSON", () => {
   const f = parseFormats('Here you go:\n{"formats":[{"pattern":"POV: ___","example":"POV: Lex at the vet","fits":"vet"},{"bad":1}]}\nDone.');
   assert.deepEqual(f, [{ pattern: "POV: ___", example: "POV: Lex at the vet", fits: "vet" }]);
 });
+
+test("finds the full album address however the redirect page escapes it", async () => {
+  const { findShareUrl } = await import("../src/google/sharedAlbum.ts");
+  const want = "https://photos.google.com/share/AF1QipMg67Z_H-7tc?key=SWJYNVBCaXdX";
+  assert.equal(findShareUrl(`<meta http-equiv="refresh" content="0;url=${want.replace("&", "&amp;")}">`), want);
+  assert.equal(findShareUrl(`window.location.replace("${want.replaceAll("/", "\\/")}")`), want);
+  assert.equal(findShareUrl(`"\\u0068ttps:\\u002F\\u002Fphotos.google.com\\u002Fshare\\u002FAF1QipMg67Z_H-7tc?key\\u003dSWJYNVBCaXdX"`.replace("\\u0068", "h")), want);
+  assert.equal(findShareUrl(`<a href="/continue?u=${encodeURIComponent(want)}">`), want);
+  assert.equal(findShareUrl("<html>nothing here</html>"), undefined);
+});
+
+test("follows a chain of short links to the album", async () => {
+  const { fetchAlbum } = await import("../src/google/sharedAlbum.ts");
+  const album = fs.readFileSync(new URL("./fixtures/album.html", import.meta.url), "utf8");
+  const real = globalThis.fetch;
+  const seen: string[] = [];
+  globalThis.fetch = (async (input: any, init?: any) => {
+    const url = String(input);
+    seen.push(url);
+    if (url === "https://photos.app.goo.gl/first") return new Response(null, { status: 302, headers: { location: "https://photos.app.goo.gl/second" } });
+    if (url === "https://photos.app.goo.gl/second")
+      return new Response(`<html><title>Google Photos</title><script>location.href="https:\\/\\/photos.google.com\\/share\\/AF1QipAlbum?key\\u003dK1"</script>`, { headers: { "content-type": "text/html" } });
+    if (url.startsWith("https://photos.google.com/share/AF1QipAlbum?key=K1")) return new Response(album, { headers: { "content-type": "text/html" } });
+    return new Response("?", { status: 404 });
+  }) as typeof fetch;
+  try {
+    const page = await fetchAlbum("https://photos.app.goo.gl/first");
+    assert.equal(page.items.length, 3);
+    assert.ok(seen.includes("https://photos.google.com/share/AF1QipAlbum?key=K1"), JSON.stringify(seen));
+  } finally {
+    globalThis.fetch = real;
+  }
+});

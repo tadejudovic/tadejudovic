@@ -198,9 +198,13 @@ function renderClips() {
         "div",
         {
           class: `clip ${landscape ? "landscape" : ""}`,
+          "data-clip": c.id,
           title: c.error || c.ai?.summary || c.filename,
         },
-        c.status === "ready" ? h("img", { class: "thumb", src: `/media/thumb/${c.id}`, loading: "lazy", alt: "" }) : h("div", { class: "thumb" }),
+        c.status === "ready"
+          ? h("div", { class: "thumb-wrap", title: "Play", onclick: (e) => playClip(e.currentTarget.closest(".clip"), c.id) },
+              h("img", { class: "thumb", src: `/media/thumb/${c.id}`, loading: "lazy", alt: "" }))
+          : h("div", { class: "thumb" }),
         badge && h("span", { class: `badge ${c.status === "error" ? "err" : ""}` }, badge),
         h("button", {
           class: "del", title: "Remove from library",
@@ -215,10 +219,13 @@ function renderClips() {
           h("div", { class: "sub" },
             h("span", {}, c.duration ? fmt(c.duration) : "–"),
             h("span", {}, c.capturedAt ? new Date(c.capturedAt).toLocaleDateString() : ""),
-            c.uses ? h("span", { title: "Used in this many videos" }, `×${c.uses}`) : null,
+            c.status === "ready" && !landscape
+              ? h("span", { class: `use ${c.uses ? "" : "fresh"}` }, c.uses ? `used ${c.uses}×` : "not used yet")
+              : null,
           ),
           c.energy?.length ? energyBars(c.energy) : null,
           tags.length ? h("div", { class: "tags" }, tags.map((t) => h("span", { class: "tag" }, t))) : null,
+          c.status === "error" && c.error ? h("div", { class: "clip-err" }, c.error) : null,
           landscape || c.status !== "ready" ? null : h("select", {
             class: "scene-select note",
             title: "Situation",
@@ -621,6 +628,7 @@ function reviewCard(r) {
             }, "Try again"),
           )
         : null,
+      sourceLine(r.plan),
       h("span", { class: "field-label" }, "Text on video"),
       ...overlayInputs.map((inp) => h("div", { class: "overlay-edit" }, inp)),
       update,
@@ -651,6 +659,42 @@ function reviewCard(r) {
   );
 }
 
+// ---- Clip preview -----------------------------------------------------------
+
+/** Swap a clip card's thumbnail for the playing video. */
+function playClip(card, clipId) {
+  const wrap = card?.querySelector(".thumb-wrap");
+  if (!wrap || card.classList.contains("playing")) return;
+  card.classList.add("playing");
+  wrap.replaceChildren(h("video", { class: "thumb", src: `/media/clip/${clipId}`, controls: true, autoplay: true, playsinline: true }));
+}
+
+/** Jump to a clip on the Clips tab and play it. */
+function openClip(clipId) {
+  showTab("clips");
+  const card = document.querySelector(`.clip[data-clip="${clipId}"]`);
+  if (!card) return banner("That clip is no longer in your library.");
+  for (const el of document.querySelectorAll(".clip.highlight")) el.classList.remove("highlight");
+  card.classList.add("highlight");
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  playClip(card, clipId);
+}
+
+const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
+/** "Made from" line on a video card: which clip, which situation, which seconds. */
+function sourceLine(plan) {
+  const seg = plan.segments?.[0];
+  if (!seg) return null;
+  const clip = state.clips.find((c) => c.id === seg.clipId);
+  const more = new Set(plan.segments.map((s) => s.clipId)).size - 1;
+  return h("button", { class: "source", title: "Play the original clip", onclick: () => openClip(seg.clipId) },
+    h("img", { src: `/media/thumb/${seg.clipId}`, alt: "", loading: "lazy" }),
+    h("span", {}, "Made from ", h("b", {}, plan.scene || clip?.scene || "your clip"),
+      ` · ${mmss(seg.start)}–${mmss(seg.end)}${more > 0 ? ` + ${more} more` : ""}`),
+  );
+}
+
 // ---- Suggestions ------------------------------------------------------------
 
 async function makeFromClip(btn, clipId) {
@@ -668,7 +712,7 @@ async function refreshSuggestions() {
   $("#suggestions").replaceChildren(
     ...list.map((sg) =>
       h("div", { class: "sugg", title: sg.summary || "" },
-        h("img", { src: `/media/thumb/${sg.clipId}`, alt: "", loading: "lazy" }),
+        h("img", { src: `/media/thumb/${sg.clipId}`, alt: "", loading: "lazy", title: "Play", onclick: () => openClip(sg.clipId) }),
         h("div", { class: "body" },
           h("span", { class: "scene-tag" }, sg.scene || "unsorted"),
           sg.caption
@@ -966,9 +1010,9 @@ $("#onboard-form").addEventListener("submit", (e) => {
 
 // ---- Tabs -------------------------------------------------------------------
 
-const TABS = ["review", "settings"];
+const TABS = ["review", "clips", "settings"];
 function showTab(name) {
-  if (["clips", "captions", "style"].includes(name)) name = "settings";
+  if (["captions", "style"].includes(name)) name = "settings";
   if (!TABS.includes(name)) name = "review";
   for (const sec of document.querySelectorAll("main > section[data-tab]")) sec.hidden = sec.dataset.tab !== name;
   for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("on", b.dataset.tab === name);

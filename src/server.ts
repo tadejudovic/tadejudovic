@@ -10,7 +10,7 @@ import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy } from "./library.ts";
-import { ingestQueue, jobsFromLastCrash } from "./queue.ts";
+import { forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRender } from "./generate.ts";
 import { addAlbum, forgetItem, syncAlbum } from "./albums.ts";
 import { localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
@@ -659,6 +659,9 @@ function recordBoot(): number {
 for (const sig of ["SIGTERM", "SIGINT"] as const) {
   process.on(sig, () => {
     try {
+      // A deploy interrupted whatever was running; it didn't crash anything, so let the next start retry it.
+      markStopping();
+      forgetRunningJobs();
       store.flush();
       fs.writeFileSync(path.join(config.dataDir, ".clean-exit"), String(Date.now()));
     } catch {}

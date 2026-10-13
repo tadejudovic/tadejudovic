@@ -57,6 +57,11 @@ export interface Job {
 }
 const RUNNING_FILE = path.join(config.dataDir, ".running-jobs.json");
 const running = new Map<string, Job>();
+let stopping = false;
+/** Stop recording jobs (the process is shutting down). */
+export function markStopping() {
+  stopping = true;
+}
 const persist = () => {
   try {
     fs.writeFileSync(RUNNING_FILE, JSON.stringify([...running.values()]));
@@ -74,17 +79,28 @@ export function jobsFromLastCrash(): Job[] {
   }
 }
 
+/**
+ * Called on a graceful stop (a deploy): whatever is running was interrupted, it didn't crash
+ * the server, so the next start should retry it rather than blame it.
+ */
+export function forgetRunningJobs() {
+  try {
+    fs.rmSync(RUNNING_FILE, { force: true });
+  } catch {}
+}
+
 function tracked(task: () => Promise<void>, job?: Job) {
   if (!job) return task;
   const key = `${job.kind}:${job.id}`;
   return async () => {
+    if (stopping) return;
     running.set(key, job);
     persist();
     try {
       await task();
     } finally {
       running.delete(key);
-      persist();
+      if (!stopping) persist();
     }
   };
 }

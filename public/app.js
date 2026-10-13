@@ -53,12 +53,10 @@ async function loadStatus() {
     form.handle.value = s.settings.handle;
   }
   const btn = $("#btn-google");
-  btn.textContent = s.google.connected ? "Import from Google Photos" : "Connect Google Photos";
-  $("#google-hint").textContent = !s.google.configured
-    ? "Google Photos isn't configured yet — add GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET to .env (see README). Uploading files works now."
-    : s.google.connected
-      ? "You'll pick clips in Google Photos' own picker. Tip: search “Lex” or a pet-face group there to grab everything at once."
-      : "";
+  // The picker needs Google Cloud credentials; the album link doesn't, so only show the picker when it's set up.
+  btn.hidden = !s.google.configured;
+  btn.textContent = s.google.connected ? "Pick from Google Photos" : "Connect Google Photos";
+  $("#google-hint").textContent = "New videos you add to the album are picked up automatically every few hours.";
   const tpl = $("#templates");
   if (!tpl.children.length) {
     s.templates.forEach((t, i) =>
@@ -190,13 +188,8 @@ function renderClips() {
       return h(
         "div",
         {
-          class: `clip ${state.selected.has(c.id) ? "selected" : ""} ${landscape ? "landscape" : ""}`,
+          class: `clip ${landscape ? "landscape" : ""}`,
           title: c.error || c.ai?.summary || c.filename,
-          onclick: () => {
-            if (c.status !== "ready" || landscape) return;
-            state.selected.has(c.id) ? state.selected.delete(c.id) : state.selected.add(c.id);
-            renderClips();
-          },
         },
         c.status === "ready" ? h("img", { class: "thumb", src: `/media/thumb/${c.id}`, loading: "lazy", alt: "" }) : h("div", { class: "thumb" }),
         badge && h("span", { class: `badge ${c.status === "error" ? "err" : ""}` }, badge),
@@ -217,6 +210,28 @@ function renderClips() {
           ),
           c.energy?.length ? energyBars(c.energy) : null,
           tags.length ? h("div", { class: "tags" }, tags.map((t) => h("span", { class: "tag" }, t))) : null,
+          landscape || c.status !== "ready" ? null : h("select", {
+            class: "scene-select note",
+            title: "Situation",
+            onclick: (e) => e.stopPropagation(),
+            onchange: async (e) => {
+              c.scene = e.target.value;
+              await api(`/api/clips/${c.id}`, { method: "PATCH", body: { scene: e.target.value } });
+              refreshScenes();
+            },
+          },
+            h("option", { value: "", selected: !c.scene }, "— situation —"),
+            ...(state.status?.settings.scenes ?? []).map((sc) => h("option", { value: sc, selected: c.scene === sc }, sc)),
+            h("option", { value: "other", selected: c.scene === "other" }, "other"),
+          ),
+          landscape || c.status !== "ready" ? null : h("button", {
+            class: "btn small make",
+            title: "Make a video from this clip now; it appears under Create for review",
+            onclick: (e) => {
+              e.stopPropagation();
+              makeFromClip(e.currentTarget, c.id);
+            },
+          }, "Make video"),
           landscape ? null : h("input", {
             class: "note",
             value: c.note || "",
@@ -278,7 +293,7 @@ $("#create").addEventListener("submit", (e) => {
     if (r.warning) banner(r.warning);
     $("#plans").hidden = true;
     await refreshRenders();
-    $("#renders").scrollIntoView({ behavior: "smooth", block: "start" });
+    showTab("review");
   });
 });
 
@@ -305,6 +320,7 @@ function renderPlans() {
           h("span", { class: "by" }, `${fmt(total)} · ${p.segments.length} cuts · ${p.plannedBy === "claude" ? "AI director" : "heuristic"}`),
         ),
         p.concept ? h("div", { class: "concept" }, p.concept) : null,
+        basedOnLine(p),
         p.overlays?.length
           ? p.overlays.map((o, j) => h("input", { class: "hook", value: o.text, title: `On screen ${o.start.toFixed(1)}s →`, oninput: (e) => ((o.text = e.target.value), j === 0 && (p.hook = e.target.value)) }))
           : h("input", { class: "hook", value: p.hook, placeholder: "Hook text", oninput: (e) => (p.hook = e.target.value) }),
@@ -330,7 +346,7 @@ function renderPlans() {
             await api("/api/render", { method: "POST", body: { plans: state.plans, options: state.planOptions } });
             el.hidden = true;
             await refreshRenders();
-            $("#renders").scrollIntoView({ behavior: "smooth", block: "start" });
+            showTab("review");
           }),
       }, `Render ${state.plans.length} video${state.plans.length === 1 ? "" : "s"}`),
     ),
@@ -348,8 +364,11 @@ async function refreshRenders() {
 const renderEls = new Map();
 function renderRenders() {
   const el = $("#renders");
-  $("#renders-empty").hidden = state.renders.length > 0;
-  const nodes = state.renders.map((r) => {
+  // Everything except the batch shown at the top of Review.
+  const latest = latestBatch();
+  const earlier = state.renders.filter((r) => !latest || r.batch !== latest);
+  $("#renders-empty").hidden = earlier.length > 0;
+  const nodes = earlier.map((r) => {
     const key = `${r.id}:${r.status}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
     const cached = renderEls.get(r.id);
     if (cached?.key === key) return cached.node;
@@ -484,10 +503,10 @@ $("#auto").addEventListener("change", async (e) => {
 });
 
 $("#btn-batch").addEventListener("click", (e) =>
-  withBusy(e.currentTarget, "Preparing… (checking albums, writing overlays)", async () => {
+  withBusy(e.currentTarget, "Preparing… (1–3 min)", async () => {
     const r = await api("/api/batch/run", { method: "POST" });
     if (r.warning) banner(r.warning);
-    else banner(`Queued ${r.renders.length} videos for review.`, "ok");
+    else banner(`${r.renders.length} videos are rendering — they appear below as they finish.`, "ok");
     await refreshRenders();
   }),
 );
@@ -509,13 +528,21 @@ $("#btn-trends").addEventListener("click", (e) =>
 );
 
 const batchEls = new Map();
+function latestBatch() {
+  return [...new Set(state.renders.map((r) => r.batch).filter(Boolean))].sort().reverse()[0];
+}
+
 function renderBatch() {
-  const batches = [...new Set(state.renders.map((r) => r.batch).filter(Boolean))].sort().reverse();
-  const latest = batches[0];
+  const latest = latestBatch();
   const items = state.renders.filter((r) => r.batch && r.batch === latest);
   $("#batch-empty").hidden = items.length > 0;
   const approved = items.filter((r) => r.review === "approved").length;
-  $("#batch-date").textContent = latest ? `${latest} · ${approved}/${items.length} approved` : "";
+  const when = latest
+    ? new Date(`${latest}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+    : "";
+  $("#batch-date").textContent = latest
+    ? `${when} · ${approved} of ${items.length} approved`
+    : "Your daily batch, ready to review.";
   $("#batch").replaceChildren(
     ...items.map((r) => {
       const key = `${r.id}:${r.status}:${r.review}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
@@ -562,6 +589,7 @@ function reviewCard(r) {
       h("span", { class: `pill ${r.review}` }, r.review === "pending" ? "needs review" : r.review),
       r.error ? h("div", { class: "err" }, r.error) : null,
       r.plan.concept ? h("div", { class: "concept" }, r.plan.concept) : null,
+      basedOnLine(r.plan),
       h("div", { class: "overlay-edit" },
         overlayInputs[0],
         h("button", {
@@ -592,6 +620,147 @@ function reviewCard(r) {
     ),
   );
 }
+
+// ---- Suggestions ------------------------------------------------------------
+
+async function makeFromClip(btn, clipId) {
+  return withBusy(btn, "Creating…", async () => {
+    const r = await api("/api/generate", { method: "POST", body: { template: "auto", count: 1, clipIds: [clipId], useAi: true, batch: "today" } });
+    if (r.warning) banner(r.warning);
+    else banner("Creating your video. It appears at the top of Create when it's ready.", "ok");
+    await Promise.all([refreshRenders(), refreshSuggestions()]);
+  });
+}
+
+async function refreshSuggestions() {
+  const list = await api("/api/suggestions");
+  $("#suggestions-empty").hidden = list.length > 0 || state.clips.length === 0;
+  $("#suggestions").replaceChildren(
+    ...list.map((sg) =>
+      h("div", { class: "sugg", title: sg.summary || "" },
+        h("img", { src: `/media/thumb/${sg.clipId}`, alt: "", loading: "lazy" }),
+        h("div", { class: "body" },
+          h("span", { class: "scene-tag" }, sg.scene || "unsorted"),
+          sg.caption
+            ? h("span", { class: "cap" }, `“${sg.caption.text}”`, sg.caption.views ? [" · ", h("b", {}, `${fmtViews(sg.caption.views)} views`)] : null)
+            : h("span", { class: "cap" }, sg.note ? sg.note : "Caption will be written from the footage"),
+          h("button", { class: "btn small primary", onclick: (e) => makeFromClip(e.currentTarget, sg.clipId) }, "Create"),
+        ),
+      ),
+    ),
+  );
+}
+
+// ---- Situations & proven captions -------------------------------------------
+
+const fmtViews = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
+
+function basedOnLine(plan) {
+  const b = plan.basedOn;
+  const where = plan.scene ? `${plan.scene} · ` : "";
+  if (!b) return plan.scene ? h("div", { class: "based" }, `${where}original caption`) : null;
+  return h("div", { class: "based" },
+    `${where}based on “${b.text}”`,
+    b.views ? ` · ${fmtViews(b.views)} views` : "",
+    b.url ? [" · ", h("a", { href: b.url, target: "_blank", rel: "noopener noreferrer" }, "source")] : null,
+  );
+}
+
+const openScenes = new Set();
+async function refreshScenes() {
+  const list = await api("/api/scenes");
+  $("#scenes").replaceChildren(
+    ...list.map((s) => {
+      const r = s.research;
+      const caps = r?.captions ?? [];
+      const status = s.scene === "other"
+        ? "clips that don't fit a situation"
+        : r?.updatedAt
+          ? `${caps.length} proven caption${caps.length === 1 ? "" : "s"} · researched ${new Date(r.updatedAt).toLocaleDateString()}`
+          : caps.length ? `${caps.length} caption(s) you added · not researched yet` : "not researched yet";
+      const details = h("details", { class: "scene", open: openScenes.has(s.scene), ontoggle: (e) => (e.target.open ? openScenes.add(s.scene) : openScenes.delete(s.scene)) },
+        h("summary", {},
+          h("b", {}, s.scene),
+          h("span", { class: "muted grow" }, `${s.clips} clip${s.clips === 1 ? "" : "s"} (${s.unused} unused) · ${status}`),
+          s.scene === "other" ? null : h("button", {
+            class: "btn small",
+            disabled: !state.status?.claude.enabled,
+            title: state.status?.claude.enabled ? "Search TikTok for captions in this situation with lots of views (~1–2 min)" : "Needs ANTHROPIC_API_KEY",
+            onclick: (e) => {
+              e.preventDefault();
+              withBusy(e.currentTarget, "Searching TikTok…", async () => {
+                await api(`/api/scenes/${encodeURIComponent(s.scene)}/research`, { method: "POST" });
+                openScenes.add(s.scene);
+                await refreshScenes();
+              });
+            },
+          }, r?.updatedAt ? "Research again" : "Research TikTok"),
+          s.scene === "other" ? null : h("button", {
+            class: "btn small",
+            title: "Remove this situation",
+            onclick: async (e) => {
+              e.preventDefault();
+              if (!confirm(`Remove “${s.scene}”? Its clips move to "other"; researched captions are kept.`)) return;
+              const scenes = state.status.settings.scenes.filter((x) => x !== s.scene);
+              state.status.settings = await api("/api/scenes", { method: "PUT", body: { scenes } });
+              await refreshScenes();
+              renderClips();
+            },
+          }, "×"),
+        ),
+        r?.error ? h("div", { class: "err" }, `Last research failed: ${r.error}`) : null,
+        s.scene === "other" ? null : h("ul", { class: "caps" },
+          caps.length ? caps.map((c) =>
+            h("li", {},
+              h("span", { class: "v" }, c.views ? fmtViews(c.views) : "–"),
+              h("span", { class: "t" }, `“${c.text}”`, " ",
+                h("span", { class: "muted" }, c.kind === "creator" ? "· added by you" : `· ${c.kind}`),
+                c.note ? h("span", { class: "muted" }, ` · ${c.note}`) : null,
+                c.url ? [" · ", h("a", { href: c.url, target: "_blank", rel: "noopener noreferrer", class: "muted" }, "source")] : null,
+              ),
+              h("button", {
+                class: "btn small", title: "Don't use this caption",
+                onclick: async () => {
+                  await api(`/api/scenes/${encodeURIComponent(s.scene)}/captions/${c.id}`, { method: "DELETE" });
+                  refreshScenes();
+                },
+              }, "×"),
+            ),
+          ) : h("li", { class: "muted" }, "No captions yet."),
+        ),
+        s.scene === "other" ? null : h("form", {
+          class: "cap-form",
+          onsubmit: async (e) => {
+            e.preventDefault();
+            const f = e.currentTarget;
+            await api(`/api/scenes/${encodeURIComponent(s.scene)}/captions`, {
+              method: "POST",
+              body: { text: f.text.value, views: f.views.value, url: f.url.value },
+            });
+            openScenes.add(s.scene);
+            refreshScenes();
+          },
+        },
+          h("input", { name: "text", placeholder: "A caption you found that did well", required: true, maxlength: 200 }),
+          h("input", { name: "views", placeholder: "Views", inputmode: "numeric" }),
+          h("input", { name: "url", placeholder: "TikTok link (optional)", type: "url" }),
+          h("button", { class: "btn small", type: "submit" }, "Add"),
+        ),
+      );
+      return details;
+    }),
+  );
+}
+
+$("#scene-add").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = e.currentTarget.scene.value.trim();
+  if (!name) return;
+  state.status.settings = await api("/api/scenes", { method: "PUT", body: { scenes: [...state.status.settings.scenes, name] } });
+  e.currentTarget.reset();
+  await refreshScenes();
+  renderClips();
+});
 
 // ---- Text look (fonts) ------------------------------------------------------
 
@@ -680,32 +849,50 @@ async function refreshExamples() {
   );
 }
 
-$("#example-form").file.addEventListener("change", (e) => ($("#example-file").textContent = e.target.files[0]?.name || "no video (optional)"));
+$("#example-form").file.addEventListener("change", (e) => ($("#example-file").textContent = e.target.files[0]?.name || "optional"));
 $("#example-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const form = e.currentTarget;
   withBusy(form.querySelector("button[type=submit]"), "Adding…", async () => {
     await api("/api/examples", { method: "POST", body: new FormData(form) });
     form.reset();
-    $("#example-file").textContent = "no video (optional)";
+    $("#example-file").textContent = "optional";
     await refreshExamples();
   });
 });
+
+// ---- Tabs -------------------------------------------------------------------
+
+const TABS = ["review", "clips", "captions", "style", "settings"];
+function showTab(name) {
+  if (!TABS.includes(name)) name = "review";
+  for (const sec of document.querySelectorAll("main > section[data-tab]")) sec.hidden = sec.dataset.tab !== name;
+  for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("on", b.dataset.tab === name);
+  if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
+  window.scrollTo(0, 0);
+}
+$("#tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-tab]");
+  if (b) showTab(b.dataset.tab);
+});
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+showTab(location.hash.slice(1));
 
 // ---- Boot & polling ---------------------------------------------------------
 
 const params = new URLSearchParams(location.search);
 if (params.get("google") === "connected") banner("Google Photos connected. Now pick the clips you want to use.", "ok");
 if (params.get("google_error")) banner(`Google sign-in failed: ${params.get("google_error")}`);
-if (params.size) history.replaceState(null, "", "/");
+if (params.size) history.replaceState(null, "", `/${location.hash}`);
 
 await loadStatus();
-await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadTrends(), loadFonts(), refreshExamples()]);
+await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadTrends(), loadFonts(), refreshExamples(), refreshScenes()]);
+await refreshSuggestions();
 
 setInterval(async () => {
   const busyClips = state.clips.some((c) => c.status === "importing" || c.status === "analyzing");
   const busyRenders = state.renders.some((r) => r.status === "queued" || r.status === "rendering");
-  if (busyClips) await Promise.all([refreshClips(), refreshAlbums()]).catch(() => {});
+  if (busyClips) await Promise.all([refreshClips(), refreshAlbums(), refreshScenes(), refreshSuggestions()]).catch(() => {});
   if (busyRenders) await refreshRenders().catch(() => {});
   if (state.examplesBusy) await refreshExamples().catch(() => {});
 }, 2000);

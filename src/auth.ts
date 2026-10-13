@@ -5,7 +5,7 @@ import type { NextFunction, Request, Response } from "express";
 import { config } from "./config.ts";
 
 /**
- * Password gate for running PawCut on the public internet.
+ * Password gate for running Lex Studio on the public internet.
  *
  * Set APP_PASSWORD and every page, API call and media file requires a signed
  * session cookie, which /login issues after the right password. Without
@@ -97,18 +97,17 @@ export function loginPage(req: Request, res: Response) {
   const next = safeNext(req.query.next);
   res.setHeader("content-type", "text/html; charset=utf-8");
   res.send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PawCut · sign in</title><meta name="robots" content="noindex">
+<title>Lex Studio · sign in</title><meta name="robots" content="noindex">
 <style>
-:root{--bg:#f6f5f2;--panel:#fff;--ink:#1d1b18;--muted:#6d6a64;--line:#e6e3dd;--accent:#fe2c55;--err:#c62f2f}
-@media (prefers-color-scheme:dark){:root{--bg:#111012;--panel:#1b1a1d;--ink:#f1efea;--muted:#a19d96;--line:#2d2b30;--err:#ff6b6b}}
+:root{--bg:#f7f7f8;--panel:#fff;--ink:#18181b;--muted:#71717a;--line:#e9e9ec;--accent:#fe2c55;--err:#dc2626;color-scheme:light}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:15px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
-form{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px 24px;width:100%;max-width:340px;display:grid;gap:12px}
+form{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px 26px;box-shadow:0 1px 2px rgba(0,0,0,.04);width:100%;max-width:340px;display:grid;gap:12px}
 h1{margin:0;font-size:20px}p{margin:0;color:var(--muted);font-size:13px}.err{color:var(--err)}
 input{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
 button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px;background:var(--accent);color:#fff;cursor:pointer}
 </style></head><body>
 <form method="post" action="/login">
-<h1>🐾 PawCut</h1><p>Private studio. Enter the password to continue.</p>
+<h1><span style="color:var(--accent)">✈︎</span> Lex Studio</h1><p>Enter the password to continue.</p>
 ${error ? `<p class="err">${error}</p>` : ""}
 <input type="password" name="password" autocomplete="current-password" placeholder="Password" autofocus required>
 <input type="hidden" name="next" value="${next.replace(/"/g, "&quot;")}">

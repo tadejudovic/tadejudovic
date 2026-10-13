@@ -4,7 +4,7 @@ import { store } from "../store.ts";
 import { SEED_TRENDS } from "../templates.ts";
 import type { TrendFormat, Trends } from "../types.ts";
 
-const REFRESH_EVERY_MS = 24 * 3600 * 1000;
+const REFRESH_EVERY_MS = 7 * 24 * 3600 * 1000;
 
 /** Current text-overlay formats: the latest web scan, merged with the evergreen seed list. */
 export function currentTrends(): Trends {

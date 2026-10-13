@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, TextStyle, Trends } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextStyle, Trends } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -16,6 +16,7 @@ interface DB {
   examples: Example[];
   trends?: Trends;
   auto: AutoSettings;
+  research: Record<string, SceneResearch>;
 }
 
 export interface Settings {
@@ -23,9 +24,26 @@ export interface Settings {
   handle: string;
   fontId: string;
   textStyle: TextStyle;
+  /** Situations that work for this account; clips are sorted into these and captions researched per situation. */
+  scenes: string[];
 }
 
-const DEFAULT_SETTINGS: Settings = { petName: "Lex", handle: "", fontId: "tiktok-sans", textStyle: "classic" };
+export const DEFAULT_SCENES = [
+  "check-in desk",
+  "airport terminal",
+  "security check",
+  "boarding gate",
+  "inside the airplane",
+  "under the airplane seat",
+];
+
+const DEFAULT_SETTINGS: Settings = {
+  petName: "Lex",
+  handle: "",
+  fontId: "tiktok-sans",
+  textStyle: "classic",
+  scenes: DEFAULT_SCENES,
+};
 
 const DEFAULT_AUTO: AutoSettings = {
   enabled: true,
@@ -48,12 +66,14 @@ function load(): DB {
     const db = JSON.parse(fs.readFileSync(config.dbFile, "utf8")) as DB;
     db.settings = { ...DEFAULT_SETTINGS, ...db.settings };
     db.albums ??= [];
+    for (const a of db.albums) a.kind ??= "google_photos_album";
     db.examples ??= [];
+    db.research ??= {};
     db.auto = { ...DEFAULT_AUTO, ...db.auto };
     for (const r of db.renders) r.review ??= "pending";
     return db;
   } catch {
-    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], auto: { ...DEFAULT_AUTO } };
+    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], auto: { ...DEFAULT_AUTO }, research: {} };
   }
 }
 
@@ -152,6 +172,14 @@ export const store = {
   removeExample(id: string) {
     db.examples = db.examples.filter((e) => e.id !== id);
     save();
+  },
+
+  research: (scene: string) => db.research[scene],
+  allResearch: () => db.research,
+  setResearch(r: SceneResearch) {
+    db.research[r.scene] = r;
+    save();
+    return r;
   },
 
   trends: () => db.trends,

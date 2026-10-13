@@ -111,8 +111,11 @@ export async function analyzeClip(id: string) {
 
   if (config.claude.enabled) {
     try {
-      const ai = await tagClip(store.clip(id)!, store.settings().petName);
-      store.updateClip(id, { ai });
+      const current = store.clip(id)!;
+      const { scene, ...ai } = await tagClip(current, store.settings().petName, store.settings().scenes);
+      // Never overwrite a situation the creator picked by hand.
+      const keepScene = current.sceneSetBy === "creator";
+      store.updateClip(id, { ai, ...(keepScene ? {} : { scene, sceneSetBy: "ai" as const }) });
     } catch (err) {
       // AI tagging is an enhancement; the heuristic moments still work.
       console.warn(`[ai] tagging ${clip.filename} failed:`, (err as Error).message);

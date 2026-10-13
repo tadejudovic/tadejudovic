@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { TEMPLATES } from "../templates.ts";
-import type { Clip, Example, Moment, Overlay, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
+import type { Clip, Example, Moment, Overlay, ProvenCaption, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
 
 /**
  * The "AI director": Claude watches sampled frames of each clip once (cached on
@@ -65,9 +65,13 @@ const TAG_SCHEMA = {
   },
 };
 
-/** Look at a clip and describe its best moments. */
-export async function tagClip(clip: Clip, petName: string): Promise<NonNullable<Clip["ai"]>> {
-  const frames = Math.max(2, Math.min(16, Math.ceil(clip.duration / 1.5)));
+/** Look at a clip: which situation it shows, and its best moments. */
+export async function tagClip(
+  clip: Clip,
+  petName: string,
+  scenes: string[],
+): Promise<NonNullable<Clip["ai"]> & { scene: string }> {
+  const frames = Math.max(2, Math.min(10, Math.ceil(clip.duration / 2)));
   const times = Array.from({ length: frames }, (_, i) =>
     Math.round(((clip.duration * (i + 0.5)) / frames) * 10) / 10,
   );
@@ -89,15 +93,22 @@ export async function tagClip(clip: Clip, petName: string): Promise<NonNullable<
       `The pet in this footage is called ${petName}. Identify the moments (1.5–8s each, inside 0..${clip.duration.toFixed(1)}s) ` +
       `that would work in a short-form pet video, best first. Use the energy curve to place cut points on action and ` +
       `audio peaks (barks, reactions). Tags should be short and reusable across clips (e.g. zoomies, sleepy, ` +
-      `side-eye, tricks, outdoors, bath, food, toy, cuddle, dramatic, puppy).`,
+      `side-eye, tricks, outdoors, bath, food, toy, cuddle, dramatic, puppy).\n\n` +
+      `Also classify which situation the clip shows. Choose exactly one of: ${scenes.map((x) => `"${x}"`).join(", ")}, ` +
+      `or "other" if none fits.`,
   });
-  const result = await structured<NonNullable<Clip["ai"]>>({
+  const schema = {
+    ...TAG_SCHEMA,
+    required: [...TAG_SCHEMA.required, "scene"],
+    properties: { ...TAG_SCHEMA.properties, scene: { type: "string", enum: [...scenes, "other"] } },
+  };
+  const result = await structured<NonNullable<Clip["ai"]> & { scene: string }>({
     system:
       "You are a short-form video editor who specializes in viral pet content on TikTok, Reels and Shorts. " +
       "You judge footage by whether it stops the scroll in the first second: surprise, comedic timing, " +
       "expressive faces, sound, and relatable pet behavior. Be honest — static or blurry footage gets a low score.",
     content,
-    schema: TAG_SCHEMA,
+    schema,
     effort: "low",
   });
   result.moments = result.moments
@@ -227,8 +238,12 @@ function validateSegment(s: Segment, clips: Map<string, Clip>): Segment | null {
 const DIRECT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["concept", "title", "segments", "overlays", "postCaption", "hashtags"],
+  required: ["concept", "title", "basedOn", "segments", "overlays", "postCaption", "hashtags"],
   properties: {
+    basedOn: {
+      type: "integer",
+      description: "Number of the proven caption the overlay is adapted from, or -1 if it is original",
+    },
     concept: { type: "string", description: "One sentence: what the joke/feeling is and why it works for this footage" },
     title: { type: "string" },
     segments: {
@@ -272,6 +287,27 @@ export interface DirectContext {
   brief?: string;
   /** Overlays already used recently, so the director doesn't repeat itself. */
   recentOverlays: string[];
+  /** Captions that got lots of views on TikTok for this clip's situation. */
+  proven: ProvenCaption[];
+}
+
+function provenText(proven: ProvenCaption[], scene?: string): string {
+  if (!proven.length) return "";
+  return (
+    `\n\nPROVEN CAPTIONS for this situation${scene ? ` ("${scene}")` : ""}: text that got lots of views on TikTok ` +
+    `for dogs in the same situation. The creator's method is to take the proven caption that best matches what ` +
+    `happens in this clip and use it as is or with small changes (names, details), because proven wording ` +
+    `performs. Prefer this over inventing something new; only write an original line if none of these fit the ` +
+    `footage, and avoid ones already posted recently.\n` +
+    proven
+      .map(
+        (c, i) =>
+          `${i + 1}. "${c.text}"` +
+          (c.views ? ` — ${c.views.toLocaleString("en")} views` : "") +
+          ` (${c.kind === "creator" ? "found by the creator" : c.kind})`,
+      )
+      .join("\n")
+  );
 }
 
 function examplesText(examples: Example[]): string {
@@ -326,6 +362,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
         ? `\n\nText formats currently working for pet accounts (optional inspiration):\n` +
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
+      provenText(ctx.proven, clip.scene) +
       examplesText(ctx.examples) +
       (ctx.recentOverlays.length
         ? `\n\nOverlays already posted recently (don't reuse these or their structure back-to-back):\n` +
@@ -336,6 +373,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   const r = await structured<{
     concept: string;
     title: string;
+    basedOn: number;
     segments: { start: number; end: number; speed: number }[];
     overlays: Overlay[];
     postCaption: string;
@@ -369,6 +407,11 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     hook: overlays[0]?.text ?? "",
     overlays,
     concept: r.concept,
+    scene: clip.scene,
+    basedOn: (() => {
+      const c = ctx.proven[r.basedOn - 1];
+      return c ? { text: c.text, views: c.views, url: c.url } : undefined;
+    })(),
     segments,
     postCaption: r.postCaption,
     hashtags: r.hashtags.map((h) => h.replace(/^#/, "")).slice(0, 8),

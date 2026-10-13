@@ -4,6 +4,7 @@ import { syncAll } from "./albums.ts";
 import { plan, queueRender, isPortrait } from "./generate.ts";
 import { refreshTrends, trendsStale } from "./ai/trends.ts";
 import { ingestQueue } from "./queue.ts";
+import { researchScene, researchStale } from "./ai/research.ts";
 import type { RenderOptions } from "./types.ts";
 
 /**
@@ -39,6 +40,15 @@ async function runDue() {
     const { newItems } = await syncAll();
     if (newItems) console.log(`[scheduler] ${newItems} new album item(s) found`);
   }
+  // Let imports (download, analysis, situation sorting) finish before picking clips.
+  if (ingestQueue.pending > 0) return;
+  // Keep caption research fresh for situations that have clips waiting, one situation per tick,
+  // so suggestions can show the caption they'd use before anything is made.
+  if (config.claude.enabled) {
+    const waiting = new Set(store.clips().filter((c) => c.status === "ready" && c.uses === 0 && c.scene).map((c) => c.scene!));
+    const next = store.settings().scenes.find((sc) => waiting.has(sc) && researchStale(sc) && !store.research(sc)?.error);
+    if (next) await researchScene(next).catch((err) => console.warn(`[research] ${next}:`, (err as Error).message));
+  }
   const [hh, mm] = auto.dailyTime.split(":").map(Number);
   const now = new Date();
   const due = now.getHours() * 60 + now.getMinutes() >= hh * 60 + mm;
@@ -61,8 +71,8 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     if (store.albums().length) {
       lastSync = Date.now();
       await syncAll();
-      await waitForIngest(20 * 60_000);
     }
+    await waitForIngest(20 * 60_000);
     if (config.claude.enabled && trendsStale()) {
       await refreshTrends(store.settings().petName).catch((err) =>
         console.warn("[scheduler] trend refresh failed, using known formats:", (err as Error).message),

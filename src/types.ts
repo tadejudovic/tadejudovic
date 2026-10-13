@@ -42,6 +42,29 @@ export interface Clip {
   uses: number;
   /** Creator's own description of what's on the footage (optional, fed to the AI director). */
   note?: string;
+  /** The situation the clip shows (e.g. "security check"), from the AI or set by the creator. */
+  scene?: string;
+  sceneSetBy?: "ai" | "creator";
+}
+
+/** A caption/overlay that is known to have done well on TikTok for a situation. */
+export interface ProvenCaption {
+  id: string;
+  text: string;
+  views?: number;
+  url?: string;
+  /** "overlay" = on-screen text, "description" = the post's caption, "creator" = added by hand. */
+  kind: "overlay" | "description" | "creator";
+  /** Who posted it / any context. */
+  note?: string;
+  foundAt: string;
+}
+
+export interface SceneResearch {
+  scene: string;
+  updatedAt?: string;
+  error?: string;
+  captions: ProvenCaption[];
 }
 
 /** A video the creator knows performed well, used as a style reference. */
@@ -100,6 +123,9 @@ export interface VideoPlan {
   overlays?: Overlay[];
   /** The director's one-line reasoning, shown in review. */
   concept?: string;
+  /** The proven caption this overlay was adapted from. */
+  basedOn?: { text: string; views?: number; url?: string };
+  scene?: string;
 }
 
 export type RenderStatus = "queued" | "rendering" | "done" | "error";
@@ -144,6 +170,8 @@ export interface GenerateRequest {
 /** A public Google Photos shared-album link the app watches for new videos. */
 export interface AlbumSource {
   id: string;
+  /** Connector type. Only public Google Photos albums today; e.g. iCloud shared albums could be added. */
+  kind: "google_photos_album";
   url: string;
   title?: string;
   addedAt: string;

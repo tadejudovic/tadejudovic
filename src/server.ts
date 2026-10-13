@@ -9,14 +9,15 @@ import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip } from "./library.ts";
-import { plan, queueRender, deleteRender } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait } from "./generate.ts";
 import { addAlbum, syncAlbum } from "./albums.ts";
-import { runDailyBatch, startScheduler } from "./scheduler.ts";
+import { localDate, runDailyBatch, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
+import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import { gateEnabled, login, loginPage, logout, requireAuth } from "./auth.ts";
-import type { GenerateRequest, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
+import type { Clip, GenerateRequest, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -249,6 +250,71 @@ app.post(
   }),
 );
 
+// ---- Suggestions ----------------------------------------------------------
+
+/** What the studio would make next: unused clips, rotating situations, with the caption it would likely adapt. */
+app.get("/api/suggestions", (_req, res) => {
+  const pending = new Set(
+    store.renders().filter((r) => r.status === "queued" || r.status === "rendering").flatMap((r) => r.plan.segments.map((s) => s.clipId)),
+  );
+  const fresh = store.clips().filter((c) => c.status === "ready" && isPortrait(c) && c.uses === 0 && !pending.has(c.id));
+  res.json(
+    pickBySituation(fresh, 6).map((c) => {
+      const top = provenCaptions(c.scene, 1)[0];
+      return {
+        clipId: c.id,
+        scene: c.scene,
+        duration: c.duration,
+        note: c.note,
+        summary: c.ai?.summary,
+        caption: top ? { text: top.text, views: top.views } : undefined,
+      };
+    }),
+  );
+});
+
+// ---- Situations & proven captions -----------------------------------------
+
+app.get("/api/scenes", (_req, res) => {
+  const clips = store.clips().filter((c) => c.status === "ready");
+  const scenes = store.settings().scenes;
+  res.json(
+    [...scenes, "other"].map((scene) => ({
+      scene,
+      clips: clips.filter((c) => (scene === "other" ? !c.scene || !scenes.includes(c.scene) : c.scene === scene)).length,
+      unused: clips.filter((c) => c.uses === 0 && (scene === "other" ? !c.scene || !scenes.includes(c.scene) : c.scene === scene)).length,
+      research: scene === "other" ? null : store.research(scene) ?? null,
+    })),
+  );
+});
+
+app.put("/api/scenes", (req, res) => {
+  const list = Array.isArray(req.body?.scenes) ? req.body.scenes : [];
+  const scenes = [...new Set(list.map((x: unknown) => String(x).trim().toLowerCase().slice(0, 60)).filter((x: string) => x && x !== "other"))].slice(0, 20) as string[];
+  if (!scenes.length) return res.status(400).json({ error: "Keep at least one situation." });
+  res.json(store.updateSettings({ scenes }));
+});
+
+app.post(
+  "/api/scenes/:scene/research",
+  h(async (req, res) => {
+    if (!config.claude.enabled) return res.status(400).json({ error: "Set ANTHROPIC_API_KEY to research captions." });
+    res.json(await researchScene(String(req.params.scene)));
+  }),
+);
+
+app.post("/api/scenes/:scene/captions", (req, res) => {
+  const b = req.body ?? {};
+  if (typeof b.text !== "string" || !b.text.trim()) return res.status(400).json({ error: "Caption text required" });
+  const views = Number(String(b.views ?? "").replace(/[^\d]/g, "")) || undefined;
+  res.json(addCreatorCaption(String(req.params.scene), { text: b.text, views, url: b.url, note: b.note }));
+});
+
+app.delete("/api/scenes/:scene/captions/:id", (req, res) => {
+  removeCaption(String(req.params.scene), String(req.params.id));
+  res.json({ ok: true });
+});
+
 // ---- Library --------------------------------------------------------------
 
 app.get("/api/clips", (_req, res) => {
@@ -275,9 +341,15 @@ app.post(
 
 /** The creator's own note about what's on the footage. */
 app.patch("/api/clips/:id", (req, res) => {
-  const note = req.body?.note;
-  if (typeof note !== "string") return res.status(400).json({ error: "note required" });
-  const clip = store.updateClip(String(req.params.id), { note: note.trim().slice(0, 500) || undefined });
+  const { note, scene } = req.body ?? {};
+  const patch: Partial<Clip> = {};
+  if (typeof note === "string") patch.note = note.trim().slice(0, 500) || undefined;
+  if (typeof scene === "string") {
+    if (scene && scene !== "other" && !store.settings().scenes.includes(scene)) return res.status(400).json({ error: "Unknown situation" });
+    patch.scene = scene || undefined;
+    patch.sceneSetBy = "creator";
+  }
+  const clip = store.updateClip(String(req.params.id), patch);
   if (!clip) return res.sendStatus(404);
   res.json({ ok: true });
 });
@@ -380,7 +452,9 @@ app.post(
   h(async (req, res) => {
     const r = parseRequest(req.body);
     const { plans, warning } = await plan(r);
-    res.json({ renders: plans.map((p) => queueRender(p, r.options)), warning });
+    // "Make video" on a clip adds it to today's review batch.
+    const batch = req.body?.batch === "today" ? localDate(new Date()) : undefined;
+    res.json({ renders: plans.map((p) => queueRender(p, r.options, batch)), warning });
   }),
 );
 
@@ -459,6 +533,15 @@ function sanitizePlan(p: VideoPlan): VideoPlan {
     template: (p.template in TEMPLATES ? p.template : "auto") as TemplateId,
     title: str(p.title, 120) || "Untitled",
     concept: str(p.concept, 300) || undefined,
+    scene: str(p.scene, 60) || undefined,
+    basedOn:
+      p.basedOn && typeof p.basedOn.text === "string"
+        ? {
+            text: str(p.basedOn.text, 200),
+            views: Number(p.basedOn.views) > 0 ? Math.round(Number(p.basedOn.views)) : undefined,
+            url: typeof p.basedOn.url === "string" && /^https?:\/\//.test(p.basedOn.url) ? str(p.basedOn.url, 500) : undefined,
+          }
+        : undefined,
     overlays: Array.isArray(p.overlays)
       ? p.overlays
           .slice(0, 6)
@@ -514,7 +597,7 @@ if (!gateEnabled && !["127.0.0.1", "localhost", "::1"].includes(host)) {
   process.exit(1);
 }
 app.listen(config.port, host, () => {
-  console.log(`PawCut running at ${config.appUrl}`);
+  console.log(`Lex Studio running at ${config.appUrl}`);
   console.log(`  Google Photos: ${googleConfigured() ? "configured" : "not configured (set GOOGLE_CLIENT_ID/SECRET)"}`);
   console.log(`  AI director:   ${config.claude.enabled ? config.claude.model : "off (set ANTHROPIC_API_KEY)"}`);
   console.log(`  Password gate: ${gateEnabled ? "on" : "off (local only)"}`);

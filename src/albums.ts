@@ -8,7 +8,7 @@ export function addAlbum(url: string): AlbumSource {
   if (!isAlbumUrl(url)) throw new Error("Paste a Google Photos shared-album link (photos.app.goo.gl/… or photos.google.com/share/…).");
   const existing = store.albums().find((a) => a.url === url);
   if (existing) return existing;
-  return store.addAlbum({ id: newId(), url, addedAt: new Date().toISOString(), seen: [], videoCount: 0 });
+  return store.addAlbum({ id: newId(), kind: "google_photos_album", url, addedAt: new Date().toISOString(), seen: [], videoCount: 0 });
 }
 
 const syncing = new Set<string>();

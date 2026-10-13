@@ -3,163 +3,228 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PawCut</title>
+  <meta name="robots" content="noindex" />
+  <title>Lex Studio</title>
   <link rel="stylesheet" href="/styles.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐾</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✈️</text></svg>" />
 </head>
 <body>
   <header class="top">
-    <div class="brand"><span class="logo">🐾</span> PawCut <small>pet footage → shorts</small></div>
-    <div class="chips">
-      <span id="chip-google" class="chip">Google Photos</span>
-      <span id="chip-ai" class="chip">AI director</span>
-    </div>
-    <form id="settings" class="settings">
-      <label>Pet <input name="petName" placeholder="Lex" maxlength="40" /></label>
-      <label>Handle <input name="handle" placeholder="@lex.poodle" maxlength="40" /></label>
-      <a id="logout" class="link" href="/logout" hidden>Sign out</a>
-    </form>
+    <div class="brand">Lex Studio</div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="review" class="on">Create</button>
+      <button data-tab="clips">Connectors</button>
+      <button data-tab="captions">Captions</button>
+      <button data-tab="style">Style</button>
+      <button data-tab="settings">Settings</button>
+    </nav>
+    <a id="logout" class="link quiet" href="/logout" hidden>Sign out</a>
   </header>
 
   <div id="banner" class="banner" hidden></div>
 
   <main>
-    <section class="panel">
-      <div class="panel-head">
-        <h2><span class="step">★</span> Daily batch <small id="batch-date" class="muted"></small></h2>
-        <div class="actions">
-          <button id="btn-batch" class="btn primary">Make today's batch now</button>
+    <!-- REVIEW ------------------------------------------------------------- -->
+    <section data-tab="review">
+      <div class="page-head">
+        <div>
+          <h1>Create</h1>
+          <p class="sub" id="batch-date">Your daily batch, ready to review.</p>
         </div>
+        <button id="btn-batch" class="btn primary">Make today's videos</button>
       </div>
-      <form id="auto" class="row auto">
-        <label class="check"><input type="checkbox" name="enabled" /> Auto-prepare every day at</label>
-        <input type="time" name="dailyTime" />
-        <label class="field inline"><span class="label">Videos</span><input type="number" name="dailyCount" min="1" max="10" class="num" /></label>
-        <label class="field inline"><span class="label">Length</span>
-          <select name="targetSeconds"><option value="10">10s</option><option value="12">12s</option><option value="15">15s</option><option value="20">20s</option></select>
-        </label>
-        <label class="field inline"><span class="label">Format</span><select name="template" id="auto-template"></select></label>
-        <label class="field inline"><span class="label">Check albums every</span>
-          <select name="syncEveryHours"><option value="1">1h</option><option value="3">3h</option><option value="6">6h</option><option value="12">12h</option><option value="24">24h</option></select>
-        </label>
-      </form>
       <div id="batch" class="renders review"></div>
-      <p id="batch-empty" class="empty">No batch yet. Add a shared album below, then click “Make today's batch now”.</p>
-      <details class="trends">
-        <summary>Text overlay formats in rotation <span id="trends-src" class="muted"></span></summary>
-        <ul id="trends"></ul>
-        <button id="btn-trends" class="btn small">Research what's trending now</button>
+      <div id="batch-empty" class="empty-card">
+        <b>Nothing to review yet</b>
+        <p>Connect a Google Photos album under <a href="#clips">Connectors</a>, then click “Make today's videos” or create from a suggestion below.</p>
+      </div>
+
+      <h2 class="section-title">Suggested next</h2>
+      <p class="sub">Fresh clips the studio would use next, rotating situations, with the proven caption it would adapt.</p>
+      <div id="suggestions" class="suggestions"></div>
+      <p id="suggestions-empty" class="muted" hidden>No unused clips. Add more videos to your album.</p>
+
+      <details class="fold">
+        <summary>Earlier videos</summary>
+        <div id="renders" class="renders"></div>
+        <p id="renders-empty" class="muted">No earlier videos.</p>
       </details>
     </section>
 
-    <section class="panel">
-      <div class="panel-head">
-        <h2><span class="step">1</span> Footage</h2>
+    <!-- CLIPS -------------------------------------------------------------- -->
+    <section data-tab="clips" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Connectors</h1>
+          <p class="sub">Where your footage comes from. New videos are imported and sorted by situation automatically.</p>
+        </div>
         <div class="actions">
-          <button id="btn-google" class="btn primary">Import from Google Photos</button>
-          <label class="btn">Upload files<input id="file-input" type="file" accept="video/*,image/*" multiple hidden /></label>
+          <button id="btn-google" class="btn" hidden>Pick from Google Photos</button>
+          <label class="btn">Upload<input id="file-input" type="file" accept="video/*,image/*" multiple hidden /></label>
         </div>
       </div>
-      <form id="album-form" class="album-form">
-        <input name="url" type="url" placeholder="Paste a Google Photos shared-album link — new videos in it are picked up automatically" required />
-        <button class="btn primary" type="submit">Watch album</button>
-      </form>
-      <ul id="albums" class="albums"></ul>
-      <p class="hint" id="google-hint"></p>
+
+      <div class="card">
+        <h2 class="card-title">Google Photos shared album</h2>
+        <form id="album-form" class="inline-form">
+          <input name="url" type="url" placeholder="Paste your Google Photos shared-album link" required />
+          <button class="btn primary" type="submit">Watch album</button>
+        </form>
+        <ul id="albums" class="albums"></ul>
+        <p class="hint" id="google-hint"></p>
+      </div>
+
+      <h2 class="section-title">Library</h2>
+      <p class="sub">Set the situation if it's wrong, add a note, or make a video from a clip right away.</p>
       <div id="drop" class="drop">
         <div id="clips" class="clips"></div>
-        <p id="clips-empty" class="empty">Drop videos or photos here, or import them from Google Photos.</p>
-      </div>
-      <p class="hint" id="selection-hint"></p>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2><span class="step">Aa</span> Text look</h2>
-        <div class="actions">
-          <label class="btn">Upload a font (.ttf/.otf)<input id="font-input" type="file" accept=".ttf,.otf" hidden /></label>
+        <div id="clips-empty" class="empty-card">
+          <b>No clips yet</b>
+          <p>Watch an album above, or drag videos here.</p>
         </div>
       </div>
-      <p class="hint">CapCut doesn't publish its font list and its built-in fonts can't be bundled, so these are the free originals or closest matches of fonts creators use in CapCut/TikTok edits. Have a specific CapCut font file? Upload it.</p>
+      <p class="hint" id="selection-hint" hidden></p>
+    </section>
+
+    <!-- CAPTIONS ----------------------------------------------------------- -->
+    <section data-tab="captions" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Captions</h1>
+          <p class="sub">Captions that already did well on TikTok, per situation. New videos adapt the best match.</p>
+        </div>
+        <form id="scene-add" class="inline-form compact">
+          <input name="scene" placeholder="New situation, e.g. baggage claim" maxlength="60" />
+          <button class="btn" type="submit">Add</button>
+        </form>
+      </div>
+      <div id="scenes" class="scenes"></div>
+
+      <h2 class="section-title">Your videos that worked</h2>
+      <p class="sub">Add past videos that performed well. Their tone and text style guide new captions.</p>
+      <div class="card">
+        <form id="example-form" class="example-form">
+          <label class="btn">Choose video<input name="file" type="file" accept="video/*" hidden /></label>
+          <span id="example-file" class="muted">optional</span>
+          <input name="overlayText" placeholder="Its overlay text (optional)" maxlength="200" />
+          <input name="views" placeholder="Views" inputmode="numeric" class="views" />
+          <input name="note" placeholder="Why it worked (optional)" maxlength="1000" />
+          <button class="btn primary" type="submit">Add</button>
+        </form>
+        <div id="examples" class="examples"></div>
+      </div>
+
+      <details class="fold">
+        <summary>General trending formats <span id="trends-src" class="muted"></span></summary>
+        <ul id="trends" class="trend-list"></ul>
+        <button id="btn-trends" class="btn small">Research trends now</button>
+      </details>
+    </section>
+
+    <!-- STYLE -------------------------------------------------------------- -->
+    <section data-tab="style" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Text style</h1>
+          <p class="sub">The font and look of the on-screen text.</p>
+        </div>
+        <label class="btn">Upload font<input id="font-input" type="file" accept=".ttf,.otf" hidden /></label>
+      </div>
       <div class="look">
         <div id="look-preview" class="look-preview"><span id="look-sample">POV: the energy shift when we pull into the airport</span></div>
         <div class="look-controls">
-          <div class="field">
-            <span class="label">Style</span>
-            <div class="seg" id="text-style">
-              <label><input type="radio" name="textStyle" value="classic" />Outline</label>
-              <label><input type="radio" name="textStyle" value="box" />Box</label>
-              <label><input type="radio" name="textStyle" value="plain" />Plain</label>
-            </div>
+          <div class="seg" id="text-style">
+            <label><input type="radio" name="textStyle" value="classic" />Outline</label>
+            <label><input type="radio" name="textStyle" value="box" />Box</label>
+            <label><input type="radio" name="textStyle" value="plain" />Plain</label>
           </div>
           <div id="fonts" class="fonts"></div>
+          <p class="hint">Free originals or closest matches of fonts used in CapCut/TikTok edits. Have a specific font file? Upload it.</p>
         </div>
       </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-head"><h2><span class="step">✓</span> What works: example videos</h2></div>
-      <p class="hint">Add videos that performed well (yours or ones you love). The AI reads their overlay text, pacing and tone and writes new overlays in that style. A note or the overlay text alone works too.</p>
-      <form id="example-form" class="example-form">
-        <label class="btn">Choose video<input name="file" type="file" accept="video/*" hidden /></label>
-        <span id="example-file" class="muted">no video (optional)</span>
-        <input name="overlayText" placeholder="Overlay text (optional, AI reads it from the video)" maxlength="200" />
-        <input name="views" placeholder="Views (optional)" inputmode="numeric" class="views" />
-        <input name="note" placeholder="Why it worked / context (optional)" maxlength="1000" />
-        <button class="btn primary" type="submit">Add example</button>
-      </form>
-      <div id="examples" class="examples"></div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head"><h2><span class="step">2</span> Create manually</h2></div>
-      <form id="create" class="create">
-        <div class="field">
-          <span class="label">Approach</span>
-          <div id="templates" class="templates"></div>
+    <!-- SETTINGS ----------------------------------------------------------- -->
+    <section data-tab="settings" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Settings</h1>
         </div>
-        <div class="row">
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Profile</h2>
+        <form id="settings" class="grid-form">
+          <label>Pet's name <input name="petName" placeholder="Lex" maxlength="40" /></label>
+          <label>TikTok handle <input name="handle" placeholder="@lex.poodle" maxlength="40" /></label>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Daily videos</h2>
+        <form id="auto" class="grid-form">
+          <label class="check"><input type="checkbox" name="enabled" /> Prepare videos automatically every day</label>
+          <label>At <input type="time" name="dailyTime" /></label>
+          <label>How many <input type="number" name="dailyCount" min="1" max="10" /></label>
+          <label>Length
+            <select name="targetSeconds"><option value="10">10s</option><option value="12">12s</option><option value="15">15s</option><option value="20">20s</option></select>
+          </label>
+          <label>Approach <select name="template" id="auto-template"></select></label>
+          <label>Check album every
+            <select name="syncEveryHours"><option value="1">1h</option><option value="3">3h</option><option value="6">6h</option><option value="12">12h</option><option value="24">24h</option></select>
+          </label>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Connections</h2>
+        <div class="chips">
+          <span id="chip-ai" class="chip">AI director</span>
+          <span id="chip-google" class="chip">Google Photos picker</span>
+        </div>
+      </div>
+
+      <details class="fold card">
+        <summary>Advanced: make videos manually</summary>
+        <form id="create" class="create">
           <div class="field">
-            <span class="label">Length</span>
-            <div class="seg" id="length">
-              <label><input type="radio" name="targetSeconds" value="10" />10s</label>
-              <label><input type="radio" name="targetSeconds" value="15" checked />15s</label>
-              <label><input type="radio" name="targetSeconds" value="20" />20s</label>
-              <label><input type="radio" name="targetSeconds" value="30" />30s</label>
+            <span class="label">Approach</span>
+            <div id="templates" class="templates"></div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <span class="label">Length</span>
+              <div class="seg" id="length">
+                <label><input type="radio" name="targetSeconds" value="10" />10s</label>
+                <label><input type="radio" name="targetSeconds" value="15" checked />15s</label>
+                <label><input type="radio" name="targetSeconds" value="20" />20s</label>
+              </div>
+            </div>
+            <div class="field">
+              <span class="label">How many</span>
+              <input type="number" name="count" min="1" max="10" value="3" class="num" />
+            </div>
+            <div class="field grow">
+              <span class="label">Direction (optional)</span>
+              <input name="brief" placeholder="e.g. Lex being dramatic at security" maxlength="500" />
             </div>
           </div>
-          <div class="field">
-            <span class="label">How many</span>
-            <input type="number" name="count" min="1" max="10" value="3" class="num" />
+          <div class="row">
+            <label class="check"><input type="checkbox" name="keepOriginalAudio" checked /> Keep original audio</label>
+            <label class="check"><input type="checkbox" name="useAi" checked /> Use AI director</label>
+            <div class="field music">
+              <span class="label">Music bed</span>
+              <select name="musicId" id="music"><option value="">None</option></select>
+              <label class="link">Upload…<input id="music-input" type="file" accept="audio/*" hidden /></label>
+            </div>
           </div>
-        </div>
-        <div class="row">
-          <div class="field grow">
-            <span class="label">Direction (optional)</span>
-            <input name="brief" placeholder="e.g. Lex being dramatic about bath time; keep it wholesome" maxlength="500" />
+          <div class="actions end">
+            <button type="button" id="btn-plan" class="btn">Preview</button>
+            <button type="submit" class="btn primary">Make videos</button>
           </div>
-        </div>
-        <div class="row">
-          <label class="check"><input type="checkbox" name="keepOriginalAudio" checked /> Keep original audio</label>
-          <label class="check"><input type="checkbox" name="useAi" checked /> Use AI director</label>
-          <div class="field music">
-            <span class="label">Music bed</span>
-            <select name="musicId" id="music"><option value="">None (add a trending sound in TikTok)</option></select>
-            <label class="link">Upload…<input id="music-input" type="file" accept="audio/*" hidden /></label>
-          </div>
-        </div>
-        <div class="actions end">
-          <button type="button" id="btn-plan" class="btn">Preview plans</button>
-          <button type="submit" class="btn primary">Generate videos</button>
-        </div>
-      </form>
-      <div id="plans" class="plans" hidden></div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head"><h2><span class="step">3</span> All videos</h2></div>
-      <div id="renders" class="renders"></div>
-      <p id="renders-empty" class="empty">Generated videos show up here, ready to download and post.</p>
+        </form>
+        <div id="plans" class="plans" hidden></div>
+      </details>
     </section>
   </main>
 

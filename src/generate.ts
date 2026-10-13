@@ -4,6 +4,7 @@ import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
 import { directClip, planVideos, type DirectContext } from "./ai/director.ts";
 import { currentTrends } from "./ai/trends.ts";
+import { provenCaptions, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { renderQueue } from "./queue.ts";
 import type { Clip, GenerateRequest, Render, VideoPlan } from "./types.ts";
@@ -20,6 +21,40 @@ export function rankClips(clips: Clip[]): Clip[] {
   return [...clips].sort((a, b) => a.uses - b.uses || best(b) - best(a));
 }
 
+/**
+ * Pick clips for a batch the way the creator does: proven situations first,
+ * rotating so the feed doesn't show the same situation twice in a row, and
+ * within a situation the freshest, strongest clip.
+ */
+export function pickBySituation(clips: Clip[], count: number): Clip[] {
+  const scenes = store.settings().scenes;
+  const recent = store.renders().filter((r) => Date.now() - Date.parse(r.createdAt) < 14 * 86400_000);
+  const postedLately = (scene: string) => recent.filter((r) => r.plan.scene === scene).length;
+  const groups = new Map<string, Clip[]>();
+  for (const c of rankClips(clips)) {
+    const key = c.scene && scenes.includes(c.scene) ? c.scene : "other";
+    groups.set(key, [...(groups.get(key) ?? []), c]);
+  }
+  const order = [...groups.keys()].sort((a, b) => {
+    // "other" (unclassified) last; then least-posted situations first; then the creator's order.
+    if ((a === "other") !== (b === "other")) return a === "other" ? 1 : -1;
+    return postedLately(a) - postedLately(b) || scenes.indexOf(a) - scenes.indexOf(b);
+  });
+  const picked: Clip[] = [];
+  for (let round = 0; picked.length < count; round++) {
+    let added = false;
+    for (const scene of order) {
+      const c = groups.get(scene)![round];
+      if (c && picked.length < count) {
+        picked.push(c);
+        added = true;
+      }
+    }
+    if (!added) break;
+  }
+  return picked;
+}
+
 export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; warning?: string }> {
   const all = store.clips().filter((c) => c.status === "ready" && isPortrait(c));
   const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all;
@@ -30,7 +65,14 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
 
   if (req.template === "auto") {
     // Footage first: each video is built around one clip, directed from what's in it.
-    const chosen = rankClips(clips).slice(0, req.count);
+    const chosen = req.clipIds?.length ? rankClips(clips).slice(0, req.count) : pickBySituation(clips, req.count);
+    // Make sure each situation has fresh caption research (weekly), like checking TikTok before posting.
+    if (aiOn) {
+      const scenes = [...new Set(chosen.map((c) => c.scene).filter((x): x is string => !!x && x !== "other"))];
+      await mapLimit(scenes.filter(researchStale), 2, (scene) =>
+        researchScene(scene).catch((err) => console.warn(`[research] ${scene}:`, (err as Error).message)),
+      );
+    }
     const recentOverlays = store
       .renders()
       .slice(0, 30)
@@ -45,13 +87,14 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
       trends: currentTrends().formats,
       brief: req.brief,
       recentOverlays,
+      proven: [],
     };
     const overlays = [...currentTrends().formats].sort(() => Math.random() - 0.5);
     const failures: string[] = [];
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {
         try {
-          const p = await directClip(clip, ctx);
+          const p = await directClip(clip, { ...ctx, proven: provenCaptions(clip.scene) });
           ctx.recentOverlays.unshift(p.hook);
           return p;
         } catch (err) {
@@ -59,8 +102,15 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
         }
       }
       const p = heuristicPlan({ template: "auto", targetSeconds: req.targetSeconds, clips: [clip], petName, used: new Map() });
-      // Without the AI director, overlays are generic trend examples; review and edit them before posting.
-      if (overlays.length) p.hook = p.title = overlays[i % overlays.length].example.replaceAll("{pet}", petName);
+      // Without the AI director: use a proven caption for the clip's situation if there is one,
+      // otherwise a generic trend example. Review and edit before posting.
+      const proven = provenCaptions(clip.scene);
+      const pc = proven[i % Math.max(1, proven.length)];
+      if (pc) {
+        p.hook = p.title = pc.text;
+        p.basedOn = { text: pc.text, views: pc.views, url: pc.url };
+      } else if (overlays.length) p.hook = p.title = overlays[i % overlays.length].example.replaceAll("{pet}", petName);
+      p.scene = clip.scene;
       p.postCaption = `${p.hook} 🐾`;
       return p;
     });

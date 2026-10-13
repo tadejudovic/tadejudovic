@@ -185,3 +185,33 @@ a.btn { text-decoration: none; }
 .trends summary { cursor: pointer; font-weight: 600; }
 .trends ul { margin: 10px 0; padding-left: 18px; display: grid; gap: 4px; }
 .trends li span { color: var(--muted); }
+
+.look { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; margin-top: 14px; align-items: start; }
+.look-preview { aspect-ratio: 9 / 16; border-radius: 12px; background: linear-gradient(160deg, #6b7a8f, #2b2f36 70%);
+  display: flex; justify-content: center; padding: 30% 10px 0; text-align: center; position: sticky; top: 90px; }
+.look-preview span { font-size: 19px; line-height: 1.24; color: #fff; max-width: 92%; }
+.look-preview.classic span { -webkit-text-stroke: 3px #000; paint-order: stroke fill; text-shadow: 0 2px 2px rgba(0,0,0,.4); }
+.look-preview.box span { color: #000; background: #fff; padding: 2px 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; height: max-content; }
+.look-preview.plain span { text-shadow: 0 2px 3px rgba(0,0,0,.7); }
+.look-controls { display: grid; gap: 12px; min-width: 0; }
+.fonts { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.font { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; cursor: pointer; text-align: left; background: var(--panel); }
+.font.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.font .fname { font-size: 20px; line-height: 1.2; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.font .fvibe { font-size: 11.5px; color: var(--muted); }
+.example-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.example-form input[name=overlayText], .example-form input[name=note] { flex: 1; min-width: 200px; }
+.example-form .views { width: 130px; }
+.examples { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 12px; }
+.example { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 8px; font-size: 12.5px; }
+.example img, .example .noimg { width: 64px; aspect-ratio: 9/16; object-fit: cover; border-radius: 6px; background: var(--line); }
+.example b { font-size: 13.5px; }
+.example .muted { font-size: 12px; }
+.example .x { justify-self: end; }
+.clip .note { width: 100%; margin-top: 5px; font-size: 11.5px; padding: 4px 6px !important; }
+.clip.landscape { opacity: .55; }
+.concept { font-size: 12px; color: var(--muted); font-style: italic; }
+@media (max-width: 640px) {
+  .look { grid-template-columns: 1fr; }
+  .look-preview { position: static; width: 60%; margin: 0 auto; }
+}

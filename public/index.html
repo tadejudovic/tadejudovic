@@ -73,10 +73,48 @@
     </section>
 
     <section class="panel">
+      <div class="panel-head">
+        <h2><span class="step">Aa</span> Text look</h2>
+        <div class="actions">
+          <label class="btn">Upload a font (.ttf/.otf)<input id="font-input" type="file" accept=".ttf,.otf" hidden /></label>
+        </div>
+      </div>
+      <p class="hint">CapCut doesn't publish its font list and its built-in fonts can't be bundled, so these are the free originals or closest matches of fonts creators use in CapCut/TikTok edits. Have a specific CapCut font file? Upload it.</p>
+      <div class="look">
+        <div id="look-preview" class="look-preview"><span id="look-sample">POV: the energy shift when we pull into the airport</span></div>
+        <div class="look-controls">
+          <div class="field">
+            <span class="label">Style</span>
+            <div class="seg" id="text-style">
+              <label><input type="radio" name="textStyle" value="classic" />Outline</label>
+              <label><input type="radio" name="textStyle" value="box" />Box</label>
+              <label><input type="radio" name="textStyle" value="plain" />Plain</label>
+            </div>
+          </div>
+          <div id="fonts" class="fonts"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2><span class="step">✓</span> What works: example videos</h2></div>
+      <p class="hint">Add videos that performed well (yours or ones you love). The AI reads their overlay text, pacing and tone and writes new overlays in that style. A note or the overlay text alone works too.</p>
+      <form id="example-form" class="example-form">
+        <label class="btn">Choose video<input name="file" type="file" accept="video/*" hidden /></label>
+        <span id="example-file" class="muted">no video (optional)</span>
+        <input name="overlayText" placeholder="Overlay text (optional, AI reads it from the video)" maxlength="200" />
+        <input name="views" placeholder="Views (optional)" inputmode="numeric" class="views" />
+        <input name="note" placeholder="Why it worked / context (optional)" maxlength="1000" />
+        <button class="btn primary" type="submit">Add example</button>
+      </form>
+      <div id="examples" class="examples"></div>
+    </section>
+
+    <section class="panel">
       <div class="panel-head"><h2><span class="step">2</span> Create manually</h2></div>
       <form id="create" class="create">
         <div class="field">
-          <span class="label">Format</span>
+          <span class="label">Approach</span>
           <div id="templates" class="templates"></div>
         </div>
         <div class="row">
@@ -92,21 +130,6 @@
           <div class="field">
             <span class="label">How many</span>
             <input type="number" name="count" min="1" max="10" value="3" class="num" />
-          </div>
-          <div class="field">
-            <span class="label">Framing</span>
-            <select name="framing">
-              <option value="auto">Auto</option>
-              <option value="fill">Crop to fill</option>
-              <option value="blur">Blurred backdrop</option>
-            </select>
-          </div>
-          <div class="field">
-            <span class="label">Text style</span>
-            <select name="textStyle">
-              <option value="classic">White + outline</option>
-              <option value="box">Black on white box</option>
-            </select>
           </div>
         </div>
         <div class="row">

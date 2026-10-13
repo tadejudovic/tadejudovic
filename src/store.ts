@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Render, Trends } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, TextStyle, Trends } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -11,17 +11,27 @@ interface DB {
   clips: Clip[];
   renders: Render[];
   google?: GoogleTokens;
-  settings: { petName: string; handle: string };
+  settings: Settings;
   albums: AlbumSource[];
+  examples: Example[];
   trends?: Trends;
   auto: AutoSettings;
 }
+
+export interface Settings {
+  petName: string;
+  handle: string;
+  fontId: string;
+  textStyle: TextStyle;
+}
+
+const DEFAULT_SETTINGS: Settings = { petName: "Lex", handle: "", fontId: "tiktok-sans", textStyle: "classic" };
 
 const DEFAULT_AUTO: AutoSettings = {
   enabled: true,
   dailyCount: 4,
   dailyTime: "08:00",
-  template: "text_overlay",
+  template: "auto",
   targetSeconds: 12,
   syncEveryHours: 3,
 };
@@ -36,13 +46,14 @@ export interface GoogleTokens {
 function load(): DB {
   try {
     const db = JSON.parse(fs.readFileSync(config.dbFile, "utf8")) as DB;
-    db.settings ??= { petName: "Lex", handle: "" };
+    db.settings = { ...DEFAULT_SETTINGS, ...db.settings };
     db.albums ??= [];
+    db.examples ??= [];
     db.auto = { ...DEFAULT_AUTO, ...db.auto };
     for (const r of db.renders) r.review ??= "pending";
     return db;
   } catch {
-    return { clips: [], renders: [], settings: { petName: "Lex", handle: "" }, albums: [], auto: { ...DEFAULT_AUTO } };
+    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], auto: { ...DEFAULT_AUTO } };
   }
 }
 
@@ -122,6 +133,24 @@ export const store = {
   },
   removeAlbum(id: string) {
     db.albums = db.albums.filter((a) => a.id !== id);
+    save();
+  },
+
+  examples: () => db.examples,
+  example: (id: string) => db.examples.find((e) => e.id === id),
+  addExample(e: Example) {
+    db.examples.unshift(e);
+    save();
+    return e;
+  },
+  updateExample(id: string, patch: Partial<Example>) {
+    const e = db.examples.find((x) => x.id === id);
+    if (e) Object.assign(e, patch);
+    save();
+    return e;
+  },
+  removeExample(id: string) {
+    db.examples = db.examples.filter((e) => e.id !== id);
     save();
   },
 

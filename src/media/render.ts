@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.ts";
 import { run, frameAt, probe } from "./ffmpeg.ts";
-import type { Clip, RenderOptions, VideoPlan } from "../types.ts";
+import { fontPath } from "../fonts.ts";
+import type { Clip, Overlay, RenderOptions, VideoPlan } from "../types.ts";
 
 const { width: W, height: H, fps: FPS } = config.output;
 
@@ -48,28 +49,40 @@ function wrapGreedy(text: string, maxChars: number): string[] {
   return lines;
 }
 
+interface TextOpts {
+  /** Vertical center of the text block, as a fraction of the frame height. */
+  yFrac: number;
+  /** Or: pixel position of the top of the block (wins over yFrac). */
+  yTop?: number;
+  size: number;
+  maxChars: number;
+  style: RenderOptions["textStyle"];
+  font: string;
+  enable?: string;
+  tmp: string;
+  key: string;
+}
+
 /**
  * One drawtext filter per line so every line is centered. Text goes through
  * files (textfile=) so quotes, colons and % never need filter escaping.
  */
-function textFilters(
-  text: string,
-  opts: { yFrac: number; size: number; maxChars: number; style: RenderOptions["textStyle"]; enable?: string; tmp: string; key: string },
-): string[] {
+export function textFilters(text: string, opts: TextOpts): { filters: string[]; height: number } {
   const clean = screenText(text);
-  if (!clean || !config.fontFile) return [];
+  if (!clean) return { filters: [], height: 0 };
   const lines = wrap(clean, opts.maxChars);
-  const lineH = Math.round(opts.size * 1.22);
-  const top = Math.round(H * opts.yFrac - (lines.length * lineH) / 2);
-  return lines.map((line, i) => {
+  const lineH = Math.round(opts.size * 1.24);
+  const top = opts.yTop ?? Math.round(H * opts.yFrac - (lines.length * lineH) / 2);
+  const style = {
+    classic: "fontcolor=white:borderw=7:bordercolor=black@0.95:shadowcolor=black@0.45:shadowx=0:shadowy=4",
+    box: "fontcolor=black:box=1:boxcolor=white@0.97:boxborderw=18",
+    plain: "fontcolor=white:shadowcolor=black@0.7:shadowx=0:shadowy=3",
+  }[opts.style];
+  const filters = lines.map((line, i) => {
     const file = path.join(opts.tmp, `${opts.key}-${i}.txt`);
     fs.writeFileSync(file, line);
-    const style =
-      opts.style === "box"
-        ? "fontcolor=black:box=1:boxcolor=white@0.95:boxborderw=16"
-        : "fontcolor=white:borderw=7:bordercolor=black@0.9:shadowcolor=black@0.5:shadowx=0:shadowy=4";
     return [
-      `drawtext=fontfile='${esc(config.fontFile!)}'`,
+      `drawtext=fontfile='${esc(opts.font)}'`,
       `textfile='${esc(file)}'`,
       "expansion=none",
       `fontsize=${opts.size}`,
@@ -81,16 +94,11 @@ function textFilters(
       .filter(Boolean)
       .join(":");
   });
+  return { filters, height: lines.length * lineH };
 }
 
 /** Escape a value for use inside single quotes in an ffmpeg filter graph. */
 const esc = (s: string) => s.replace(/\\/g, "/").replace(/'/g, "'\\''").replace(/:/g, "\\:");
-
-function framingFor(clip: Clip, mode: RenderOptions["framing"]): "fill" | "blur" {
-  if (mode !== "auto") return mode;
-  // Portrait and near-portrait footage fills the frame; landscape gets a blurred backdrop.
-  return clip.width / clip.height <= 0.8 ? "fill" : "blur";
-}
 
 export interface RenderResult {
   file: string;
@@ -103,11 +111,12 @@ export async function renderVideo(
   plan: VideoPlan,
   clips: Map<string, Clip>,
   options: RenderOptions,
-  handle: string,
   onProgress: (p: number) => void,
 ): Promise<RenderResult> {
   const tmp = path.join(config.tmpDir, id);
   fs.mkdirSync(tmp, { recursive: true });
+  const font = await fontPath(options.fontId);
+  if (!font) throw new Error("No font available for on-screen text. Pick a font or set FONT_FILE.");
   const steps = plan.segments.length + 2;
   try {
     const parts: string[] = [];
@@ -115,7 +124,9 @@ export async function renderVideo(
       const clip = clips.get(seg.clipId);
       if (!clip) throw new Error(`Clip ${seg.clipId} no longer exists`);
       const out = path.join(tmp, `seg${String(i).padStart(3, "0")}.mp4`);
-      await renderSegment(clip, seg.start, seg.end, seg.speed ?? 1, seg.caption, options, out, tmp, `cap${i}`);
+      // Timed overlays are drawn over the whole video in the final pass instead.
+      const caption = plan.overlays?.length ? undefined : seg.caption;
+      await renderSegment(clip, seg.start, seg.end, seg.speed ?? 1, caption, options, font, out, tmp, `cap${i}`);
       parts.push(out);
       onProgress((i + 1) / steps);
     }
@@ -128,7 +139,7 @@ export async function renderVideo(
 
     const { duration } = await probe(joined);
     const file = path.join(config.rendersDir, `${id}.mp4`);
-    await finalize(joined, file, duration, plan, options, handle, tmp);
+    await finalize(joined, file, duration, plan, options, font, tmp);
     const thumb = path.join(config.rendersDir, `${id}.jpg`);
     await frameAt(file, Math.min(0.8, duration / 2), thumb, 540);
     onProgress(1);
@@ -145,22 +156,17 @@ async function renderSegment(
   speed: number,
   caption: string | undefined,
   options: RenderOptions,
+  font: string,
   out: string,
   tmp: string,
   key: string,
 ) {
   const len = Math.max(0.3, end - start);
   const outLen = len / speed;
-  const framing = framingFor(clip, options.framing);
-  const base =
-    framing === "fill"
-      ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1[v0]`
-      : `[0:v]split[a][b];` +
-        `[a]scale=${W / 4}:${H / 4}:force_original_aspect_ratio=increase,crop=${W / 4}:${H / 4},boxblur=12:3,scale=${W}:${H},eq=brightness=-0.08[bg];` +
-        `[b]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];` +
-        `[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[v0]`;
+  // Portrait only: fill the 9:16 frame.
+  const base = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1[v0]`;
   const text = caption
-    ? textFilters(caption, { yFrac: CAPTION_Y, size: 66, maxChars: 22, style: options.textStyle, tmp, key })
+    ? textFilters(caption, { yFrac: CAPTION_Y, size: 66, maxChars: 22, style: options.textStyle, font, tmp, key }).filters
     : [];
   const video = [`setpts=(PTS-STARTPTS)/${speed}`, `fps=${FPS}`, ...text, "format=yuv420p"].join(",");
   const useAudio = clip.hasAudio && options.keepOriginalAudio;
@@ -190,31 +196,44 @@ function atempo(speed: number): string {
   return `atempo=${Math.max(0.5, Math.min(2, speed))},`;
 }
 
+/** The overlays to draw: explicit timed overlays, or the hook (full length for text-overlay videos). */
+export function overlaysFor(plan: VideoPlan, duration: number): Overlay[] {
+  if (plan.overlays?.length) return plan.overlays;
+  if (!plan.hook) return [];
+  const full = plan.template === "text_overlay" || plan.template === "auto";
+  return [{ text: plan.hook, start: 0, end: full ? duration + 1 : Math.min(2.8, duration) }];
+}
+
 async function finalize(
   input: string,
   out: string,
   duration: number,
   plan: VideoPlan,
   options: RenderOptions,
-  handle: string,
+  font: string,
   tmp: string,
 ) {
-  // Text-overlay videos keep their line on screen the whole time; other formats flash a hook.
-  const hookUntil = plan.template === "text_overlay" ? duration + 1 : Math.min(2.8, duration);
-  const filters = [
-    ...textFilters(plan.hook, {
+  const overlays = overlaysFor(plan, duration);
+  const filters: string[] = [];
+  const placed: { o: Overlay; bottom: number }[] = [];
+  for (const [i, o] of overlays.entries()) {
+    // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
+    const above = placed.filter((p) => p.o.start < o.end && o.start < p.o.end);
+    const offset = above.length ? Math.max(...above.map((p) => p.bottom)) + 24 : 0;
+    const { filters: f, height } = textFilters(o.text, {
       yFrac: HOOK_Y,
-      size: plan.template === "text_overlay" ? 70 : 78,
-      maxChars: plan.template === "text_overlay" ? 24 : 20,
+      yTop: Math.round(H * HOOK_Y) + offset,
+      size: 70,
+      maxChars: 24,
       style: options.textStyle,
-      enable: `lt(t,${hookUntil.toFixed(2)})`,
+      font,
+      enable: `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`,
       tmp,
-      key: "hook",
-    }),
-    ...(handle
-      ? textFilters(handle, { yFrac: 0.93, size: 34, maxChars: 40, style: "classic", tmp, key: "handle" })
-      : []),
-  ];
+      key: `ov${i}`,
+    });
+    filters.push(...f);
+    placed.push({ o, bottom: offset + height });
+  }
   const vf = filters.length ? `[0:v]${filters.join(",")}[vout]` : `[0:v]null[vout]`;
   const music = options.musicFile && fs.existsSync(options.musicFile);
   const fadeAt = Math.max(0, duration - 1).toFixed(2);

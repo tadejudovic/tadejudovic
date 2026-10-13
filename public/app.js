@@ -54,7 +54,6 @@ async function loadStatus() {
     : s.google.connected
       ? "You'll pick clips in Google Photos' own picker. Tip: search “Lex” or a pet-face group there to grab everything at once."
       : "";
-  if (!s.fontAvailable) banner("No bold font found, so on-screen text is disabled. Set FONT_FILE in .env.");
   const tpl = $("#templates");
   if (!tpl.children.length) {
     s.templates.forEach((t, i) =>
@@ -171,22 +170,25 @@ function energyBars(curve = []) {
 }
 
 function renderClips() {
+  // Don't rebuild the grid while the creator is typing a note.
+  if (document.activeElement?.classList.contains("note")) return;
   const el = $("#clips");
   $("#clips-empty").hidden = state.clips.length > 0;
   el.replaceChildren(
     ...state.clips.map((c) => {
       const tags = c.ai?.tags?.slice(0, 3) ?? [];
+      const landscape = c.status === "ready" && c.width > c.height;
       const badge =
         c.status === "ready"
-          ? c.kind === "photo" ? "photo" : null
+          ? landscape ? "landscape · not used" : c.kind === "photo" ? "photo" : null
           : c.status === "error" ? "error" : `${c.status}…`;
       return h(
         "div",
         {
-          class: `clip ${state.selected.has(c.id) ? "selected" : ""}`,
+          class: `clip ${state.selected.has(c.id) ? "selected" : ""} ${landscape ? "landscape" : ""}`,
           title: c.error || c.ai?.summary || c.filename,
           onclick: () => {
-            if (c.status !== "ready") return;
+            if (c.status !== "ready" || landscape) return;
             state.selected.has(c.id) ? state.selected.delete(c.id) : state.selected.add(c.id);
             renderClips();
           },
@@ -210,6 +212,17 @@ function renderClips() {
           ),
           c.energy?.length ? energyBars(c.energy) : null,
           tags.length ? h("div", { class: "tags" }, tags.map((t) => h("span", { class: "tag" }, t))) : null,
+          landscape ? null : h("input", {
+            class: "note",
+            value: c.note || "",
+            placeholder: "What's happening? (optional)",
+            title: "Tell the AI what's on this footage, e.g. 'first time at the airport, very excited'",
+            onclick: (e) => e.stopPropagation(),
+            onchange: async (e) => {
+              c.note = e.target.value;
+              await api(`/api/clips/${c.id}`, { method: "PATCH", body: { note: e.target.value } });
+            },
+          }),
         ),
       );
     }),
@@ -232,8 +245,6 @@ function readForm() {
     useAi: f.useAi.checked,
     clipIds: state.selected.size ? [...state.selected] : undefined,
     options: {
-      framing: f.framing.value,
-      textStyle: f.textStyle.value,
       keepOriginalAudio: f.keepOriginalAudio.checked,
       musicId: f.musicId.value || undefined,
     },
@@ -288,7 +299,10 @@ function renderPlans() {
           h("b", {}, `Video ${i + 1}: ${p.title}`),
           h("span", { class: "by" }, `${fmt(total)} · ${p.segments.length} cuts · ${p.plannedBy === "claude" ? "AI director" : "heuristic"}`),
         ),
-        h("input", { class: "hook", value: p.hook, placeholder: "Hook text", oninput: (e) => (p.hook = e.target.value) }),
+        p.concept ? h("div", { class: "concept" }, p.concept) : null,
+        p.overlays?.length
+          ? p.overlays.map((o, j) => h("input", { class: "hook", value: o.text, title: `On screen ${o.start.toFixed(1)}s →`, oninput: (e) => ((o.text = e.target.value), j === 0 && (p.hook = e.target.value)) }))
+          : h("input", { class: "hook", value: p.hook, placeholder: "Hook text", oninput: (e) => (p.hook = e.target.value) }),
         h("div", { class: "segs" },
           p.segments.map((s) =>
             h("div", { class: "segcard" },
@@ -514,7 +528,9 @@ function reviewCard(r) {
             r.status === "rendering" ? h("div", { class: "bar" }, h("i", { style: { width: `${r.progress * 100}%` } })) : null,
           ),
         );
-  const hookInput = h("input", { value: r.plan.hook, title: "On-screen overlay text" });
+  const overlayInputs = (r.plan.overlays?.length ? r.plan.overlays.map((o) => o.text) : [r.plan.hook]).map((t, i) =>
+    h("input", { value: t, title: i === 0 ? "On-screen overlay text" : "Second overlay (appears later)" }),
+  );
   const captionText = [r.plan.postCaption, r.plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
   const caption = h("textarea", { title: "Post caption" }, captionText);
   const saveCaption = async () => {
@@ -535,16 +551,21 @@ function reviewCard(r) {
     h("div", { class: "body" },
       h("span", { class: `pill ${r.review}` }, r.review === "pending" ? "needs review" : r.review),
       r.error ? h("div", { class: "err" }, r.error) : null,
+      r.plan.concept ? h("div", { class: "concept" }, r.plan.concept) : null,
       h("div", { class: "overlay-edit" },
-        hookInput,
+        overlayInputs[0],
         h("button", {
-          class: "btn small", title: "Render again with this overlay text",
+          class: "btn small", title: "Render again with this overlay text and the current font/style",
           onclick: (e) => withBusy(e.currentTarget, "…", async () => {
-            await api(`/api/renders/${r.id}/rerender`, { method: "POST", body: { hook: hookInput.value } });
+            await api(`/api/renders/${r.id}/rerender`, {
+              method: "POST",
+              body: { overlays: overlayInputs.map((i) => i.value), options: { fontId: state.status.settings.fontId, textStyle: state.status.settings.textStyle } },
+            });
             await refreshRenders();
           }),
         }, "Re-render"),
       ),
+      ...overlayInputs.slice(1).map((inp) => h("div", { class: "overlay-edit" }, inp)),
       caption,
       h("div", { class: "row" },
         r.status === "done" ? h("a", { class: "btn small primary", href: `/media/render/${r.id}.mp4?dl=1`, onclick: () => r.review !== "approved" && setReview("approved") }, "Approve & download") : null,
@@ -562,6 +583,105 @@ function reviewCard(r) {
   );
 }
 
+// ---- Text look (fonts) ------------------------------------------------------
+
+const loadedFonts = new Set();
+function fontFamily(f) {
+  const fam = `pc-${f.id.replace(/[^\w-]/g, "_")}`;
+  if (!loadedFonts.has(fam)) {
+    loadedFonts.add(fam);
+    new FontFace(fam, `url(/media/font/${encodeURIComponent(f.id)})`).load().then((ff) => document.fonts.add(ff)).catch(() => {});
+  }
+  return fam;
+}
+
+async function loadFonts() {
+  const fonts = await api("/api/fonts");
+  const { fontId, textStyle, petName } = state.status.settings;
+  $("#look-sample").textContent = `POV: the energy shift when ${petName || "Lex"} realizes we're at the airport`;
+  const current = fonts.find((f) => f.id === fontId) ?? fonts.find((f) => f.id === "tiktok-sans");
+  $("#look-sample").style.fontFamily = `"${fontFamily(current)}"`;
+  $("#look-preview").className = `look-preview ${textStyle}`;
+  for (const r of document.querySelectorAll("#text-style input")) r.checked = r.value === textStyle;
+  $("#fonts").replaceChildren(
+    ...fonts.map((f) =>
+      h("button", {
+        type: "button",
+        class: `font ${f.id === current?.id ? "on" : ""}`,
+        title: f.vibe,
+        onclick: async () => {
+          state.status.settings = await api("/api/settings", { method: "PUT", body: { fontId: f.id } });
+          loadFonts();
+        },
+      },
+        h("span", { class: "fname", style: { fontFamily: `"${fontFamily(f)}", sans-serif` } }, f.name),
+        h("span", { class: "fvibe" }, f.vibe),
+      ),
+    ),
+  );
+}
+
+$("#text-style").addEventListener("change", async (e) => {
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { textStyle: e.target.value } });
+  loadFonts();
+});
+
+$("#font-input").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append("file", f);
+  try {
+    await api("/api/fonts", { method: "POST", body: fd });
+    state.status.settings = (await api("/api/status")).settings;
+    await loadFonts();
+    banner(`Added ${f.name} and selected it.`, "ok");
+  } catch (err) {
+    banner(err.message);
+  }
+  e.target.value = "";
+});
+
+// ---- Examples that worked ---------------------------------------------------
+
+async function refreshExamples() {
+  const list = await api("/api/examples");
+  state.examplesBusy = list.some((e) => e.status === "analyzing");
+  $("#examples").replaceChildren(
+    ...list.map((e) =>
+      h("div", { class: "example" },
+        e.duration ? h("img", { src: `/media/example/${e.id}.jpg`, alt: "" }) : h("div", { class: "noimg" }),
+        h("div", {},
+          h("b", {}, `“${e.overlayText || e.analysis?.overlayText || (e.status === "analyzing" ? "reading…" : "no overlay text")}”`),
+          e.views ? h("div", { class: "muted" }, `${e.views.toLocaleString()} views`) : null,
+          e.analysis ? h("div", {}, e.analysis.whyItWorks) : null,
+          e.note ? h("div", { class: "muted" }, e.note) : null,
+          e.status === "error" ? h("div", { class: "err" }, e.error) : null,
+          h("button", {
+            class: "btn small x",
+            onclick: async () => {
+              await api(`/api/examples/${e.id}`, { method: "DELETE" });
+              refreshExamples();
+            },
+          }, "Remove"),
+        ),
+      ),
+    ),
+  );
+}
+
+$("#example-form").file.addEventListener("change", (e) => ($("#example-file").textContent = e.target.files[0]?.name || "no video (optional)"));
+$("#example-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  withBusy(form.querySelector("button[type=submit]"), "Adding…", async () => {
+    await api("/api/examples", { method: "POST", body: new FormData(form) });
+    form.reset();
+    $("#example-file").textContent = "no video (optional)";
+    await refreshExamples();
+  });
+});
+
 // ---- Boot & polling ---------------------------------------------------------
 
 const params = new URLSearchParams(location.search);
@@ -570,11 +690,12 @@ if (params.get("google_error")) banner(`Google sign-in failed: ${params.get("goo
 if (params.size) history.replaceState(null, "", "/");
 
 await loadStatus();
-await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadTrends()]);
+await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadTrends(), loadFonts(), refreshExamples()]);
 
 setInterval(async () => {
   const busyClips = state.clips.some((c) => c.status === "importing" || c.status === "analyzing");
   const busyRenders = state.renders.some((r) => r.status === "queued" || r.status === "rendering");
   if (busyClips) await Promise.all([refreshClips(), refreshAlbums()]).catch(() => {});
   if (busyRenders) await refreshRenders().catch(() => {});
+  if (state.examplesBusy) await refreshExamples().catch(() => {});
 }, 2000);

@@ -1,7 +1,7 @@
 import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { syncAll } from "./albums.ts";
-import { plan, queueRender } from "./generate.ts";
+import { plan, queueRender, isPortrait } from "./generate.ts";
 import { refreshTrends, trendsStale } from "./ai/trends.ts";
 import { ingestQueue } from "./queue.ts";
 import type { RenderOptions } from "./types.ts";
@@ -68,13 +68,14 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
         console.warn("[scheduler] trend refresh failed, using known formats:", (err as Error).message),
       );
     }
-    const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video");
-    if (!ready.length) throw new Error("No analyzed videos yet. Add a shared album or upload some clips.");
+    const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c));
+    if (!ready.length) throw new Error("No analyzed vertical videos yet. Add a shared album or upload some clips.");
     // Prefer footage that hasn't been used; fall back to everything when there isn't enough new material.
     const unused = ready.filter((c) => c.uses === 0);
     const pool = unused.length >= Math.min(auto.dailyCount, 3) ? unused : ready;
 
-    const options: RenderOptions = { framing: "auto", keepOriginalAudio: true, textStyle: "classic" };
+    const { fontId, textStyle } = store.settings();
+    const options: RenderOptions = { keepOriginalAudio: true, textStyle, fontId };
     const { plans, warning } = await plan({
       template: auto.template,
       targetSeconds: auto.targetSeconds,

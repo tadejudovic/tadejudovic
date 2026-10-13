@@ -29,7 +29,7 @@ console.log("clips:", store.clips().map((c) => [c.source, c.status, c.duration, 
 console.log("album:", (({ seen, ...a }) => ({ ...a, seen: seen.length }))(store.album(album.id)!));
 console.log("second sync:", await syncAlbum(album.id));
 
-store.updateAuto({ dailyCount: 3, template: "text_overlay", targetSeconds: 10 });
+store.updateAuto({ dailyCount: 3, template: "auto", targetSeconds: 10 });
 const batch = await runDailyBatch();
 console.log("batch:", batch.warning ?? "", batch.renders.map((r) => r.plan.hook));
 await wait(renderQueue);

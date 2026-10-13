@@ -13,6 +13,8 @@ import { plan, queueRender, deleteRender } from "./generate.ts";
 import { addAlbum, syncAlbum } from "./albums.ts";
 import { runDailyBatch, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
+import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
+import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import type { GenerateRequest, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -46,13 +48,89 @@ app.get("/api/status", (_req, res) => {
 });
 
 app.put("/api/settings", (req, res) => {
-  const { petName, handle } = req.body ?? {};
+  const { petName, handle, fontId, textStyle } = req.body ?? {};
+  const fontOk = typeof fontId === "string" && listFonts().some((f) => f.id === fontId);
   res.json(
     store.updateSettings({
       ...(typeof petName === "string" && petName.trim() ? { petName: petName.trim().slice(0, 40) } : {}),
       ...(typeof handle === "string" ? { handle: handle.trim().slice(0, 40) } : {}),
+      ...(fontOk ? { fontId } : {}),
+      ...(["classic", "box", "plain"].includes(textStyle) ? { textStyle } : {}),
     }),
   );
+});
+
+// ---- Fonts ----------------------------------------------------------------
+
+app.get("/api/fonts", (_req, res) => res.json(listFonts()));
+
+app.post("/api/fonts", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file" });
+  try {
+    const id = saveCustomFont(req.file.path, req.file.originalname);
+    store.updateSettings({ fontId: id });
+    res.json({ id });
+  } catch (err) {
+    fs.rmSync(req.file.path, { force: true });
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+/** Serve a font file so the UI can preview it (downloads built-in fonts on first request). */
+app.get(
+  "/media/font/:id",
+  h(async (req, res) => {
+    const id = String(req.params.id);
+    if (!listFonts().some((f) => f.id === id)) return res.sendStatus(404);
+    const file = await fontPath(id);
+    if (!file) return res.sendStatus(404);
+    res.setHeader("cache-control", "public, max-age=86400");
+    res.sendFile(file);
+  }),
+);
+
+// ---- Examples that worked -------------------------------------------------
+
+app.get("/api/examples", (_req, res) => res.json(store.examples().map(({ file, thumb, ...e }) => e)));
+
+app.post("/api/examples", upload.single("file"), (req, res) => {
+  const b = req.body ?? {};
+  const views = Number(String(b.views ?? "").replace(/[^\d]/g, "")) || undefined;
+  if (!req.file && !b.overlayText && !b.note) return res.status(400).json({ error: "Add a video, its overlay text, or a note." });
+  const { file, thumb, ...created } = addExample({
+      tmpFile: req.file?.path,
+      filename: req.file?.originalname,
+      note: typeof b.note === "string" ? b.note.slice(0, 1000) : undefined,
+      overlayText: typeof b.overlayText === "string" ? b.overlayText.slice(0, 200) : undefined,
+      views,
+  });
+  res.json(created);
+});
+
+app.patch("/api/examples/:id", (req, res) => {
+  const b = req.body ?? {};
+  const e = store.updateExample(String(req.params.id), {
+    ...(typeof b.note === "string" ? { note: b.note.slice(0, 1000) } : {}),
+    ...(typeof b.overlayText === "string" ? { overlayText: b.overlayText.slice(0, 200) } : {}),
+  });
+  if (!e) return res.sendStatus(404);
+  res.json(e);
+});
+
+app.post("/api/examples/:id/reanalyze", (req, res) => {
+  reanalyzeExample(String(req.params.id));
+  res.json({ ok: true });
+});
+
+app.delete("/api/examples/:id", (req, res) => {
+  deleteExample(String(req.params.id));
+  res.json({ ok: true });
+});
+
+app.get("/media/example/:id.jpg", (req, res) => {
+  const e = store.example(String(req.params.id));
+  if (!e?.thumb || !fs.existsSync(e.thumb)) return res.sendStatus(404);
+  res.sendFile(e.thumb);
 });
 
 // ---- Google Photos --------------------------------------------------------
@@ -182,6 +260,15 @@ app.post(
   }),
 );
 
+/** The creator's own note about what's on the footage. */
+app.patch("/api/clips/:id", (req, res) => {
+  const note = req.body?.note;
+  if (typeof note !== "string") return res.status(400).json({ error: "note required" });
+  const clip = store.updateClip(String(req.params.id), { note: note.trim().slice(0, 500) || undefined });
+  if (!clip) return res.sendStatus(404);
+  res.json({ ok: true });
+});
+
 app.post(
   "/api/clips/:id/reanalyze",
   h(async (req, res) => {
@@ -234,16 +321,18 @@ app.post("/api/music", upload.single("file"), (req, res) => {
 function parseOptions(body: any): RenderOptions {
   const musicId = typeof body?.musicId === "string" ? path.basename(body.musicId) : "";
   const musicFile = musicId && fs.existsSync(path.join(musicDir, musicId)) ? path.join(musicDir, musicId) : undefined;
+  const settings = store.settings();
+  const fontId = typeof body?.fontId === "string" && listFonts().some((f) => f.id === body.fontId) ? body.fontId : settings.fontId;
   return {
-    framing: ["auto", "fill", "blur"].includes(body?.framing) ? body.framing : "auto",
     keepOriginalAudio: body?.keepOriginalAudio !== false,
-    textStyle: body?.textStyle === "box" ? "box" : "classic",
+    textStyle: ["classic", "box", "plain"].includes(body?.textStyle) ? body.textStyle : settings.textStyle,
+    fontId,
     musicFile,
   };
 }
 
 function parseRequest(body: any): GenerateRequest {
-  const template = (body?.template in TEMPLATES ? body.template : "quick_cuts") as TemplateId;
+  const template = (body?.template in TEMPLATES ? body.template : "auto") as TemplateId;
   return {
     template,
     targetSeconds: clamp(Number(body?.targetSeconds) || 15, 6, 60),
@@ -307,12 +396,18 @@ app.post("/api/renders/:id/rerender", (req, res) => {
   if (!r) return res.sendStatus(404);
   if (!r.plan.segments.every((s) => store.clip(s.clipId))) return res.status(400).json({ error: "A source clip was deleted." });
   const b = req.body ?? {};
+  // Overlay edits arrive as a list of texts matching the existing overlays (or a single hook).
+  const texts: string[] | undefined = Array.isArray(b.overlays) ? b.overlays.map(String) : undefined;
+  const overlays = r.plan.overlays?.length
+    ? r.plan.overlays.map((o, i) => ({ ...o, text: texts?.[i] ?? (i === 0 && typeof b.hook === "string" ? b.hook : o.text) }))
+    : undefined;
   const next = sanitizePlan({
     ...r.plan,
-    hook: typeof b.hook === "string" ? b.hook : r.plan.hook,
+    overlays,
+    hook: overlays?.[0]?.text ?? (typeof b.hook === "string" ? b.hook : texts?.[0] ?? r.plan.hook),
     postCaption: typeof b.postCaption === "string" ? b.postCaption : r.plan.postCaption,
   });
-  const fresh = queueRender(next, r.options, r.batch);
+  const fresh = queueRender(next, { ...r.options, ...parseOptions({ ...r.options, ...(b.options ?? {}) }) }, r.batch, { countUse: false });
   deleteRender(r.id);
   res.json(fresh);
 });
@@ -348,8 +443,15 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 function sanitizePlan(p: VideoPlan): VideoPlan {
   const str = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : "");
   return {
-    template: (p.template in TEMPLATES ? p.template : "quick_cuts") as TemplateId,
+    template: (p.template in TEMPLATES ? p.template : "auto") as TemplateId,
     title: str(p.title, 120) || "Untitled",
+    concept: str(p.concept, 300) || undefined,
+    overlays: Array.isArray(p.overlays)
+      ? p.overlays
+          .slice(0, 6)
+          .map((o) => ({ text: str(o?.text, 160), start: clamp(Number(o?.start) || 0, 0, 120), end: clamp(Number(o?.end) || 0, 0, 121) }))
+          .filter((o) => o.text && o.end > o.start)
+      : undefined,
     hook: str(p.hook, 120),
     postCaption: str(p.postCaption, 2200),
     hashtags: Array.isArray(p.hashtags) ? p.hashtags.map((t) => str(t, 40)).filter(Boolean).slice(0, 15) : [],

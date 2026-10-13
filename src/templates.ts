@@ -11,6 +11,16 @@ export interface TemplateDef {
 }
 
 export const TEMPLATES: Record<TemplateId, TemplateDef> = {
+  auto: {
+    id: "auto",
+    name: "Footage decides",
+    description: "No fixed format. The AI director studies each clip and writes the overlay and edit that fit it best.",
+    segmentSeconds: [6, 20],
+    playbook:
+      "No fixed format: watch the footage and decide what this specific clip is funniest or most relatable as. " +
+      "Usually that is one continuous moment with on-screen text, but use cuts, a delayed punchline overlay or slow-mo " +
+      "when the footage calls for it.",
+  },
   text_overlay: {
     id: "text_overlay",
     name: "Text overlay (POV)",
@@ -67,6 +77,7 @@ export const TEMPLATES: Record<TemplateId, TemplateDef> = {
 
 /** Hooks that work well for pet content; {pet} is replaced with the pet's name. */
 export const HOOK_BANK: Record<TemplateId, string[]> = {
+  auto: [],
   text_overlay: [
     "POV: the energy shift when {pet} realizes where we're going",
     "{pet} when someone says the word 'walk'",

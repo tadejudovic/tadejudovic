@@ -40,9 +40,42 @@ export interface Clip {
   };
   /** How many rendered videos have used this clip (to keep daily output fresh). */
   uses: number;
+  /** Creator's own description of what's on the footage (optional, fed to the AI director). */
+  note?: string;
 }
 
-export type TemplateId = "text_overlay" | "quick_cuts" | "single_moment" | "pov_story" | "then_vs_now";
+/** A video the creator knows performed well, used as a style reference. */
+export interface Example {
+  id: string;
+  addedAt: string;
+  filename?: string;
+  file?: string;
+  thumb?: string;
+  duration?: number;
+  /** Why the creator thinks it worked, context, etc. */
+  note?: string;
+  /** Overlay text, if the creator wants to type it in. */
+  overlayText?: string;
+  views?: number;
+  status: "analyzing" | "ready" | "error";
+  error?: string;
+  analysis?: {
+    overlayText: string;
+    whatHappens: string;
+    structure: string;
+    whyItWorks: string;
+    captionStyle: string;
+  };
+}
+
+/** A line of on-screen text, timed on the output video's timeline. */
+export interface Overlay {
+  text: string;
+  start: number;
+  end: number;
+}
+
+export type TemplateId = "auto" | "text_overlay" | "quick_cuts" | "single_moment" | "pov_story" | "then_vs_now";
 
 export interface Segment {
   clipId: string;
@@ -63,6 +96,10 @@ export interface VideoPlan {
   postCaption: string;
   hashtags: string[];
   plannedBy: "claude" | "heuristic";
+  /** Timed overlays; when present they replace the hook/caption text. */
+  overlays?: Overlay[];
+  /** The director's one-line reasoning, shown in review. */
+  concept?: string;
 }
 
 export type RenderStatus = "queued" | "rendering" | "done" | "error";
@@ -85,12 +122,13 @@ export interface Render {
 }
 
 export interface RenderOptions {
-  /** "fill" crops to 9:16, "blur" letterboxes over a blurred copy. "auto" picks per clip. */
-  framing: "auto" | "fill" | "blur";
   keepOriginalAudio: boolean;
   musicFile?: string;
-  textStyle: "classic" | "box";
+  textStyle: TextStyle;
+  fontId: string;
 }
+
+export type TextStyle = "classic" | "box" | "plain";
 
 export interface GenerateRequest {
   template: TemplateId;

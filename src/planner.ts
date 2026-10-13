@@ -67,10 +67,10 @@ export function heuristicPlan(opts: {
   if (!clips.length) throw new Error("No analyzed clips yet — import some footage first.");
   const byId = new Map(clips.map((c) => [c.id, c]));
   const def = TEMPLATES[template];
-  const hook = fill(sample(HOOK_BANK[template]), petName);
+  const hook = fill(sample(HOOK_BANK[template].length ? HOOK_BANK[template] : HOOK_BANK.text_overlay), petName);
   let segments: Segment[] = [];
 
-  if (template === "single_moment" || template === "text_overlay") {
+  if (template === "single_moment" || template === "text_overlay" || template === "auto") {
     // Best continuous window of the full target length.
     const best = clips
       .filter((c) => c.energy?.length)

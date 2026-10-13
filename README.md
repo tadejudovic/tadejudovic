@@ -11,12 +11,16 @@ Turn the pile of pet footage in your Google Photos library into ready-to-post **
 
 1. **You curate in Google Photos.** Put the videos you think have potential into a shared album and turn on *link sharing*.
 2. **Paste the album link into PawCut** ("Watch album"). It is checked every few hours (1–24h, configurable), and new videos are imported and analyzed automatically. Photos in the album are skipped.
-3. **Every morning at a time you choose, PawCut prepares a batch** of 3–5 videos (configurable) for review. It favors footage that hasn't been used yet. For each video it writes:
-   - a **text overlay** in a currently popular format, fitted to what actually happens in the clip, e.g. *"POV: the energy shift when we pull into the airport"*;
-   - a **post caption** with hashtags.
+3. **Every morning at a time you choose, PawCut prepares a batch** of 3–5 videos (configurable) for review. It favors footage that hasn't been used yet. Everything starts from the footage. For each clip, the AI director:
+   - watches the clip and reads your optional note about it (e.g. *"first time at the airport, very excited"*);
+   - looks at your **example videos that worked**;
+   - decides what the clip is really about, which part to use, and the on-screen line that lands, e.g. *"POV: the energy shift when we pull into the airport"*, optionally with a delayed punchline overlay;
+   - writes the **post caption** with hashtags.
+
+   There's no fixed format. Trending text structures are only offered as inspiration, used when they genuinely fit.
 4. **You review** in the *Daily batch* section: watch each video, tweak the overlay (one-click re-render) or the caption, then **Approve & download** or **Reject**. Upload the approved ones to TikTok and paste the caption.
 
-Overlay formats come from a starter list of proven patterns ("POV: the energy shift when…", "nobody: / Lex at 6am:", "me: … / Lex:", …). If the AI director is on, Claude also searches the web once a day for the text formats pet accounts are using right now and adds them to the rotation. You can also trigger this with *Research what's trending now*. Without an API key, overlays are picked from the starter list and aren't matched to the clip, so read them before approving.
+Trend inspiration comes from a starter list of proven patterns ("POV: the energy shift when…", "nobody: / Lex at 6am:", "me: … / Lex:", …). If the AI director is on, Claude also searches the web once a day for the text formats pet accounts are using right now and adds them to the rotation. You can also trigger this with *Research what's trending now*. Without an API key, overlays are picked from the starter list and aren't matched to the clip, so read them before approving.
 
 > **Keep the app running** (a spare laptop, a Mac mini or a small server) so the scheduled checks and the morning batch fire. If it was off at the scheduled time, the batch is made as soon as it starts again. **Make today's batch now** runs it on demand.
 
@@ -29,18 +33,29 @@ Google has no official API for reading an album from its share link. PawCut read
 
 If you'd rather not use a public link, the **Google Photos picker** import (below) works through Google's official API.
 
-## Formats
+## Footage, look and references
 
-| Format | What it does |
+- **Portrait only.** Output is 1080×1920. Landscape clips stay in the library, marked "not used", and are never put in a video.
+- **Notes on clips.** Each clip card has a "What's happening?" field. It's optional, but it helps the AI with context the frames can't show (where you are, what just happened).
+- **Example videos that worked.** Upload videos that performed well, add the view count and why you think it worked, or just type the overlay text. The AI reads their on-screen text, structure and tone once and writes new overlays in that style without copying them.
+- **Fonts.** Choose from 27 fonts creators use in CapCut/TikTok edits, with Outline, Box or Plain styles. CapCut doesn't publish its font list and its built-in fonts can't be redistributed, so the picker offers the free originals or closest matches: TikTok Sans (TikTok's own font), Montserrat (closest to CapCut's "Classic"), Poppins, Bebas Neue, Luckiest Guy and more. They're downloaded from Google Fonts on first use. You can also upload any .ttf/.otf, e.g. a font file you use in CapCut desktop.
+- **No watermark.**
+
+## Manual approaches
+
+The *Create manually* panel defaults to **Footage decides**, the same director as the daily batch. You can also force one of these structures:
+
+| Approach | What it does |
 |---|---|
-| **Text overlay (POV)** | One continuous clip with a trending line of text on screen the whole time. This is the daily-batch default. |
+| **Footage decides** | The AI picks the edit and text per clip. |
+| **Text overlay (POV)** | One continuous clip with one line of text on screen the whole time. |
 | **Quick-cut montage** | 6–12 cuts of 1.2–2.2s each. The strongest moment goes first, with a bold hook on screen for the first ~2.5s. |
 | **One perfect moment** | One continuous setup → payoff ("wait for it…"). Built to loop. |
 | **POV / caption story** | 3–5 beats with escalating captions in the pet's voice. |
 | **Then vs now** | Oldest footage vs newest footage (puppy → now), using the capture dates from Google Photos. |
 
 Every render:
-- Crops portrait footage to fill the frame. Landscape footage gets a blurred backdrop.
+- Fills the 9:16 frame.
 - Keeps on-screen text inside TikTok's safe zone.
 - Normalizes loudness to −14 LUFS.
 - Avoids clips you've already posted a lot, so daily output stays fresh.
@@ -98,7 +113,8 @@ Create ─► planner (Claude or heuristic) ─► plan (segments, hook, caption
 | `src/ai/trends.ts` | Trend research (Claude + web search) and the starter formats |
 | `src/media/analyze.ts` | Energy curve and moment detection |
 | `src/media/render.ts` | ffmpeg composition |
-| `src/ai/director.ts` | Claude tagging and planning (structured JSON outputs) |
+| `src/ai/director.ts` | Claude: clip tagging, footage-first direction, example analysis (structured JSON outputs) |
+| `src/fonts.ts`, `src/examples.ts` | Font library, reference videos |
 | `src/planner.ts`, `src/templates.ts` | Heuristic planner and format playbooks |
 | `public/` | Single-page UI (no build step) |
 | `data/` | Media, renders and `db.json` (git-ignored) |
@@ -120,4 +136,4 @@ What exists today is a single-creator, local-first MVP. The path to a product ot
 3. **Direct posting**: the TikTok Content Posting API (requires an app audit), Instagram Graph API for Reels, and YouTube Data API for Shorts, plus a content calendar ("3 posts a day at peak times").
 4. **Feedback loop**: pull view and retention stats per post and feed them back into the director, so it learns which hooks and formats work for *this* account.
 5. **Better perception**: pet face/body tracking for smart reframing instead of a center crop, beat-synced cuts to licensed music, and auto-subtitles from speech.
-6. **Pricing**: a free tier with a watermark and N videos/month; Pro for unlimited videos, the AI director and direct posting; Agency for multiple pets and accounts.
+6. **Pricing**: a free tier with N videos/month; Pro for unlimited videos, the AI director and direct posting; Agency for multiple pets and accounts.

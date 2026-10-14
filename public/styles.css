@@ -491,3 +491,9 @@ main:has(section[data-tab="review"]:not([hidden]) #stack:not([hidden])) {
 .details-actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; justify-content: center; gap: 40px;
   padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(to top, #fff 65%, rgba(255,255,255,0)); }
 .details-actions .round { margin: 0; }
+
+/* Nothing may stick out sideways (e.g. a card flying off after a swipe): phones would
+   zoom the whole page out to fit it, shrinking everything opened afterwards. */
+html, body { overflow-x: clip; max-width: 100%; }
+.stack, .stack-stage { overflow-x: clip; }
+@media (max-width: 600px) { .details-view { max-width: none; } }

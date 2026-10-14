@@ -1,6 +1,7 @@
 import { store, newId } from "./store.ts";
 import { fetchAlbum, isAlbumUrl, openVideo, saveResponse } from "./google/sharedAlbum.ts";
 import { enqueueClip, deleteClip, SkipItem } from "./library.ts";
+import { onTopic } from "./generate.ts";
 import type { AlbumSource } from "./types.ts";
 
 /** New albums only import recent videos: a live album that auto-adds every video of the pet can hold years of them. */
@@ -11,10 +12,16 @@ export const DEFAULT_RECENT_DAYS = 30;
  * reviews use these up. (Items left waiting aren't marked seen, so later checks pick them up.)
  */
 const SPARE_CLIPS = 2;
+/** At most this many album clips are imported (and analyzed by the AI) per day. */
+export const MAX_IMPORTS_PER_DAY = 30;
 export function importBudget(): number {
-  const unused = store.clips().filter((c) => c.status === "ready" && c.uses === 0 && !c.disliked && c.height >= c.width).length;
+  // Only footage that can actually be used counts: off-topic clips (beach, random) don't stop the
+  // importer from looking further through the album for airport/plane clips.
+  const unused = store.clips().filter((c) => c.status === "ready" && c.uses === 0 && !c.disliked && c.height >= c.width && onTopic(c)).length;
   const inFlight = store.clips().filter((c) => c.status === "importing" || c.status === "analyzing").length;
-  return Math.max(0, store.auto().dailyCount + SPARE_CLIPS - unused - inFlight);
+  const today = new Date().toDateString();
+  const importedToday = store.clips().filter((c) => c.source === "shared_album" && new Date(c.importedAt).toDateString() === today).length;
+  return Math.max(0, Math.min(store.auto().dailyCount + SPARE_CLIPS - unused - inFlight, MAX_IMPORTS_PER_DAY - importedToday));
 }
 
 export function addAlbum(url: string, recentDays = DEFAULT_RECENT_DAYS): AlbumSource {

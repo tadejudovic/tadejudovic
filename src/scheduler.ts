@@ -1,7 +1,7 @@
 import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { syncAll } from "./albums.ts";
-import { plan, queueRender, isPortrait } from "./generate.ts";
+import { plan, queueRender, isPortrait, onTopic } from "./generate.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
 
 /**
@@ -112,8 +112,15 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
       await syncAll();
     }
     await waitForIngest(20 * 60_000);
-    const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked);
-    if (!ready.length) throw new Error("No analyzed vertical videos yet. Add a shared album or upload some clips.");
+    const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c));
+    if (!ready.length) {
+      const any = store.clips().some((c) => c.status === "ready");
+      throw new Error(
+        any && store.settings().onlySituations
+          ? `None of your clips match your situations yet (${store.settings().scenes.slice(0, 3).join(", ")}…). More are imported as needed.`
+          : "No analyzed vertical videos yet. Add a shared album or upload some clips.",
+      );
+    }
     // Prefer footage that hasn't been used; fall back to everything when there isn't enough new material.
     const unused = ready.filter((c) => c.uses === 0);
     const pool = unused.length >= Math.min(auto.dailyCount, 3) ? unused : ready;

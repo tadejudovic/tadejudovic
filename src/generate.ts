@@ -38,6 +38,17 @@ export function reviewFeedback(limit = 15): ReviewFeedback {
   };
 }
 
+/**
+ * Whether a clip may be used automatically: with "only my situations" on, it must have been
+ * sorted into one of the creator's situations (airport, plane…), not "other" (beach, random).
+ * Without the AI there are no situations, so everything counts.
+ */
+export function onTopic(c: Clip): boolean {
+  const { onlySituations, scenes } = store.settings();
+  if (!onlySituations || !config.claude.enabled) return true;
+  return !!c.scene && scenes.includes(c.scene);
+}
+
 /** Portrait footage only: landscape clips are kept in the library but never used. */
 export const isPortrait = (c: Clip) => c.height >= c.width;
 
@@ -87,7 +98,7 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
 export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; warning?: string }> {
   const all = store.clips().filter((c) => c.status === "ready" && isPortrait(c));
   // Footage the creator rejected is only used when they pick it themselves.
-  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => !c.disliked);
+  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => !c.disliked && onTopic(c));
   if (!clips.length) throw new Error("No analyzed portrait clips available. Import some vertical footage first.");
   const { petName, handle } = store.settings();
   const aiOn = req.useAi && config.claude.enabled;

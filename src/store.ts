@@ -33,6 +33,8 @@ export interface Settings {
   aiMonthlyBudget: number;
   /** Hard cap on new videos made per day, from any source. */
   maxVideosPerDay: number;
+  /** Only clips sorted into one of `scenes` are used automatically ("other" clips only by hand). */
+  onlySituations: boolean;
   /** Set once the yellow CapCut look became the default (keeps later manual choices). */
   lookV2?: boolean;
 }
@@ -55,6 +57,7 @@ const DEFAULT_SETTINGS: Settings = {
   scenes: DEFAULT_SCENES,
   aiMonthlyBudget: Number(process.env.AI_MONTHLY_BUDGET) || 20,
   maxVideosPerDay: 5,
+  onlySituations: true,
 };
 
 const DEFAULT_AUTO: AutoSettings = {

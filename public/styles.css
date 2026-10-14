@@ -657,3 +657,4 @@ h1, h2, .settings-title, .d-title { letter-spacing: -0.035em; }
 /* inputs */
 input:not([type=checkbox]):not([type=radio]), select, textarea { background: #fff; border-color: var(--line); }
 input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08); border-color: #c9c9d2; }
+.hint-inline { grid-column: 1 / -1; font-size: 13px; }

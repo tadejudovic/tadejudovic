@@ -76,6 +76,7 @@ async function loadStatus() {
     form.handle.value = s.settings.handle;
   }
   if (document.activeElement?.form !== $("#limits")) $("#limits").maxVideosPerDay.value = String(s.settings.maxVideosPerDay);
+  $("#limits").onlySituations.checked = s.settings.onlySituations !== false;
   renderSummaries();
   $("#videos-today").textContent = `${s.videosToday.made} of ${s.videosToday.limit} made today. Nothing more is made once the limit is reached, including by hand.`;
   const btn = $("#btn-google");
@@ -106,7 +107,8 @@ $("#settings").addEventListener("change", async (e) => {
 });
 $("#settings").addEventListener("submit", (e) => e.preventDefault());
 $("#limits").addEventListener("change", async (e) => {
-  state.status.settings = await api("/api/settings", { method: "PUT", body: { maxVideosPerDay: Number(e.currentTarget.maxVideosPerDay.value) } });
+  const f = e.currentTarget;
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { maxVideosPerDay: Number(f.maxVideosPerDay.value), onlySituations: f.onlySituations.checked } });
   renderSummaries();
 });
 $("#limits").addEventListener("submit", (e) => e.preventDefault());

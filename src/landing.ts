@@ -20,6 +20,11 @@ const ICONS: Record<string, string> = {
   check: '<path d="M20 6 9 17l-5-5"/>',
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/>',
+  plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  inbox: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
 };
 const ico = (name: string, cls = "") =>
   `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -221,17 +226,44 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 @property --likes{syntax:"<integer>";inherits:false;initial-value:0}
 .feed{position:absolute;inset:0;opacity:0;animation:feedIn var(--T) infinite;pointer-events:none;color:#fff;font-family:-apple-system,Inter,system-ui,sans-serif}
 @keyframes feedIn{0%,80%{opacity:0}84%,95%{opacity:1}100%{opacity:0}}
-.feed::before{content:"";position:absolute;inset:0;background:linear-gradient(transparent 55%,rgba(0,0,0,.55))}
+.feed::before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.25),transparent 18%,transparent 50%,rgba(0,0,0,.6))}
+/* bottom navigation of a generic social app: the clearest "this is a feed" signal */
+.feed-nav{position:absolute;left:0;right:0;bottom:0;height:9%;display:flex;justify-content:space-around;align-items:center;background:#000;border-top:1px solid rgba(255,255,255,.12)}
+.feed-nav span{display:grid;justify-items:center;gap:1px;opacity:.7;font-size:9px;font-weight:600}
+.feed-nav span.on{opacity:1}
+.feed-nav .ico{width:20px;height:20px}
+.feed-nav .add{opacity:1;width:38px;height:24px;border-radius:7px;background:#fff;color:#000;display:grid;place-items:center;
+  box-shadow:-3px 0 0 #25f4ee,3px 0 0 #fe2c55}
+.feed-nav .add .ico{width:16px;height:16px;stroke-width:3}
+.feed-toast{position:absolute;top:2.5%;left:50%;transform:translate(-50%,-30px);display:flex;align-items:center;gap:6px;white-space:nowrap;
+  background:#fff;color:#0b0b0f;font-size:12px;font-weight:700;padding:7px 12px;border-radius:999px;box-shadow:0 8px 20px rgba(0,0,0,.3);
+  opacity:0;animation:toastIn var(--T) infinite;z-index:2}
+.feed-toast .ico{width:14px;height:14px;color:#16a34a;stroke-width:3}
+@keyframes toastIn{0%,83%{opacity:0;transform:translate(-50%,-30px)}86%,93%{opacity:1;transform:translate(-50%,0)}96%,100%{opacity:0;transform:translate(-50%,-10px)}}
+.burst{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%) scale(0);color:#fe2c55;opacity:0;animation:burst var(--T) infinite;filter:drop-shadow(0 6px 16px rgba(0,0,0,.35))}
+.burst .ico{width:96px;height:96px}
+@keyframes burst{0%,85%{opacity:0;transform:translate(-50%,-50%) scale(.2)}87%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}89%{transform:translate(-50%,-50%) scale(1)}92%,100%{opacity:0;transform:translate(-50%,-60%) scale(1.25)}}
+.rail .me{position:relative;margin-bottom:6px}
+.rail .me em{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:2px solid #fff;font-style:normal;font-size:16px;font-weight:800;
+  background:linear-gradient(135deg,#fe2c55,#ff8a3d)}
+.rail .me u{position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);width:18px;height:18px;border-radius:50%;background:#fe2c55;display:grid;place-items:center}
+.rail .me u .ico{width:12px;height:12px;stroke-width:3.4}
+.rail .disc{width:32px;height:32px;border-radius:50%;background:radial-gradient(circle,#fe2c55 0 22%,#222 23% 60%,#444 61%);border:5px solid #1a1a1a;animation:spin 3s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.who small{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:11px;opacity:.9}
+.who small .ico{width:12px;height:12px}
 .feed-top{position:absolute;top:5%;left:0;right:0;display:flex;justify-content:center;gap:16px;font-size:13px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.feed-top{animation:tabsDip var(--T) infinite}
+@keyframes tabsDip{0%,84%{opacity:1}86%,93%{opacity:0}96%,100%{opacity:1}}
 .feed-top span{opacity:.65}.feed-top b{border-bottom:2px solid #fff;padding-bottom:3px}
-.rail{position:absolute;right:4%;bottom:16%;display:grid;gap:14px;justify-items:center;font-size:11px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.rail{position:absolute;right:3.5%;bottom:13%;display:grid;gap:11px;justify-items:center;font-size:11px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .rail i{font-style:normal;font-size:26px;line-height:1;display:block}
 .rail .h i{color:#fe2c55;animation:heart var(--T) infinite}
 @keyframes heart{0%,84%{transform:scale(.6)}87%{transform:scale(1.35)}90%,100%{transform:scale(1)}}
 .rail .h b{--likes:0;counter-reset:likes var(--likes);animation:likes var(--T) infinite}
 .rail .h b::after{content:counter(likes) "K"}
 @keyframes likes{0%,82%{--likes:0}95%,100%{--likes:var(--max,48)}}
-.who{position:absolute;left:5%;right:22%;bottom:7%;text-align:left;font-size:12px;line-height:1.35;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.who{position:absolute;left:5%;right:22%;bottom:12%;text-align:left;font-size:12px;line-height:1.35;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .who b{display:block;font-size:13px;margin-bottom:2px}
 .cap{position:absolute;left:50%;bottom:16%;z-index:3;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:700;color:#fff;background:rgba(17,17,20,.85);
   padding:7px 12px;border-radius:999px;opacity:0;animation:capIn var(--T) infinite}
@@ -240,8 +272,8 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 .stage .chip{animation:float 6s ease-in-out infinite,chip1 var(--T,12s) infinite;opacity:0}
 .stage .c2{animation:float 6s ease-in-out infinite -2s,chip2 12s infinite}
 .stage .c3{animation:float 6s ease-in-out infinite -4s,chip3 12s infinite}
-@keyframes chip1{0%,45%{opacity:0}49%,90%{opacity:1}94%,100%{opacity:0}}
-@keyframes chip2{0%,61%{opacity:0}65%,90%{opacity:1}94%,100%{opacity:0}}
+@keyframes chip1{0%,45%{opacity:0}49%,80%{opacity:1}83%,100%{opacity:0}}
+@keyframes chip2{0%,61%{opacity:0}65%,80%{opacity:1}83%,100%{opacity:0}}
 @keyframes chip3{0%,73%{opacity:0}76%,96%{opacity:1}99%,100%{opacity:0}}
 .ctas.stack{flex-direction:column;align-items:flex-start;gap:10px}
 
@@ -360,9 +392,18 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
             <div class="tags">${first.tags.map((t) => `<span>#${t}</span>`).join("")}</div>
             <span class="stamp yes">POST</span>
             <div class="feed">
+              <div class="feed-toast">${ico("check")} Posted · live on your feed</div>
               <div class="feed-top"><span>Following</span><b>For You</b></div>
-              <div class="rail"><span class="h"><i>${ico("heart", "fill")}</i><b></b></span><span><i>${ico("message")}</i>1,204</span><span><i>${ico("share")}</i>3.9K</span></div>
-              <div class="who"><b>@you · just now</b><span class="feed-cap">${first.lines.join(" ")}</span></div>
+              <div class="burst">${ico("heart", "fill")}</div>
+              <div class="rail">
+                <span class="me"><em>Y</em><u>${ico("plus")}</u></span>
+                <span class="h"><i>${ico("heart", "fill")}</i><b></b></span>
+                <span><i>${ico("message")}</i>1,204</span>
+                <span><i>${ico("share")}</i>3.9K</span>
+                <span class="disc"></span>
+              </div>
+              <div class="who"><b>@you</b><span class="feed-cap">${first.lines.join(" ")}</span><small>${ico("music")} original sound · @you</small></div>
+              <nav class="feed-nav"><span class="on">${ico("home")}<small>Home</small></span><span>${ico("search")}<small>Discover</small></span><span class="add">${ico("plus")}</span><span>${ico("inbox")}<small>Inbox</small></span><span>${ico("user")}<small>Profile</small></span></nav>
             </div>
             <div class="ui"><span class="n">${ico("x")}</span><span class="y">${ico("check")}</span></div>
           </div>

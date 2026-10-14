@@ -16,7 +16,6 @@ export function awaitingReview(): number {
 export function afterReview() {
   if (awaitingReview() === 0) runDue({ afterReview: true }).catch((err) => console.error("[scheduler]", err));
 }
-import { refreshTrends, trendsStale } from "./ai/trends.ts";
 import { ingestQueue } from "./queue.ts";
 import { researchScene, researchStale } from "./ai/research.ts";
 import type { RenderOptions } from "./types.ts";
@@ -113,11 +112,6 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
       await syncAll();
     }
     await waitForIngest(20 * 60_000);
-    if (config.claude.enabled && trendsStale()) {
-      await refreshTrends(store.settings().petName).catch((err) =>
-        console.warn("[scheduler] trend refresh failed, using known formats:", (err as Error).message),
-      );
-    }
     const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked);
     if (!ready.length) throw new Error("No analyzed vertical videos yet. Add a shared album or upload some clips.");
     // Prefer footage that hasn't been used; fall back to everything when there isn't enough new material.

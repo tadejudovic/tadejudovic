@@ -320,11 +320,11 @@ export function feedbackText(f: ReviewFeedback | undefined): string {
 function provenText(proven: ProvenCaption[], scene?: string): string {
   if (!proven.length) return "";
   return (
-    `\n\nPROVEN CAPTIONS for this situation${scene ? ` ("${scene}")` : ""}: text that got lots of views on TikTok ` +
-    `for dogs in the same situation. The creator's method is to take the proven caption that best matches what ` +
-    `happens in this clip and use it as is or with small changes (names, details), because proven wording ` +
-    `performs. Prefer this over inventing something new; only write an original line if none of these fit the ` +
-    `footage, and avoid ones already posted recently.\n` +
+    `\n\nPROVEN CAPTIONS for this situation${scene ? ` ("${scene}")` : ""}: the on-screen text of the most-viewed ` +
+    `TikToks of pets in the same situation, from TikTok search. The creator's method is to take the one that best ` +
+    `matches what happens in this clip and use it as is or with small changes (names, details), because proven ` +
+    `wording performs. Always adapt one of these and set basedOn to it; only if none fits the footage at all, write ` +
+    `a line in the same style. Avoid ones already posted recently.\n` +
     proven
       .map(
         (c, i) =>

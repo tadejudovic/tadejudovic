@@ -15,7 +15,6 @@ import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRend
 import { addAlbum, forgetItem, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
-import { currentTrends, refreshTrends } from "./ai/trends.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
@@ -280,7 +279,7 @@ app.delete("/api/albums/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-// ---- Daily batch & trends -------------------------------------------------
+// ---- Daily batch -------------------------------------------------
 
 app.get("/api/auto", (_req, res) => res.json(store.auto()));
 
@@ -300,16 +299,6 @@ app.post(
   "/api/batch/run",
   h(async (_req, res) => {
     res.json(await runDailyBatch({ force: true }));
-  }),
-);
-
-app.get("/api/trends", (_req, res) => res.json(currentTrends()));
-
-app.post(
-  "/api/trends/refresh",
-  h(async (_req, res) => {
-    if (!config.claude.enabled) return res.status(400).json({ error: "Set ANTHROPIC_API_KEY to research trends." });
-    res.json(await refreshTrends(store.settings().petName));
   }),
 );
 

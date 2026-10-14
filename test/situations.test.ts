@@ -37,3 +37,13 @@ test("parseCaptions keeps sourced fields and drops junk", () => {
   assert.equal(caps[1].views, undefined);
   assert.equal(caps[1].url, undefined);
 });
+
+test("only TikTok-search captions (and the creator's own) are used", async () => {
+  const { store } = await import("../src/store.ts");
+  const { provenCaptions } = await import("../src/ai/research.ts");
+  const cap = (id: string, kind: "overlay" | "creator", views: number) => ({ id, text: id, kind, views, foundAt: "" });
+  store.setResearch({ scene: "web-scene", source: "web", captions: [cap("from-web", "overlay", 9e6), cap("mine", "creator", 1)] });
+  store.setResearch({ scene: "tt-scene", source: "tiktok", captions: [cap("from-tiktok", "overlay", 2e6)] });
+  assert.deepEqual(provenCaptions("web-scene").map((c) => c.text), ["mine"]);
+  assert.deepEqual(provenCaptions("tt-scene").map((c) => c.text), ["from-tiktok"]);
+});

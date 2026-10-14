@@ -111,7 +111,7 @@ Because the frames are only analyzed once, planning a day's worth of videos is a
 
 ### Search TikTok for proven captions (optional)
 
-Set `APIFY_TOKEN` (from [apify.com](https://apify.com) → Settings → API & Integrations). Caption research then searches TikTok itself for each situation (e.g. "dog boarding gate", "pov dog boarding gate"), keeps the most-viewed videos (20K+ views), and has Claude read the text on each video's cover. Every proven caption then has a real view count and a link to the video. It runs once a week per situation and costs roughly $0.30 per search on Apify; Apify's free plan includes $5 a month. This cost counts toward the app's monthly spending limit. Without the token, research falls back to Claude's web search, which rarely sees view counts.
+Set `APIFY_TOKEN` (from [apify.com](https://apify.com) → Settings → API & Integrations). Caption research then searches TikTok itself for each situation (e.g. "dog boarding gate", "pov dog boarding gate"), keeps the most-viewed videos (20K+ views), and has Claude read the text on each video's cover. Every proven caption then has a real view count and a link to the video. It runs once a week per situation and costs roughly $0.30 per search on Apify; Apify's free plan includes $5 a month. This cost counts toward the app's monthly spending limit. Caption ideas come only from this TikTok search; without the token no captions are researched.
 
 ## Put it online behind a password (studio.lexintheair.com)
 

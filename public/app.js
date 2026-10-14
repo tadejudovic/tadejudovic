@@ -786,21 +786,6 @@ $("#btn-batch").addEventListener("click", (e) =>
   }),
 );
 
-async function loadTrends() {
-  const t = await api("/api/trends");
-  $("#trends-src").textContent = t.source === "claude_web_search" ? `· researched ${new Date(t.updatedAt).toLocaleDateString()}` : "· evergreen starter set";
-  const pet = state.status?.settings.petName || "Lex";
-  $("#trends").replaceChildren(...t.formats.map((f) => h("li", {}, f.example.replaceAll("{pet}", pet), " ", h("span", {}, `— ${f.fits}`))));
-  $("#btn-trends").disabled = !state.status?.claude.enabled;
-  $("#btn-trends").title = state.status?.claude.enabled ? "" : "Needs ANTHROPIC_API_KEY";
-}
-$("#btn-trends").addEventListener("click", (e) =>
-  withBusy(e.currentTarget, "Searching the web…", async () => {
-    await api("/api/trends/refresh", { method: "POST" });
-    await loadTrends();
-    banner("Trend list updated.", "ok");
-  }),
-);
 
 const batchEls = new Map();
 function latestBatch() {
@@ -1010,7 +995,7 @@ async function refreshScenes() {
   const list = await api("/api/scenes");
   $("#research-source").textContent = state.status?.tiktokSearch
     ? "Captions come from TikTok search (via Apify): the most-viewed videos for each situation, with real view counts."
-    : "Captions come from web search, which rarely shows view counts. Add an APIFY_TOKEN on Render to search TikTok directly.";
+    : "Captions come only from TikTok search via Apify, and Apify isn't connected yet: add APIFY_TOKEN on Render.";
   $("#scenes").replaceChildren(
     ...list.map((s) => {
       const r = s.research;
@@ -1018,7 +1003,7 @@ async function refreshScenes() {
       const status = s.scene === "other"
         ? "clips that don't fit a situation"
         : r?.updatedAt
-          ? `${caps.length} proven caption${caps.length === 1 ? "" : "s"} · ${r.source === "tiktok" ? "searched on TikTok" : "web search"} ${new Date(r.updatedAt).toLocaleDateString()}`
+          ? `${caps.length} proven caption${caps.length === 1 ? "" : "s"} · ${r.source === "tiktok" ? `searched on TikTok ${new Date(r.updatedAt).toLocaleDateString()}` : "old web results, not used; search TikTok again"}`
           : caps.length ? `${caps.length} caption(s) you added · not researched yet` : "not researched yet";
       const details = h("details", { class: "scene", open: openScenes.has(s.scene), ontoggle: (e) => (e.target.open ? openScenes.add(s.scene) : openScenes.delete(s.scene)) },
         h("summary", {},
@@ -1337,7 +1322,7 @@ if (params.get("google_error")) banner(`Google sign-in failed: ${params.get("goo
 if (params.size) history.replaceState(null, "", `/${location.hash}`);
 
 await loadStatus();
-await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadTrends(), loadFonts(), refreshExamples(), refreshScenes()]);
+await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadFonts(), refreshExamples(), refreshScenes()]);
 await refreshSuggestions();
 renderHomeState();
 

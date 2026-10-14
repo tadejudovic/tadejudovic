@@ -3,7 +3,6 @@ import { config } from "./config.ts";
 import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
 import { directClip, planVideos, type DirectContext } from "./ai/director.ts";
-import { currentTrends } from "./ai/trends.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
@@ -115,13 +114,13 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
       minSeconds: Math.max(6, req.targetSeconds - 3),
       maxSeconds: req.targetSeconds + 5,
       examples: store.examples().filter((e) => e.status === "ready"),
-      trends: currentTrends().formats,
+      trends: [], // caption ideas come only from TikTok search (Apify)
       brief: req.brief,
       recentOverlays,
       proven: [],
       feedback: reviewFeedback(),
     };
-    const overlays = [...currentTrends().formats].sort(() => Math.random() - 0.5);
+    const overlays: { example: string }[] = [];
     const failures: string[] = [];
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {
@@ -165,7 +164,7 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
         clips,
         petName,
         handle,
-        trends: currentTrends().formats,
+        trends: [], // caption ideas come only from TikTok search (Apify)
       });
       if (plans.length) {
         // Models are approximate with arithmetic; snap each plan to the requested length.
@@ -181,7 +180,7 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
 
   const used = new Map<string, number>();
   const plans: VideoPlan[] = [];
-  const overlays = [...currentTrends().formats].sort(() => Math.random() - 0.5);
+  const overlays: { example: string }[] = [];
   for (let i = 0; i < req.count; i++) {
     const p = heuristicPlan({ template: req.template, targetSeconds: req.targetSeconds, clips, petName, used });
     if (req.template === "text_overlay" && overlays.length) {

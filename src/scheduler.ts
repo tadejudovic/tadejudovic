@@ -20,7 +20,7 @@ import { ingestQueue } from "./queue.ts";
 import { archiveUnusable, ARCHIVE_AFTER_DAYS, queueMissingAiLooks } from "./library.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { researchScene, researchStale } from "./ai/research.ts";
-import type { RenderOptions } from "./types.ts";
+import type { RenderOptions, VideoPlan } from "./types.ts";
 
 /**
  * The daily loop:
@@ -166,15 +166,25 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
 
     const { fontId, textStyle, textSize } = store.settings();
     const options: RenderOptions = { keepOriginalAudio: true, textStyle, textSize, fontId };
-    const { plans, warning } = await plan({
-      template: auto.template,
-      targetSeconds: auto.targetSeconds,
-      count: Math.min(auto.dailyCount, left),
-      clipIds: pool.map((c) => c.id),
-      useAi: true,
-      options,
-    });
-    const renders = plans.map((p) => queueRender(p, options, date));
+    // Each video starts rendering as soon as its text is written, not when the whole round is.
+    const renders: ReturnType<typeof queueRender>[] = [];
+    const queued = new Set<VideoPlan>();
+    const start = (p: VideoPlan) => {
+      queued.add(p);
+      renders.push(queueRender(p, options, date));
+    };
+    const { plans, warning } = await plan(
+      {
+        template: auto.template,
+        targetSeconds: auto.targetSeconds,
+        count: Math.min(auto.dailyCount, left),
+        clipIds: pool.map((c) => c.id),
+        useAi: true,
+        options,
+      },
+      { onPlan: start },
+    );
+    for (const p of plans) if (!queued.has(p)) start(p);
     store.updateAuto({ lastBatchDate: date });
     console.log(`[scheduler] queued ${renders.length} video(s) for ${date}${warning ? ` (${warning})` : ""}`);
     return { renders, warning };
@@ -188,8 +198,8 @@ function usableClips(): number {
   return store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c) && c.uses === 0).length;
 }
 
-/** A round starts once this many clips are ready, even while more are importing: early feedback beats a full first round. */
-const START_WITH = 3;
+/** A round starts as soon as this many clips are sorted, even while more are importing: early feedback beats a full round. */
+const START_WITH = 1;
 const enoughToStart = () => Math.max(1, Math.min(store.auto().dailyCount, videosLeftToday(), START_WITH));
 
 async function waitForIngest(maxMs: number) {

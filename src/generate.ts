@@ -98,7 +98,14 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
   return picked;
 }
 
-export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; warning?: string }> {
+/**
+ * `onPlan` is called as soon as each video's plan is ready (one-clip videos), so it can start
+ * rendering while the AI is still writing the others.
+ */
+export async function plan(
+  req: GenerateRequest,
+  { onPlan }: { onPlan?: (p: VideoPlan) => void } = {},
+): Promise<{ plans: VideoPlan[]; warning?: string }> {
   const all = store.clips().filter((c) => c.status === "ready" && isPortrait(c));
   // Footage the creator rejected is only used when they pick it themselves.
   const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => c.uses === 0 && !c.disliked && onTopic(c));
@@ -144,6 +151,7 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
           const p = await directClip(clip, { ...ctx, proven: provenCaptions(clip.scene) });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);
+          onPlan?.(p);
           return p;
         } catch (err) {
           failures.push((err as Error).message);
@@ -161,6 +169,7 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
       p.scene = clip.scene;
       p.postCaption = `${p.hook} 🐾`;
       applyHashtags(p, clip.scene);
+      onPlan?.(p);
       return p;
     });
     if (failures.length) warning = `AI director failed on ${failures.length} clip(s) (${failures[0]}); used heuristics for those.`;

@@ -43,6 +43,8 @@ export const config = {
   apify: {
     token: process.env.APIFY_TOKEN ?? "",
     actor: process.env.APIFY_TIKTOK_ACTOR ?? "clockworks~tiktok-scraper",
+    /** Reads a hashtag's total number of posts (TikTok blocks reading it directly). */
+    hashtagActor: process.env.APIFY_HASHTAG_ACTOR ?? "crawlerbros~tiktok-hashtag-scraper",
   },
   fontFile: findFont(),
   output: { width: 1080, height: 1920, fps: 30 },

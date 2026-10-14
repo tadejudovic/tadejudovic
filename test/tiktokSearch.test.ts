@@ -51,3 +51,11 @@ test("searchTikTok calls Apify, dedupes and sorts by views", async () => {
     globalThis.fetch = real;
   }
 });
+
+test("hashtag post counts are read from the different shapes Apify actors return", async () => {
+  const { parseHashtagItem } = await import("../src/ai/tiktokSearch.ts");
+  assert.deepEqual(parseHashtagItem({ name: "dogsoftiktok", videoCount: 51200000, viewCount: 9e11 }), ["dogsoftiktok", 51200000]);
+  assert.deepEqual(parseHashtagItem({ hashtag: "#FlyingWithDog", stats: { videoCount: "214000" } }), ["flyingwithdog", 214000]);
+  assert.deepEqual(parseHashtagItem({ challengeName: "petcabin", statsV2: { videoCount: "9800" } }), ["petcabin", 9800]);
+  assert.equal(parseHashtagItem({ name: "x" }), null);
+});

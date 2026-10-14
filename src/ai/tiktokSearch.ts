@@ -5,7 +5,7 @@ import { assertBudget, recordCost } from "./budget.ts";
 import { structured } from "./director.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { newId } from "../store.ts";
-import { candidates, chooseHashtags, tagsOf } from "./hashtags.ts";
+import { candidates, chooseHashtags, postCount, tagsOf } from "./hashtags.ts";
 import type { PickedHashtag, ProvenCaption } from "../types.ts";
 
 /**
@@ -100,6 +100,49 @@ export async function searchTikTok(queries: string[]): Promise<TikTokVideo[]> {
   return [...byUrl.values()].sort((a, b) => b.views - a.views);
 }
 
+/** Estimated Apify cost per hashtag looked up (deliberately high, like USD_PER_RESULT). */
+const USD_PER_HASHTAG = 0.01;
+
+const num = (v: unknown) => {
+  const n = typeof v === "string" ? Number(v.replace(/[^\d.]/g, "")) : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+};
+
+/** One item of the hashtag actor's output → [tag, number of posts]. Field names vary between actors/versions. */
+export function parseHashtagItem(it: any): [string, number] | null {
+  const name = it?.name ?? it?.hashtag ?? it?.hashtagName ?? it?.challengeName ?? it?.title ?? it?.challenge?.title ?? it?.tag;
+  const posts =
+    num(it?.videoCount) ?? num(it?.stats?.videoCount) ?? num(it?.challengeStats?.videoCount) ??
+    num(it?.statsV2?.videoCount) ?? num(it?.postCount) ?? num(it?.posts) ?? num(it?.publishCnt) ?? num(it?.videos);
+  if (typeof name !== "string" || !posts) return null;
+  return [name.replace(/^#/, "").toLowerCase(), posts];
+}
+
+/** How many posts each hashtag has on TikTok, through Apify (one run for all of them). */
+export async function hashtagPostCounts(tags: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (!tags.length) return counts;
+  assertBudget();
+  const url =
+    `https://api.apify.com/v2/acts/${config.apify.hashtagActor}/run-sync-get-dataset-items` +
+    `?token=${encodeURIComponent(config.apify.token)}&timeout=180&memory=1024`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    // Only the hashtags' totals ("metadata"), not their videos.
+    body: JSON.stringify({ hashtags: tags, mode: "metadata", maxItems: tags.length, resultsPerPage: 1 }),
+    signal: AbortSignal.timeout(200_000),
+  });
+  if (!res.ok) throw new Error(`Apify hashtag lookup failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
+  const items = (await res.json()) as unknown[];
+  recordCost(Math.max(1, tags.length) * USD_PER_HASHTAG);
+  for (const it of Array.isArray(items) ? items : []) {
+    const parsed = parseHashtagItem(it);
+    if (parsed && tags.includes(parsed[0]) && !counts.has(parsed[0])) counts.set(...parsed);
+  }
+  return counts;
+}
+
 const READ_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -151,11 +194,19 @@ export async function researchSceneOnTikTok(scene: string, petName: string): Pro
   if (!popular.length) return { captions: [], hashtags: [], hashtagNote: "No videos with 20K+ views found for this search." };
   const videos = popular.slice(0, COVERS_TO_READ);
 
-  const { picked, looked, found } = await chooseHashtags(candidates(popular));
+  // Post counts come from Apify; TikTok's own page is only a fallback (it usually blocks us).
+  const cands = candidates(popular).slice(0, 20);
+  let apifyError: string | undefined;
+  const counts = await hashtagPostCounts(cands.map((c) => c.tag)).catch((err: Error) => {
+    apifyError = err.message;
+    console.warn(`[hashtags] ${scene}: ${err.message}`);
+    return new Map<string, number>();
+  });
+  const { picked, looked, found } = await chooseHashtags(cands, async (tag) => counts.get(tag) ?? (counts.size ? undefined : postCount(tag)));
   const hashtagNote =
     picked.length === 3 ? undefined
     : !looked ? "The top videos had no hashtags."
-    : !found ? "Couldn't read hashtag post counts from TikTok, so the AI picks hashtags for now."
+    : !found ? `Couldn't read hashtag post counts${apifyError ? ` (${apifyError.slice(0, 120)})` : ""}, so the AI picks hashtags for now.`
     : `Only found ${picked.length} of 3 hashtags in the right size ranges.`;
 
   const content: any[] = [];

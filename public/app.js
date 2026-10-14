@@ -478,18 +478,92 @@ function openDetails(r, muted = true) {
 
 /** Everything about a video except the player: made from, text on video, caption, hashtags. */
 function detailsBody(r) {
-  const body = reviewCard(r).querySelector(".body");
-  body.querySelector(".card-actions")?.remove();
-  const info = r.plan.hashtagInfo ?? [];
-  if (info.length) {
-    body.append(
-      h("span", { class: "field-label" }, "Hashtags"),
-      h("div", { class: "tag-info" },
-        info.map((t) => h("span", {}, h("b", {}, `#${t.tag}`), ` ${fmtViews(t.posts)} posts`))),
-    );
-  }
-  body.append(h("a", { class: "btn small", href: `/media/render/${r.id}.mp4?dl=1` }, "Download"));
-  return body;
+  const plan = r.plan;
+  // One line per overlay (" / " inside an overlay is its own line break, so it can't be the separator).
+  const overlay = plan.overlays?.length ? plan.overlays.map((o) => o.text).join("\n") : plan.hook || plan.title;
+  const caption = plan.postCaption || "";
+  const tags = plan.hashtags ?? [];
+  const posts = new Map((plan.hashtagInfo ?? []).map((t) => [t.tag, t.posts]));
+  const fullCaption = () => [plan.postCaption, plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
+
+  // Headline: the text on the video, editable in place (re-makes the video).
+  const headline = h("h2", { class: "d-title" }, overlay);
+  const editText = h("div", { class: "d-edit", hidden: true });
+  const textInput = h("textarea", { rows: 2 }, overlay);
+  editText.append(
+    textInput,
+    h("div", { class: "d-edit-actions" },
+      h("button", { class: "btn small", onclick: () => (editText.hidden = true) }, "Cancel"),
+      h("button", { class: "btn small primary", onclick: (e) => withBusy(e.currentTarget, "Making…", async () => {
+        await api(`/api/renders/${r.id}/rerender`, {
+          method: "POST",
+          body: { overlays: textInput.value.split("\n").map((t) => t.trim()).filter(Boolean), options: { fontId: state.status.settings.fontId, textStyle: state.status.settings.textStyle } },
+        });
+        closeSheet();
+        await refreshRenders();
+        banner("Re-making the video with the new text. It comes back to Review when it's done.", "ok");
+      }) }, "Re-make video"),
+    ),
+  );
+
+  // Caption: readable text first; edit only when needed.
+  const captionText = h("p", { class: "d-caption" }, caption || "No caption");
+  const captionEdit = h("textarea", { class: "d-caption-edit", rows: 4, hidden: true }, caption);
+  const saveCaption = async () => {
+    plan.postCaption = captionEdit.value.trim();
+    await api(`/api/renders/${r.id}`, { method: "PATCH", body: { postCaption: plan.postCaption, hashtags: plan.hashtags } });
+    captionText.textContent = plan.postCaption || "No caption";
+  };
+  captionEdit.addEventListener("change", saveCaption);
+  const copyBtn = h("button", { class: "d-link", onclick: async (e) => {
+    await navigator.clipboard.writeText(fullCaption());
+    e.currentTarget.textContent = "Copied ✓";
+    setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
+  } }, "Copy");
+  const editCaptionBtn = h("button", { class: "d-link", onclick: () => {
+    const editing = captionEdit.hidden;
+    captionEdit.hidden = !editing;
+    captionText.hidden = editing;
+    editCaptionBtn.textContent = editing ? "Done" : "Edit";
+    if (editing) captionEdit.focus();
+    else saveCaption();
+  } }, "Edit");
+
+  const b = plan.basedOn;
+  const seg = plan.segments?.[0];
+  const clip = seg && state.clips.find((c) => c.id === seg.clipId);
+  return h("div", { class: "d" },
+    h("section", { class: "d-head" },
+      headline,
+      h("button", { class: "d-link", onclick: () => { editText.hidden = !editText.hidden; if (!editText.hidden) textInput.focus(); } }, "Edit text"),
+      editText,
+      b ? h("div", { class: "d-proof" },
+        h("span", { class: "d-proof-icon" }, "🔥"),
+        h("span", {},
+          b.views ? h("b", {}, `Based on a ${fmtViews(b.views)}-view TikTok`) : h("b", {}, "Based on a popular TikTok"),
+          h("span", { class: "muted" }, ` “${b.text}”`),
+          b.url ? [" ", h("a", { href: b.url, target: "_blank", rel: "noopener noreferrer" }, "Watch")] : null),
+      ) : null,
+    ),
+    h("section", { class: "d-sec" },
+      h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, editCaptionBtn, copyBtn)),
+      captionText,
+      captionEdit,
+      tags.length ? h("div", { class: "d-chips" },
+        tags.map((t) => h("span", { class: "chip" }, `#${t}`, posts.has(t) ? h("small", {}, ` ${fmtViews(posts.get(t))}`) : null))) : null,
+      posts.size ? h("p", { class: "d-hint" }, "Numbers are how many TikTok posts use each hashtag.") : null,
+    ),
+    seg ? h("section", { class: "d-sec" },
+      h("div", { class: "d-sec-head" }, h("span", {}, "Made from")),
+      h("button", { class: "d-source", onclick: () => openClip(seg.clipId) },
+        h("img", { src: `/media/thumb/${seg.clipId}`, alt: "", loading: "lazy" }),
+        h("span", { class: "d-source-text" },
+          h("b", {}, plan.scene || clip?.scene || "Your clip"),
+          h("span", { class: "muted" }, `${mmss(seg.start)}–${mmss(seg.end)} of the original`)),
+        h("span", { class: "d-play" }, "Play ›"),
+      ),
+    ) : null,
+  );
 }
 
 function dragToSwipe(card, handle, onSwipe, onTap) {
@@ -692,7 +766,6 @@ function openSheet(r) {
     h("button", { class: "btn quiet-btn", onclick: () => deleteVideo(r) }, "Delete"),
   );
   const details = detailsBody(r);
-  details.querySelector(':scope > a.btn[href*="dl=1"]')?.remove();
   sheet.replaceChildren(
     h("div", { class: "sheet-card" },
       h("button", { class: "sheet-close", "aria-label": "Close", onclick: closeSheet }, "✕"),

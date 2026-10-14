@@ -398,8 +398,6 @@ function toReview() {
 function renderStack() {
   const queue = toReview();
   $("#stack").hidden = !queue.length && !stack.whyFor;
-  // While reviewing, only the card is on screen; kept and earlier videos show once you're through.
-  $('section[data-tab="review"]').classList.toggle("reviewing", queue.length > 0 || !!stack.whyFor);
   $("#stack-undo").hidden = !stack.history.length;
   // A rejection needs its reason before the next video shows.
   const r = stack.whyFor ? null : queue.find((x) => x.id === stack.shownId) ?? queue[0];
@@ -540,10 +538,13 @@ function decide(dir) {
   stack.history.push(r.id);
   stack.whyFor = review === "rejected" ? r.id : null;
   r.review = review;
-  if (!toReview().length) state.nextRoundUntil = Date.now() + 6 * 60_000;
-  if (review === "approved") banner("Kept and saved. It's under “Kept” if you need it again.", "ok");
+  if (!toReview().length) {
+    state.nextRoundUntil = Date.now() + 6 * 60_000;
+    state.roundStartedAt = new Date().toISOString();
+  }
+  if (review === "approved") banner("Kept and saved. It's in Ready if you need it again.", "ok");
   api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } }).catch((err) => banner(err.message));
-  setTimeout(() => { stack.shownId = null; renderStack(); renderBatch(); renderHomeState(); }, 230);
+  setTimeout(() => { stack.shownId = null; renderStack(); renderBatch(); renderRenders(); renderHomeState(); }, 230);
 }
 
 $("#stack-why").addEventListener("click", (e) => {
@@ -553,6 +554,7 @@ $("#stack-why").addEventListener("click", (e) => {
   stack.whyFor = null;
   renderStack();
   renderBatch();
+  renderRenders();
   renderHomeState();
 });
 
@@ -581,11 +583,8 @@ document.addEventListener("keydown", (e) => {
 const renderEls = new Map();
 function renderRenders() {
   const el = $("#renders");
-  // Everything except the batch shown at the top of Review.
-  const latest = latestBatch();
-  // Everything not shown above: older batches and rejected videos, minus what's waiting in the swipe stack.
-  const inStack = new Set(toReview().map((r) => r.id));
-  const earlier = state.renders.filter((r) => !inStack.has(r.id) && !inProgress(r) && (!latest || r.batch !== latest || r.review === "rejected"));
+  // Ready tab, folded: rejected videos and ones that couldn't be made.
+  const earlier = state.renders.filter((r) => r.review === "rejected" || r.status === "error");
   $("#renders-empty").hidden = earlier.length > 0;
   const nodes = earlier.map((r) => {
     const key = `${r.id}:${r.status}:${r.review}:${r.rejectReason}:${r.downloaded}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
@@ -643,7 +642,7 @@ function openSheet(r) {
           await api(`/api/renders/${r.id}`, { method: "PATCH", body: { review: "pending" } });
           closeSheet();
           await refreshRenders();
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          showTab("review");
         } }, "Review again")
       : h("button", { class: "btn primary", onclick: () => { saveVideo(r); setTimeout(refreshRenders, 1000); } }, r.downloaded ? "Save again" : "Save video"),
     h("button", { class: "btn quiet-btn", onclick: () => deleteVideo(r) }, "Delete"),
@@ -801,25 +800,15 @@ function latestBatch() {
 }
 
 function renderBatch() {
-  const latest = latestBatch();
-  const all = state.renders.filter((r) => r.batch && r.batch === latest);
-  const inStack = new Set(toReview().map((r) => r.id));
-  // Kept videos first; rejected ones are under "Earlier videos".
-  const items = all.filter((r) => !inStack.has(r.id) && r.review !== "rejected" && !inProgress(r))
-    .sort((a, b) => (b.review === "approved") - (a.review === "approved"));
-  $("#batch-empty").hidden = all.length > 0;
-  $("#kept-title").hidden = !items.some((r) => r.review === "approved");
-  const approved = all.filter((r) => r.review === "approved").length;
-  const when = latest
-    ? new Date(`${latest}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
-    : "";
-  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-  $("#batch-date").textContent = latest
-    ? `${when} · ${approved} kept · ${inStack.size} to review`
-    : today;
+  // Ready tab: every kept video, newest first.
+  const kept = state.renders.filter((r) => r.status === "done" && r.review === "approved").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  $("#ready-empty").hidden = kept.length > 0;
+  const unsaved = kept.filter((r) => !r.downloaded).length;
+  $("#ready-count").hidden = !unsaved;
+  $("#ready-count").textContent = String(unsaved);
   $("#batch").replaceChildren(
-    ...items.map((r) => {
-      const key = `${r.id}:${r.status}:${r.review}:${r.downloaded}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
+    ...kept.map((r) => {
+      const key = `${r.id}:${r.status}:${r.review}:${r.downloaded}`;
       const cached = batchEls.get(r.id);
       if (cached?.key === key) return cached.node;
       const node = tile(r);
@@ -827,6 +816,9 @@ function renderBatch() {
       return node;
     }),
   );
+  const n = toReview().length;
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  $("#batch-date").textContent = n ? `${today} · ${n} to review` : today;
 }
 
 function reviewCard(r) {
@@ -1252,36 +1244,37 @@ function renderMaking(planning) {
 function renderHomeState() {
   const noSource = state.albumCount === 0 && state.clips.length === 0;
   $("#onboard").hidden = !noSource;
-  $("#btn-batch").hidden = noSource;
-  const latest = latestBatch();
-  const hasToday = state.renders.some((r) => r.batch && r.batch === latest);
-  $("#batch-empty").hidden = noSource || hasToday;
   const importing = state.clips.filter((c) => c.status === "importing" || c.status === "analyzing").length;
-  const making = state.renders.filter((r) => r.status === "queued" || r.status === "rendering").length;
-  const parts = [];
-  if (importing) parts.push(`Importing ${importing} clip${importing === 1 ? "" : "s"} from your album…`);
-  const reviewing = state.renders.some((r) => r.status === "done" && r.review === "pending");
-  const vt = state.status?.videosToday;
+  const making = state.renders.filter(inProgress).length;
+  const reviewing = toReview().length > 0 || !!stack.whyFor;
   const planning = !making && state.nextRoundUntil > Date.now();
-  if (!making && !planning && !reviewing && state.renders.length && vt && vt.made >= vt.limit) {
-    parts.push(`All reviewed. That's today's ${vt.limit} videos; the next round comes tomorrow at ${state.auto?.dailyTime ?? "08:00"}.`);
-  }
   renderMaking(planning);
   // Nothing new can start while a round is being made or reviewed.
-  $("#btn-batch").hidden = noSource || making > 0 || planning;
-  $("#activity").textContent = parts.join(" ");
-  $("#activity").hidden = !parts.length;
-  // Clips are raw footage; show them so "ready" means something, and offer to make videos right away.
-  const readyClips = state.clips.filter((c) => c.status === "ready" && c.height >= c.width);
+  $("#btn-batch").hidden = noSource || making > 0 || planning || reviewing;
+  $("#activity").textContent = importing ? `Importing ${importing} clip${importing === 1 ? "" : "s"} from your album…` : "";
+  $("#activity").hidden = !importing;
+
+  // Nothing to review and nothing being made: say what's next.
+  $("#batch-empty").hidden = noSource || reviewing || making > 0 || planning;
+  const vt = state.status?.videosToday;
+  const atLimit = vt && vt.made >= vt.limit;
+  const keptCount = state.renders.filter((r) => r.status === "done" && r.review === "approved" && !r.downloaded).length;
+  const readyClips = state.clips.filter((c) => c.status === "ready" && c.height >= c.width && !c.disliked);
   const n = readyClips.length;
-  $("#batch-empty-title").textContent = n ? `${n} clip${n === 1 ? "" : "s"} ready to turn into videos` : "No videos yet today";
-  $("#batch-empty-text").textContent = n
-    ? `Videos are made automatically every morning at ${state.auto?.dailyTime ?? "08:00"}. Don't want to wait? Make them now.`
-    : importing
-      ? "Your clips are being imported. Videos will follow."
-      : "Add videos to your Google Photos album; new ones are picked up every few hours.";
-  $("#btn-batch-empty").hidden = !n;
-  $("#btn-batch-empty").textContent = n === 1 ? "Make a video now" : `Make ${Math.min(n, state.auto?.dailyCount ?? 4)} videos now`;
+  const time = state.auto?.dailyTime ?? "08:00";
+  const caughtUp = vt?.made > 0;
+  $("#batch-empty-title").textContent = caughtUp ? "All caught up" : n ? `${n} clip${n === 1 ? "" : "s"} ready to turn into videos` : "No videos yet";
+  $("#batch-empty-text").textContent = atLimit
+    ? `That's today's ${vt.limit} videos. The next round comes tomorrow at ${time}.${keptCount ? " Your kept videos are in Ready." : ""}`
+    : n
+      ? `${caughtUp ? "" : `Videos are made every morning at ${time}. `}Want ${caughtUp ? "more" : "them now"}? Make the next round.`
+      : importing
+        ? "Your clips are being imported. Videos will follow."
+        : "Add videos to your Google Photos album; new ones are picked up every few hours.";
+  $("#btn-batch-empty").hidden = !n || atLimit;
+  $("#btn-batch-empty").textContent = "Make the next round";
+  $("#btn-batch").hidden ||= !$("#batch-empty").hidden;
+  $("#ready-strip").hidden = caughtUp;
   $("#ready-strip").replaceChildren(
     ...readyClips.slice(0, 8).map((c) => h("img", { src: `/media/thumb/${c.id}`, alt: "", title: c.scene || c.filename, loading: "lazy" })),
   );
@@ -1302,7 +1295,7 @@ $("#onboard-form").addEventListener("submit", (e) => {
 
 // ---- Tabs -------------------------------------------------------------------
 
-const TABS = ["review", "clips", "settings"];
+const TABS = ["review", "ready", "clips", "settings"];
 function showTab(name) {
   if (["captions", "style"].includes(name)) name = "settings";
   if (!TABS.includes(name)) name = "review";
@@ -1341,6 +1334,12 @@ setInterval(async () => {
   if (!busyRenders && state.nextRoundUntil > Date.now() && ++state.roundTicks % 5 === 0) {
     await Promise.all([refreshRenders(), loadStatus()]).catch(() => {});
     if (state.renders.some((r) => r.status === "queued" || r.status === "rendering")) state.nextRoundUntil = 0;
+    // The round couldn't be made: stop the spinner and say why.
+    const err = state.status?.lastRoundError;
+    if (err && err.at > (state.roundStartedAt ?? "")) {
+      state.nextRoundUntil = 0;
+      banner(`Couldn't make the next round: ${err.message}`);
+    }
     renderHomeState();
   }
 }, 2000);

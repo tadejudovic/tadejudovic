@@ -14,7 +14,7 @@ import { forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from 
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRender } from "./generate.ts";
 import { addAlbum, forgetItem, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
-import { afterReview, awaitingReview, localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
+import { afterReview, awaitingReview, lastRoundError, localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
@@ -105,6 +105,7 @@ app.get("/api/status", (_req, res) => {
     tiktokSearch: apifyEnabled(),
     videosToday: { made: videosMadeToday(), limit: dailyLimit() },
     awaitingReview: awaitingReview(),
+    lastRoundError,
     settings: store.settings(),
     templates: Object.values(TEMPLATES).map(({ id, name, description }) => ({ id, name, description })),
     music: listMusic(),

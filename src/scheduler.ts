@@ -40,6 +40,8 @@ export function setPaused(value: boolean) {
   paused = value;
 }
 let lastAttempt = 0;
+/** Why the last automatic round couldn't be made (shown in the app instead of an endless spinner). */
+export let lastRoundError: { message: string; at: string } | null = null;
 let batchRunning = false;
 
 export function startScheduler() {
@@ -74,8 +76,14 @@ async function runDue({ afterReview = false } = {}) {
   // If a batch fails (e.g. no footage yet), retry every 30 minutes rather than every tick.
   if (due && !batchRunning && awaitingReview() === 0 && videosLeftToday() > 0 && (afterReview || Date.now() - lastAttempt > 30 * 60_000)) {
     lastAttempt = Date.now();
-    const r = await runDailyBatch({ force: true });
-    if (r.renders.length) lastAttempt = 0;
+    try {
+      const r = await runDailyBatch({ force: true });
+      if (r.renders.length) lastAttempt = 0;
+      lastRoundError = null;
+    } catch (err) {
+      lastRoundError = { message: (err as Error).message, at: new Date().toISOString() };
+      throw err;
+    }
   }
 }
 

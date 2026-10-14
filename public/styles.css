@@ -378,7 +378,9 @@ main { max-width: 980px; }
 .stack-why[hidden] { display: none; }
 .stack-why button { border: 1.5px solid #d4d4d8; background: #fff; border-radius: 12px; padding: 12px; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; }
 .stack-why button:hover { border-color: var(--ink); }
-.reviewing #btn-batch, .reviewing #kept-title, .reviewing #batch, .reviewing .fold.earlier, .reviewing #batch-empty { display: none !important; }
+.tab-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 2px; border-radius: 999px;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; vertical-align: 1px; }
+.tab-count[hidden] { display: none; }
 
 /* ---- Video tiles (Kept / Earlier) and the opened video ---- */
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
@@ -419,3 +421,15 @@ main { max-width: 980px; }
 .making.indeterminate .making-bar i { width: 35% !important; animation: making-slide 1.3s ease-in-out infinite; }
 @keyframes making-slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
 .making-sub { font-size: 13px; }
+/* Four tabs must fit next to the name on a phone. */
+@media (max-width: 480px) {
+  .top { gap: 10px; padding: 0 12px; }
+  .brand { font-size: 15px; }
+  .brand::before { margin-right: 5px; }
+  .tabs { gap: 0; }
+  .tabs button { padding: 7px 8px; font-size: 13px; }
+}
+@media (max-width: 360px) {
+  .brand { font-size: 0; }
+  .brand::before { font-size: 17px; margin: 0; }
+}

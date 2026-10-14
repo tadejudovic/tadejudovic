@@ -12,7 +12,8 @@
   <header class="top">
     <a class="brand" href="#review">Lex Studio</a>
     <nav class="tabs" id="tabs">
-      <button data-tab="review" class="on">Videos</button>
+      <button data-tab="review" class="on">Review</button>
+      <button data-tab="ready">Ready <span id="ready-count" class="tab-count" hidden></span></button>
       <button data-tab="clips">Clips</button>
       <button data-tab="settings">Settings</button>
     </nav>
@@ -25,7 +26,7 @@
     <section data-tab="review">
       <div class="page-head">
         <div>
-          <h1>Today's videos</h1>
+          <h1>Review</h1>
           <p class="sub" id="batch-date"></p>
         </div>
         <button id="btn-batch" class="btn primary">Make videos</button>
@@ -81,19 +82,29 @@
         <span id="making-sub" class="muted"></span>
       </div>
 
-      <h2 id="kept-title" class="section-title" hidden>Kept · ready to post</h2>
-      <div id="batch" class="tiles"></div>
       <div id="batch-empty" class="empty-card" hidden>
         <b id="batch-empty-title">No videos yet today</b>
         <p id="batch-empty-text">New videos are made every morning, or click “Make videos”.</p>
         <div id="ready-strip" class="ready-strip"></div>
         <button id="btn-batch-empty" class="btn primary" hidden>Make a video now</button>
       </div>
+    </section>
+
+    <!-- READY: kept videos, to save and post ------------------------------------ -->
+    <section data-tab="ready" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Ready to post</h1>
+          <p class="sub">Videos you kept. Tap one to save it and copy its caption.</p>
+        </div>
+      </div>
+      <div id="batch" class="tiles"></div>
+      <p id="ready-empty" class="muted" hidden>Nothing here yet. Videos you keep (swipe right in Review) land here.</p>
 
       <details class="fold earlier">
-        <summary>Earlier videos</summary>
+        <summary>Rejected &amp; failed</summary>
         <div id="renders" class="tiles"></div>
-        <p id="renders-empty" class="muted">No earlier videos.</p>
+        <p id="renders-empty" class="muted">None.</p>
       </details>
     </section>
 

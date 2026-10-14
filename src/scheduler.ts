@@ -72,8 +72,9 @@ async function runDue({ afterReview = false } = {}) {
     const { newItems } = await syncAll();
     if (newItems) console.log(`[scheduler] topping up: importing ${newItems} more album item(s)`);
   }
-  // Let imports (download, analysis, situation sorting) finish before picking clips.
-  if (ingestQueue.pending > 0) return;
+  // Don't wait for a whole import to finish: once a few usable clips are sorted, start the round
+  // (renders jump ahead of the remaining imports).
+  if (ingestQueue.pending > 0 && usableClips() < enoughToStart()) return;
   // Keep caption research fresh for situations that have clips waiting, one situation per tick,
   // so suggestions can show the caption they'd use before anything is made.
   if (config.claude.enabled) {
@@ -85,8 +86,10 @@ async function runDue({ afterReview = false } = {}) {
   const now = new Date();
   // The first round of the day is ready by the set time; later rounds follow each finished review.
   const due = afterReview || now.getHours() * 60 + now.getMinutes() >= hh * 60 + mm;
-  // If a batch fails (e.g. no footage yet), retry every 30 minutes rather than every tick.
-  if (due && !batchRunning && awaitingReview() === 0 && videosLeftToday() > 0 && (afterReview || Date.now() - lastAttempt > 30 * 60_000)) {
+  // If a batch fails (e.g. no footage yet), retry every 30 minutes rather than every tick, or as
+  // soon as enough clips have been sorted since.
+  const retry = Date.now() - lastAttempt > 30 * 60_000 || (lastRoundError !== null && usableClips() >= enoughToStart());
+  if (due && !batchRunning && awaitingReview() === 0 && videosLeftToday() > 0 && (afterReview || retry)) {
     lastAttempt = Date.now();
     try {
       const r = await runDailyBatch({ force: true });
@@ -124,7 +127,7 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
       lastSync = Date.now();
       await syncAll();
     }
-    await waitForIngest(20 * 60_000);
+    if (usableClips() < enoughToStart()) await waitForIngest(20 * 60_000);
     const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c));
     if (!ready.length) {
       const any = store.clips().some((c) => c.status === "ready");
@@ -156,6 +159,15 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     batchRunning = false;
   }
 }
+
+/** Unused clips a round could use right now (sorted into a situation, vertical, not rejected). */
+function usableClips(): number {
+  return store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c) && c.uses === 0).length;
+}
+
+/** A round starts once this many clips are ready, even while more are importing: early feedback beats a full first round. */
+const START_WITH = 3;
+const enoughToStart = () => Math.max(1, Math.min(store.auto().dailyCount, videosLeftToday(), START_WITH));
 
 async function waitForIngest(maxMs: number) {
   const until = Date.now() + maxMs;

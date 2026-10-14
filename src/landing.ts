@@ -33,14 +33,21 @@ const PHOTOS: [string, string][] = [
   ["1529156069898-49953e39b3ac", "#d8c0a0"],
   ["1501785888041-af3ef285b470", "#8fb3a8"],
 ];
-/** The picked clip: row 2, column 2 of the 4-column grid. */
-const PICK = 5;
-const PICK_PHOTO = PHOTOS[PICK][0];
+/**
+ * The hero rotates through three stories. Each picks a different photo from the roll and gives
+ * it text that fits that photo. (View and post counts are illustrative.)
+ */
+const STORIES = [
+  { tile: 1, lines: ["POV: you finally", "booked the trip", "you kept talking about"], tags: ["travel", "windowseat", "wanderlust"], views: "2.1M", tag: "windowseat", posts: "1.2M" },
+  { tile: 5, lines: ["he heard the word", "'walk' from three", "rooms away"], tags: ["dogsoftiktok", "puppylove", "goldenretriever"], views: "3.4M", tag: "puppylove", posts: "2.8M" },
+  { tile: 3, lines: ["the beach day", "that fixed my", "whole week"], tags: ["beachday", "summervibes", "oceanlover"], views: "1.6M", tag: "beachday", posts: "3.1M" },
+];
 const photoBg = (i: number, w = 240) => `url(${U(PHOTOS[i][0], w, w)}) center/cover, ${PHOTOS[i][1]}`;
 
 export function landingHtml(opts: { signInUrl: string; google: boolean }): string {
-  const heroLines = ["POV: the energy shift", "when we pull into", "the airport"];
-  const heroTags = ["travelwithdog", "flyingwithdog", "dogatairport"];
+  const first = STORIES[0];
+  const heroBg = (tile: number) => `url(${U(PHOTOS[tile][0], 720, 1520)}) center/cover, ${PHOTOS[tile][1]}`;
+  const storiesJson = JSON.stringify(STORIES.map((st) => ({ ...st, bg: heroBg(st.tile), r: Math.floor(st.tile / 4), c: st.tile % 4 })));
   const g = `<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
   const cta = (cls = "") =>
     `<a class="btn ${cls}" href="${opts.signInUrl}">${opts.google ? `${g}Sign in with Google` : "Sign in"}</a>`;
@@ -126,6 +133,7 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 
 /* ---- Hero story: camera roll -> one clip is picked -> it becomes a viral-style video -> posted ---- */
 .story{--T:12s;background:#fff;container-type:size}
+.stage{--pr:0;--pc:1}
 .roll-ui{position:absolute;inset:0;background:#fff;animation:rollUi var(--T) infinite;font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif}
 /* iPhone Photos look: status bar, big "Recents", edge-to-edge square grid with hairline gaps */
 .ios-status{position:absolute;top:0;left:0;right:0;height:7cqh;display:flex;justify-content:space-between;align-items:center;padding:0 9cqw 0 11cqw;color:#000;font-size:4.6cqw}
@@ -153,12 +161,12 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
   6%{opacity:1;left:0;top:16cqh}
   12%{opacity:1;left:75.375cqw;top:16cqh}
   18%{opacity:1;left:50.25cqw;top:calc(16cqh + 50.25cqw)}
-  24%,30%{opacity:1;left:25.125cqw;top:calc(16cqh + 25.125cqw);transform:scale(1)}
+  24%,30%{opacity:1;left:calc(var(--pc) * 25.125cqw);top:calc(16cqh + var(--pr) * 25.125cqw);transform:scale(1)}
   27%{opacity:1;transform:scale(1.08)}
-  32%,100%{opacity:0;left:25.125cqw;top:calc(16cqh + 25.125cqw)}}
+  32%,100%{opacity:0;left:calc(var(--pc) * 25.125cqw);top:calc(16cqh + var(--pr) * 25.125cqw)}}
 @keyframes rollUi{0%,30%{opacity:1}38%,92%{opacity:0}100%{opacity:1}}
 /* the picked tile grows into the full video */
-.clip{--from:inset(calc(16cqh + 25.125cqw) 50.25cqw calc(84cqh - 49.75cqw) 25.125cqw);position:absolute;inset:0;display:grid;place-items:center;
+.clip{--from:inset(calc(16cqh + var(--pr) * 25.125cqw) calc(75.375cqw - var(--pc) * 25.125cqw) calc(84cqh - var(--pr) * 25.125cqw - 24.625cqw) calc(var(--pc) * 25.125cqw));position:absolute;inset:0;display:grid;place-items:center;
   clip-path:var(--from);opacity:0;animation:grow var(--T) infinite}
 @keyframes grow{
   0%,30%{opacity:0;clip-path:var(--from);transform:none}
@@ -299,16 +307,16 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
             <div class="roll-count">1,284 Photos, 312 Videos</div>
             <div class="ios-tabs"><span class="on">▦<small>Library</small></span><span>❤︎<small>For You</small></span><span>▢<small>Albums</small></span><span>⌕<small>Search</small></span></div>
           </div>
-          <div class="clip" style="background:url(${U(PICK_PHOTO, 720, 1520)}) center/cover, ${PHOTOS[PICK][1]}">
-            <div class="ov">${heroLines.map((l, i) => `<span class="l${i + 1}">${l}</span>`).join("")}</div>
-            <div class="tags">${heroTags.map((t) => `<span>#${t}</span>`).join("")}</div>
+          <div class="clip" style="background:${heroBg(first.tile)}">
+            <div class="ov">${first.lines.map((l, i) => `<span class="l${i + 1}">${l}</span>`).join("")}</div>
+            <div class="tags">${first.tags.map((t) => `<span>#${t}</span>`).join("")}</div>
             <span class="stamp yes">POST</span>
             <div class="ui"><span class="n">✕</span><span class="y">✓</span></div>
           </div>
           <div class="cap">Picking the best moment…</div>
         </div></div>
-        <div class="chip c1">🔥 Text from a 2.1M-view TikTok</div>
-        <div class="chip c2"># travelwithdog <small>2.4M posts</small></div>
+        <div class="chip c1">🔥 Text from a <span class="v">${first.views}</span>-view TikTok</div>
+        <div class="chip c2"># <span class="t">${first.tag}</span> <small><span class="p">${first.posts}</span> posts</small></div>
         <div class="chip c3">✓ Caption copied · ready to post</div>
       </div>
     </div>
@@ -376,6 +384,31 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 <div class="wrap"><footer><span>© ${new Date().getFullYear()} Rollcut</span><span>Invite-only beta</span></footer></div>
 
 <script>
+  // Rotate the hero story each loop: new photo, its own text, hashtags and numbers.
+  (() => {
+    const stories = ${storiesJson};
+    const stage = document.querySelector(".stage");
+    const clip = stage && stage.querySelector(".clip");
+    if (!clip) return;
+    stories.forEach((st) => { const m = /url\(([^)]+)\)/.exec(st.bg); if (m) new Image().src = m[1]; });
+    let i = 0;
+    const show = (st) => {
+      stage.style.setProperty("--pr", st.r);
+      stage.style.setProperty("--pc", st.c);
+      clip.style.background = st.bg;
+      clip.querySelectorAll(".ov span").forEach((el, k) => (el.textContent = st.lines[k] || ""));
+      clip.querySelectorAll(".tags span").forEach((el, k) => (el.textContent = "#" + (st.tags[k] || "")));
+      stage.querySelector(".c1 .v").textContent = st.views;
+      stage.querySelector(".c2 .t").textContent = st.tag;
+      stage.querySelector(".c2 .p").textContent = st.posts;
+    };
+    show(stories[0]);
+    clip.addEventListener("animationiteration", (e) => {
+      if (e.animationName !== "grow") return;
+      i = (i + 1) % stories.length;
+      show(stories[i]);
+    });
+  })();
   // Reveal sections as they scroll into view.
   const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), io.unobserve(e.target))), { threshold: 0.12 });
   document.querySelectorAll(".r").forEach((el) => io.observe(el));

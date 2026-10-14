@@ -113,6 +113,13 @@ Because the frames are only analyzed once, planning a day's worth of videos is a
 
 Set `APIFY_TOKEN` (from [apify.com](https://apify.com) → Settings → API & Integrations). Caption research then searches TikTok itself for each situation (e.g. "dog boarding gate", "pov dog boarding gate"), keeps the most-viewed videos (20K+ views), and has Claude read the text on each video's cover. Every proven caption then has a real view count and a link to the video. It runs once a week per situation and costs roughly $0.30 per search on Apify; Apify's free plan includes $5 a month. This cost counts toward the app's monthly spending limit. Caption ideas come only from this TikTok search; without the token no captions are researched.
 
+## Sign in with Google (only invited accounts)
+
+Set three environment variables and the password login is replaced by "Sign in with Google":
+
+- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: an OAuth client of type *Web application* from Google Cloud Console (APIs & Services → Credentials). Add `https://<your-domain>/login/google/callback` as an authorized redirect URI, once for every address you open the app on.
+- `ALLOWED_EMAILS`: the Google accounts that may sign in, comma-separated. Everyone else is refused, and removing an address signs that person out immediately.
+
 ## Put it online behind a password (studio.lexintheair.com)
 
 The app needs an always-on server with ffmpeg and a disk. Serverless hosts like Vercel can't run long video renders or the daily schedule. The repo ships a `Dockerfile` and a Render blueprint (`render.yaml`).

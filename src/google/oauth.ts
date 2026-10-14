@@ -14,7 +14,12 @@ export const PICKER_SCOPE = "https://www.googleapis.com/auth/photospicker.mediai
 const redirectUri = () => `${config.appUrl}/auth/google/callback`;
 const pendingStates = new Set<string>();
 
-export const googleConfigured = () => Boolean(config.google.clientId && config.google.clientSecret);
+/**
+ * The Google Photos picker is optional and off unless GOOGLE_PHOTOS_PICKER=1: the same Google
+ * keys are used for signing in, and the picker also needs the Photos Picker API enabled.
+ */
+export const googleConfigured = () =>
+  process.env.GOOGLE_PHOTOS_PICKER === "1" && Boolean(config.google.clientId && config.google.clientSecret);
 
 export function authUrl(): string {
   const state = crypto.randomBytes(16).toString("hex");

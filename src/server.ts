@@ -19,7 +19,7 @@ import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
-import { gateEnabled, login, loginPage, logout, requireAuth } from "./auth.ts";
+import { gateEnabled, googleCallback, googleLogin, googleStart, login, loginPage, logout, requireAuth, signedInAs } from "./auth.ts";
 import { monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
 
@@ -37,6 +37,8 @@ app.get("/healthz", (_req, res) => res.send("ok"));
 app.get("/login", loginPage);
 app.post("/login", login);
 app.get("/logout", logout);
+app.get("/login/google", googleStart);
+app.get("/login/google/callback", (req, res, next) => { googleCallback(req, res).catch(next); });
 app.use(requireAuth);
 // Always check for a newer version, so an update shows up on the next page load instead of an old cached copy.
 app.use(express.static(path.join(here, "..", "public"), { setHeaders: (res) => res.setHeader("Cache-Control", "no-cache") }));
@@ -94,11 +96,12 @@ app.get("/api/diagnostics", (_req, res) => {
 
 // ---- Status & settings ----------------------------------------------------
 
-app.get("/api/status", (_req, res) => {
+app.get("/api/status", (req, res) => {
   res.json({
     google: { configured: googleConfigured(), connected: Boolean(store.google()) },
     claude: { enabled: config.claude.enabled, model: config.claude.model },
     gate: gateEnabled,
+    user: signedInAs(req),
     paused,
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     memoryMb,
@@ -758,5 +761,5 @@ app.listen(config.port, host, () => {
   console.log(`Rollcut running at ${config.appUrl}`);
   console.log(`  Google Photos: ${googleConfigured() ? "configured" : "not configured (set GOOGLE_CLIENT_ID/SECRET)"}`);
   console.log(`  AI director:   ${config.claude.enabled ? config.claude.model : "off (set ANTHROPIC_API_KEY)"}`);
-  console.log(`  Password gate: ${gateEnabled ? "on" : "off (local only)"}`);
+  console.log(`  Sign-in:       ${googleLogin ? "Google (allowed accounts only)" : gateEnabled ? "password" : "off (local only)"}`);
 });

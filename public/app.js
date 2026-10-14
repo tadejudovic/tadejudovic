@@ -137,6 +137,7 @@ function renderSummaries() {
   set("sum-scenes", s.tiktokSearch ? `${s.settings.scenes.length} situations` : "Apify not connected");
   set("sum-profile", s.settings.handle || s.settings.petName || "");
   set("sum-spend", `$${s.spend.usd.toFixed(2)} of $${s.spend.limit.toFixed(0)}`);
+  set("sum-user", s.user ?? "");
 }
 
 // ---- Google Photos picker ---------------------------------------------------

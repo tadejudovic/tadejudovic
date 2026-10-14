@@ -14,6 +14,12 @@ services:
         sync: false # you type it in when deploying
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false # Google sign-in (see README); with ALLOWED_EMAILS it replaces the password
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ALLOWED_EMAILS
+        sync: false # comma-separated Google accounts allowed in; nobody else can sign in
       - key: APIFY_TOKEN
         sync: false # optional: apify.com API token; caption research then searches TikTok with real view counts
       - key: APP_URL

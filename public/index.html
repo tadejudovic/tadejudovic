@@ -100,7 +100,7 @@
 
       <p class="group-label">Footage</p>
       <div class="group">
-        <button class="srow" data-open="sp-album"><span class="row-title">Google Photos album</span><span class="row-value" id="sum-album"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" data-open="sp-album"><span class="row-title">Google Photos albums</span><span class="row-value" id="sum-album"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-clips"><span class="row-title">Your clips</span><span class="row-value" id="sum-clips"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       </div>
 
@@ -126,9 +126,9 @@
       </div>
 
       <div class="subpage" id="sp-album" hidden>
-        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Google Photos album</h2></header>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Google Photos albums</h2></header>
         <div class="sp-body">
-        <p class="sp-intro">Put the videos you want to use in a shared Google Photos album and paste its link here. New videos are picked up every few hours.</p>
+        <p class="sp-intro">Put the videos you want to use in shared Google Photos albums and paste their links here, as many as you like. New videos are picked up every few hours, and a video that's in more than one album is only imported once.</p>
         <form id="album-form" class="inline-form">
           <input name="url" type="url" placeholder="Paste a shared-album link (photos.google.com/share/… works best)" required />
           <button class="btn" type="submit">Add</button>
@@ -155,7 +155,7 @@
       <h2 class="section-title">All clips</h2>
       <div id="drop" class="drop">
         <div id="clips" class="clips"></div>
-        <p id="clips-empty" class="muted">No clips yet. Add videos to your Google Photos album above.</p>
+        <p id="clips-empty" class="muted">No clips yet. Add a Google Photos album above.</p>
       </div>
       <p class="hint" id="selection-hint" hidden></p>
 

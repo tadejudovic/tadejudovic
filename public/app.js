@@ -864,11 +864,15 @@ async function refreshAlbums() {
   const albums = await api("/api/albums");
   state.albumCount = albums.length;
   renderSummaries();
+  // Once one album is connected, make it obvious the box adds another rather than replacing it.
+  const input = $("#album-form").url;
+  input.placeholder = albums.length ? "Paste another shared-album link" : "Paste a shared-album link (photos.google.com/share/… works best)";
+  $("#album-form button").textContent = albums.length ? "Add album" : "Add";
   $("#albums").replaceChildren(
-    ...albums.map((a) =>
+    ...albums.map((a, i) =>
       h("li", {},
         h("div", { class: "grow" },
-          h("b", {}, a.title || "Shared album"), " ",
+          h("b", {}, a.title || `Album ${i + 1}`), " ",
           h("a", { href: a.url, target: "_blank", rel: "noopener", class: "muted" }, "open"),
           h("div", { class: "muted" },
             `${a.videoCount} video${a.videoCount === 1 ? "" : "s"} imported · `,
@@ -921,9 +925,10 @@ $("#album-form").addEventListener("submit", (e) => {
   withBusy(form.querySelector("button"), "Reading album…", async () => {
     const r = await api("/api/albums", { method: "POST", body: { url: form.url.value } });
     if (r.error) banner(`Album saved, but reading it failed: ${r.error}`);
-    else banner(`Watching “${r.album.title || "album"}”. ${r.newItems} item(s) found; videos are importing now.`, "ok");
     form.reset();
     await Promise.all([refreshAlbums(), refreshClips()]);
+    const n = state.albumCount;
+    if (!r.error) banner(`Added “${r.album.title || "album"}”${n > 1 ? `, now watching ${n} albums` : ""}. ${r.newItems} item(s) found; videos are importing now.`, "ok");
   });
 });
 

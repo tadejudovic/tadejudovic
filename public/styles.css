@@ -329,3 +329,6 @@ main { max-width: 980px; }
 .source img { width: 30px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 4px; background: var(--line); }
 .source b { color: var(--ink); font-weight: 600; text-transform: capitalize; }
 .sugg img { cursor: pointer; }
+
+.scene .tags { margin: 6px 0 4px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.scene .tags .tag { white-space: nowrap; }

@@ -4,10 +4,17 @@ import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
 import { directClip, planVideos, type DirectContext } from "./ai/director.ts";
 import { currentTrends } from "./ai/trends.ts";
-import { provenCaptions, researchScene, researchStale } from "./ai/research.ts";
+import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
 import type { Clip, GenerateRequest, Render, VideoPlan } from "./types.ts";
+
+/** Exactly three hashtags: the researched ones (big, mid, small), topped up from the AI's if fewer were found. */
+export function withResearchedTags(researched: string[], fallback: string[]): string[] {
+  const out = [...researched];
+  for (const t of fallback) if (out.length < 3 && !out.includes(t.toLowerCase())) out.push(t.toLowerCase());
+  return out.slice(0, 3);
+}
 
 /** Portrait footage only: landscape clips are kept in the library but never used. */
 export const isPortrait = (c: Clip) => c.height >= c.width;
@@ -95,6 +102,8 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
       if (aiOn) {
         try {
           const p = await directClip(clip, { ...ctx, proven: provenCaptions(clip.scene) });
+          const tags = researchedHashtags(clip.scene);
+          if (tags.length) p.hashtags = withResearchedTags(tags, p.hashtags);
           ctx.recentOverlays.unshift(p.hook);
           return p;
         } catch (err) {
@@ -112,6 +121,8 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
       } else if (overlays.length) p.hook = p.title = overlays[i % overlays.length].example.replaceAll("{pet}", petName);
       p.scene = clip.scene;
       p.postCaption = `${p.hook} 🐾`;
+      const tags = researchedHashtags(clip.scene);
+      if (tags.length) p.hashtags = withResearchedTags(tags, p.hashtags);
       return p;
     });
     if (failures.length) warning = `AI director failed on ${failures.length} clip(s) (${failures[0]}); used heuristics for those.`;

@@ -60,10 +60,21 @@ export interface ProvenCaption {
   foundAt: string;
 }
 
+export interface PickedHashtag {
+  tag: string;
+  /** Number of posts using it on TikTok. */
+  posts: number;
+  tier: "big" | "mid" | "small";
+}
+
 export interface SceneResearch {
   scene: string;
   updatedAt?: string;
   error?: string;
+  /** Three hashtags picked from the top videos by post count (one big, one mid, one small). */
+  hashtags?: PickedHashtag[];
+  /** Why hashtags couldn't be picked, if they couldn't. */
+  hashtagNote?: string;
   /** Where the captions came from: TikTok search via Apify, or Claude's web search. */
   source?: "tiktok" | "web";
   captions: ProvenCaption[];

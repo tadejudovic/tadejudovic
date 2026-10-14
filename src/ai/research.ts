@@ -53,10 +53,18 @@ async function doResearch(scene: string): Promise<SceneResearch> {
   if (apifyEnabled()) {
     try {
       const found = await researchSceneOnTikTok(scene, petName);
-      return store.setResearch({ scene, source: "tiktok", updatedAt: new Date().toISOString(), captions: [...creatorCaptions, ...found] });
+      return store.setResearch({
+        scene,
+        source: "tiktok",
+        updatedAt: new Date().toISOString(),
+        captions: [...creatorCaptions, ...found.captions],
+        // Keep last week's hashtags if this time the post counts couldn't be read.
+        hashtags: found.hashtags.length ? found.hashtags : previous?.hashtags,
+        hashtagNote: found.hashtagNote,
+      });
     } catch (err) {
       if (err instanceof BudgetExceeded) throw err;
-      store.setResearch({ scene, source: previous?.source, updatedAt: previous?.updatedAt, error: (err as Error).message, captions: previous?.captions ?? [] });
+      store.setResearch({ scene, source: previous?.source, hashtags: previous?.hashtags, updatedAt: previous?.updatedAt, error: (err as Error).message, captions: previous?.captions ?? [] });
       throw err;
     }
   }
@@ -117,6 +125,7 @@ async function doResearch(scene: string): Promise<SceneResearch> {
     if (err instanceof BudgetExceeded) throw err;
     const failed: SceneResearch = {
       scene,
+      hashtags: previous?.hashtags,
       source: previous?.source,
       updatedAt: previous?.updatedAt,
       error: (err as Error).message,
@@ -169,4 +178,9 @@ export function addCreatorCaption(scene: string, c: { text: string; views?: numb
 export function removeCaption(scene: string, id: string) {
   const r = store.research(scene);
   if (r) store.setResearch({ ...r, captions: r.captions.filter((c) => c.id !== id) });
+}
+
+/** The three researched hashtags for a situation, if there are any. */
+export function researchedHashtags(scene: string | undefined): string[] {
+  return scene ? (store.research(scene)?.hashtags ?? []).map((h) => h.tag) : [];
 }

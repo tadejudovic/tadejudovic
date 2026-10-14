@@ -785,6 +785,11 @@ async function refreshScenes() {
           }, "×"),
         ),
         r?.error ? h("div", { class: "err" }, `Last research failed: ${r.error}`) : null,
+        s.scene === "other" || !(r?.hashtags?.length || r?.hashtagNote) ? null : h("p", { class: "tags" },
+          h("b", {}, "Hashtags: "),
+          (r.hashtags ?? []).map((t) => h("span", { class: "tag", title: `${t.tier} tag` }, `#${t.tag} `, h("span", { class: "muted" }, `${fmtViews(t.posts)} posts`))),
+          r.hashtagNote ? h("span", { class: "muted" }, ` ${r.hashtagNote}`) : null,
+        ),
         s.scene === "other" ? null : h("ul", { class: "caps" },
           caps.length ? caps.map((c) =>
             h("li", {},

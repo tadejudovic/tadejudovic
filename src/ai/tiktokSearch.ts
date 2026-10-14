@@ -5,7 +5,8 @@ import { assertBudget, recordCost } from "./budget.ts";
 import { structured } from "./director.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { newId } from "../store.ts";
-import type { ProvenCaption } from "../types.ts";
+import { candidates, chooseHashtags, tagsOf } from "./hashtags.ts";
+import type { PickedHashtag, ProvenCaption } from "../types.ts";
 
 /**
  * Caption research through TikTok's own search, the way the creator does it by
@@ -35,6 +36,7 @@ export interface TikTokVideo {
   author?: string;
   cover?: string;
   postedAt?: string;
+  tags: string[];
 }
 
 export function searchQueries(scene: string): string[] {
@@ -50,9 +52,11 @@ export function normalizeItem(it: any): TikTokVideo | null {
   if (typeof url !== "string" || !/^https?:\/\//.test(url) || !(views > 0)) return null;
   const author = it?.authorMeta?.name ?? it?.author?.uniqueId ?? it?.authorMeta?.nickName;
   const cover = it?.videoMeta?.coverUrl ?? it?.videoMeta?.originalCoverUrl ?? it?.covers?.default ?? it?.coverUrl;
+  const description = String(it?.text ?? it?.desc ?? it?.description ?? "").trim();
   return {
     url,
-    description: String(it?.text ?? it?.desc ?? it?.description ?? "").trim(),
+    description,
+    tags: tagsOf(it, description),
     views,
     likes: Number(it?.diggCount ?? it?.stats?.diggCount) || undefined,
     author: typeof author === "string" ? author : undefined,
@@ -135,10 +139,24 @@ async function coverImage(url: string, tmp: string): Promise<string | null> {
   }
 }
 
-/** Search TikTok for a situation and return the captions of the most-viewed relevant videos. */
-export async function researchSceneOnTikTok(scene: string, petName: string): Promise<ProvenCaption[]> {
-  const videos = (await searchTikTok(searchQueries(scene))).filter((v) => v.views >= MIN_VIEWS).slice(0, COVERS_TO_READ);
-  if (!videos.length) return [];
+export interface TikTokResearch {
+  captions: ProvenCaption[];
+  hashtags: PickedHashtag[];
+  hashtagNote?: string;
+}
+
+/** Search TikTok for a situation: captions of the most-viewed relevant videos, and three hashtags from them. */
+export async function researchSceneOnTikTok(scene: string, petName: string): Promise<TikTokResearch> {
+  const popular = (await searchTikTok(searchQueries(scene))).filter((v) => v.views >= MIN_VIEWS);
+  if (!popular.length) return { captions: [], hashtags: [], hashtagNote: "No videos with 20K+ views found for this search." };
+  const videos = popular.slice(0, COVERS_TO_READ);
+
+  const { picked, looked, found } = await chooseHashtags(candidates(popular));
+  const hashtagNote =
+    picked.length === 3 ? undefined
+    : !looked ? "The top videos had no hashtags."
+    : !found ? "Couldn't read hashtag post counts from TikTok, so the AI picks hashtags for now."
+    : `Only found ${picked.length} of 3 hashtags in the right size ranges.`;
 
   const content: any[] = [];
   for (const [i, v] of videos.entries()) {
@@ -179,5 +197,5 @@ export async function researchSceneOnTikTok(scene: string, petName: string): Pro
       foundAt: now,
     });
   }
-  return captions.sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
+  return { captions: captions.sort((a, b) => (b.views ?? 0) - (a.views ?? 0)), hashtags: picked, hashtagNote };
 }

@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy } from "./library.ts";
 import { forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses } from "./generate.ts";
 import { addAlbum, forgetItem, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
@@ -549,6 +549,7 @@ app.patch("/api/renders/:id", (req, res) => {
   const clipIds = [...new Set(r.plan.segments.map((s) => s.clipId))];
   if (now.review === "rejected" && now.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: true });
   else if (r.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: false });
+  syncClipUses(r.id);
   // Last video of the round reviewed: start the next round.
   if (review && review !== "pending") afterReview();
   res.json(store.render(r.id));
@@ -577,6 +578,11 @@ app.post("/api/renders/:id/rerender", (req, res) => {
     hook: overlays?.[0]?.text ?? (typeof b.hook === "string" ? b.hook : texts?.[0] ?? r.plan.hook),
     postCaption: typeof b.postCaption === "string" ? b.postCaption : r.plan.postCaption,
   });
+  // The new version keeps the clips taken, even if the old one was rejected and had handed them back.
+  if (r.usesReturned) {
+    store.updateRender(r.id, { review: "pending" });
+    syncClipUses(r.id);
+  }
   const fresh = queueRender(next, { ...r.options, ...parseOptions({ ...r.options, ...(b.options ?? {}) }) }, r.batch, { countUse: false });
   deleteRender(r.id);
   res.json(fresh);
@@ -711,6 +717,9 @@ if (paused) console.warn(`[recovery] ${uncleanBoots} crashes in 20 minutes: auto
 for (const r of store.renders()) {
   if (r.status === "error" && r.plan.segments.some((s) => !store.clip(s.clipId))) deleteRender(r.id);
 }
+
+// Videos rejected before clips were handed back on rejection: hand them back now.
+for (const r of store.renders()) syncClipUses(r.id);
 
 function recoverWork() {
   for (const c of store.clips()) {

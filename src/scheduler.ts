@@ -121,9 +121,9 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
           : "No analyzed vertical videos yet. Add a shared album or upload some clips.",
       );
     }
-    // Prefer footage that hasn't been used; fall back to everything when there isn't enough new material.
-    const unused = ready.filter((c) => c.uses === 0);
-    const pool = unused.length >= Math.min(auto.dailyCount, 3) ? unused : ready;
+    // Each clip is used once (a rejected video hands its clips back), so a round only draws on unused footage.
+    const pool = ready.filter((c) => c.uses === 0);
+    if (!pool.length) throw new Error("Every clip has been used. New footage is imported as it's needed.");
 
     const { fontId, textStyle, textSize } = store.settings();
     const options: RenderOptions = { keepOriginalAudio: true, textStyle, textSize, fontId };

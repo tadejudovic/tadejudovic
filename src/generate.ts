@@ -98,7 +98,7 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
 export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; warning?: string }> {
   const all = store.clips().filter((c) => c.status === "ready" && isPortrait(c));
   // Footage the creator rejected is only used when they pick it themselves.
-  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => !c.disliked && onTopic(c));
+  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => c.uses === 0 && !c.disliked && onTopic(c));
   if (!clips.length) throw new Error("No analyzed portrait clips available. Import some vertical footage first.");
   const { petName, handle } = store.settings();
   const aiOn = req.useAi && config.claude.enabled;
@@ -239,6 +239,22 @@ export function queueRender(
   return render;
 }
 
+/**
+ * Each clip is used once. A rejected video hands its clips back so they can be tried again with a
+ * new edit, unless the clip itself was the problem ("Bad clip"); undoing the rejection takes them again.
+ */
+export function syncClipUses(id: string) {
+  const r = store.render(id);
+  if (!r || r.status !== "done") return;
+  const giveBack = r.review === "rejected" && r.rejectReason !== "clip";
+  if (giveBack === !!r.usesReturned) return;
+  for (const clipId of new Set(r.plan.segments.map((s) => s.clipId))) {
+    const c = store.clip(clipId);
+    if (c) store.updateClip(clipId, { uses: Math.max(0, c.uses + (giveBack ? -1 : 1)) });
+  }
+  store.updateRender(id, { usesReturned: giveBack });
+}
+
 /** Queue a failed or interrupted render again, with the same plan. */
 export function retryRender(id: string, { urgent = true } = {}): Render | undefined {
   const r = store.render(id);
@@ -259,13 +275,13 @@ function enqueueRenderJob(id: string, urgent = true) {
         store.updateRender(id, { progress: Math.round(p * 100) / 100 }),
       );
       store.updateRender(id, { status: "done", progress: 1, ...result });
-      if (render.countUse !== false) {
+      if (render.countUse !== false && !render.usesCounted) {
         for (const clipId of new Set(render.plan.segments.map((s) => s.clipId))) {
           const c = store.clip(clipId);
           if (c) store.updateClip(clipId, { uses: c.uses + 1 });
         }
         // Count once, even if this render is retried later.
-        store.updateRender(id, { countUse: false });
+        store.updateRender(id, { usesCounted: true });
       }
     } catch (err) {
       store.updateRender(id, { status: "error", error: (err as Error).message });

@@ -168,8 +168,12 @@ export interface Render {
   reviewedAt?: string;
   /** The video file was downloaded. */
   downloaded?: boolean;
-  /** Whether finishing this render should count as a use of its clips (false for re-renders). */
+  /** Whether this is a new video: counts toward the daily limit and as a use of its clips (false for re-renders). */
   countUse?: boolean;
+  /** Its clips' use was counted when it finished. */
+  usesCounted?: boolean;
+  /** Rejected, so its clips were handed back to be tried again. */
+  usesReturned?: boolean;
 }
 
 export interface RenderOptions {

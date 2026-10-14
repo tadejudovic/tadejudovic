@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-stall-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-stall-${process.pid}-${Date.now()}`);
 const { saveResponse } = await import("../src/google/sharedAlbum.ts");
 
 test("a download that stops sending data is abandoned instead of hanging forever", async () => {

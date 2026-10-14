@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-archive-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-archive-${process.pid}-${Date.now()}`);
 process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "test-key";
 const { store } = await import("../src/store.ts");
 const { config } = await import("../src/config.ts");

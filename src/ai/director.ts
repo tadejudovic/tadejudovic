@@ -12,7 +12,8 @@ import type { Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Seg
  */
 
 let client: Anthropic | null = null;
-const anthropic = () => (client ??= new Anthropic());
+// A request that hasn't answered in 5 minutes isn't coming; fail it so a round can't hang.
+const anthropic = () => (client ??= new Anthropic({ timeout: 5 * 60_000, maxRetries: 2 }));
 
 // Server-side fallback: if a request is declined, the API re-runs it on
 // Anthropic's recommended fallback model instead of returning a refusal.

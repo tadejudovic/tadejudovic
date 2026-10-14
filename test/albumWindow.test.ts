@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-window-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-window-${process.pid}-${Date.now()}`);
 const html = fs.readFileSync(new URL("./fixtures/album.html", import.meta.url), "utf8");
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: any) => {

@@ -1011,11 +1011,23 @@ $("#auto").addEventListener("change", async (e) => {
 
 $("#btn-batch-empty").addEventListener("click", () => $("#btn-batch").click());
 $("#btn-batch").addEventListener("click", (e) =>
-  withBusy(e.currentTarget, "Making… (1–3 min)", async () => {
-    const r = await api("/api/batch/run", { method: "POST" });
-    if (r.warning) banner(r.warning);
-    else banner(`Making ${r.renders.length} videos. They appear below as they finish.`, "ok");
-    await refreshRenders();
+  withBusy(e.currentTarget, "Starting…", async () => {
+    // The round runs on the server; show its progress instead of waiting on this request.
+    state.nextRoundUntil = Date.now() + 6 * 60_000;
+    state.roundStartedAt = new Date().toISOString();
+    const req = api("/api/batch/run", { method: "POST" });
+    setTimeout(() => loadStatus().then(renderHomeState).catch(() => {}), 1500);
+    const r = await req.catch((err) => {
+      // Already being made: just show its progress.
+      if (/already being made/.test(err.message)) return { renders: [], already: true };
+      state.nextRoundUntil = 0;
+      throw err;
+    });
+    if (r.skipped === "daily video limit reached") banner("That's today's video limit. Raise it in Settings → Schedule & limits for more.");
+    else if (r.warning) banner(r.warning);
+    else if (r.renders.length) banner(`Making ${r.renders.length} video${r.renders.length === 1 ? "" : "s"}. They appear here as they finish.`, "ok");
+    await Promise.all([refreshRenders(), loadStatus()]);
+    renderHomeState();
   }),
 );
 
@@ -1504,7 +1516,7 @@ function renderMaking(planning, importing = 0) {
   $("#making-fill").style.width = `${Math.max(4, pct)}%`;
   $("#making-sub").textContent = n
     ? `${pct ? `${pct}% · ` : ""}They'll appear here when they're finished. You can leave this page.`
-    : "Picking clips and writing the text (1–3 min).";
+    : state.status?.roundStage || "Picking clips and writing the text (1–3 min).";
 }
 
 /** A small pill at the top that fades out on its own. */
@@ -1526,7 +1538,7 @@ function renderHomeState() {
   const importing = state.clips.filter((c) => c.status === "importing" || c.status === "analyzing").length;
   const making = state.renders.filter(inProgress).length;
   const reviewing = toReview().length > 0 || !!stack.whyFor;
-  const planning = !making && state.nextRoundUntil > Date.now();
+  const planning = !making && (state.nextRoundUntil > Date.now() || !!state.status?.roundStage);
   renderMaking(planning, importing);
   // Nothing new can start while a round is being made or reviewed.
   $("#btn-batch").hidden = noSource || making > 0 || planning || reviewing;

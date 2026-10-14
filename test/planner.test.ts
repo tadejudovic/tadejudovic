@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `pawcut-test-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `pawcut-test-${process.pid}-${Date.now()}`);
 
 const { findMoments } = await import("../src/media/analyze.ts");
 const { heuristicPlan, fitWindow, stretchToTarget } = await import("../src/planner.ts");

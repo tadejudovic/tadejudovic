@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-dupes-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-dupes-${process.pid}-${Date.now()}`);
 process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "test-key";
 const { store } = await import("../src/store.ts");
 const { markDuplicates } = await import("../src/albums.ts");

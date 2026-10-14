@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-feedback-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-feedback-${process.pid}-${Date.now()}`);
 const { store } = await import("../src/store.ts");
 const { reviewFeedback } = await import("../src/generate.ts");
 const { feedbackText } = await import("../src/ai/director.ts");

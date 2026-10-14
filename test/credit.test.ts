@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-credit-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-credit-${process.pid}-${Date.now()}`);
 process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "test-key";
 const budget = await import("../src/ai/budget.ts");
 const { importBudget } = await import("../src/albums.ts");

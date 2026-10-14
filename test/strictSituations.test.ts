@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-strict-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-strict-${process.pid}-${Date.now()}`);
 process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "test-key"; // situations come from the AI
 const { store } = await import("../src/store.ts");
 const { onTopic } = await import("../src/generate.ts");

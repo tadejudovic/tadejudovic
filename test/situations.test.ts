@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-sit-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-sit-${process.pid}-${Date.now()}`);
 
 const { pickBySituation } = await import("../src/generate.ts");
 const { parseCaptions } = await import("../src/ai/research.ts");

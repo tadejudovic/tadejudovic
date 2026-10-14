@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-tiktok-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-tiktok-${process.pid}-${Date.now()}`);
 process.env.APIFY_TOKEN = "test-token";
 const { normalizeItem, searchQueries, searchTikTok } = await import("../src/ai/tiktokSearch.ts");
 

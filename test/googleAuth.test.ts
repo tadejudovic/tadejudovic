@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-auth-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-auth-${process.pid}-${Date.now()}`);
 process.env.GOOGLE_CLIENT_ID = "client-123";
 process.env.GOOGLE_CLIENT_SECRET = "secret";
 process.env.ALLOWED_EMAILS = "Owner@Example.com, salah@example.com";

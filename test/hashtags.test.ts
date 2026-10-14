@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-hashtags-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-hashtags-${process.pid}-${Date.now()}`);
 const { withResearchedTags } = await import("../src/generate.ts");
 import { candidates, chooseHashtags, parseVideoCount, pickThree, tagsOf } from "../src/ai/hashtags.ts";
 

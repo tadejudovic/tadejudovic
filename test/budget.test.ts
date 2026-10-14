@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-budget-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-budget-${process.pid}-${Date.now()}`);
 process.env.AI_MONTHLY_BUDGET = "1";
 
 const { recordUsage, assertBudget, spendThisMonth, BudgetExceeded } = await import("../src/ai/budget.ts");

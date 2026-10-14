@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 
-process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-limit-${process.pid}`);
+process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-limit-${process.pid}-${Date.now()}`);
 const { store } = await import("../src/store.ts");
 const { videosLeftToday, videosMadeToday } = await import("../src/dailyLimit.ts");
 

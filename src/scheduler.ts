@@ -49,6 +49,8 @@ const TOP_UP_EVERY_MS = 2 * 60_000;
 /** Why the last automatic round couldn't be made (shown in the app instead of an endless spinner). */
 export let lastRoundError: { message: string; at: string } | null = null;
 let batchRunning = false;
+/** What the round being made is doing right now (shown in the app), or null when none is. */
+export let roundStage: string | null = null;
 
 export function startScheduler() {
   const tick = () => {
@@ -127,8 +129,9 @@ async function runDue({ afterReview = false } = {}) {
 
 /** Build today's batch. Safe to call manually ("make today's batch now"). */
 export async function runDailyBatch(opts: { force?: boolean } = {}) {
-  if (batchRunning) throw new Error("A batch is already being prepared.");
+  if (batchRunning) throw new Error(`The next round is already being made${roundStage ? `: ${roundStage.toLowerCase()}` : ""}`);
   batchRunning = true;
+  roundStage = "Starting…";
   const auto = store.auto();
   const date = today();
   try {
@@ -147,10 +150,14 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     }
     // Pick up anything added to the albums since the last check, and let it finish analyzing.
     if (store.albums().length) {
+      roundStage = "Checking your albums…";
       lastSync = Date.now();
       await syncAll();
     }
-    if (usableClips() < enoughToStart()) await waitForIngest(20 * 60_000);
+    if (usableClips() < enoughToStart()) {
+      roundStage = "Waiting for clips to be sorted into your situations…";
+      await waitForIngest(5 * 60_000);
+    }
     const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c));
     if (!ready.length) {
       const any = store.clips().some((c) => c.status === "ready");
@@ -169,15 +176,18 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     // Each video starts rendering as soon as its text is written, not when the whole round is.
     const renders: ReturnType<typeof queueRender>[] = [];
     const queued = new Set<VideoPlan>();
+    const count = Math.min(auto.dailyCount, left);
+    roundStage = `Writing the videos (0 of ${count})…`;
     const start = (p: VideoPlan) => {
       queued.add(p);
       renders.push(queueRender(p, options, date));
+      roundStage = `Writing the videos (${renders.length} of ${count})…`;
     };
     const { plans, warning } = await plan(
       {
         template: auto.template,
         targetSeconds: auto.targetSeconds,
-        count: Math.min(auto.dailyCount, left),
+        count,
         clipIds: pool.map((c) => c.id),
         useAi: true,
         options,
@@ -190,6 +200,7 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     return { renders, warning };
   } finally {
     batchRunning = false;
+    roundStage = null;
   }
 }
 

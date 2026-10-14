@@ -586,55 +586,89 @@ function renderRenders() {
   const earlier = state.renders.filter((r) => !inStack.has(r.id) && (!latest || r.batch !== latest || r.review === "rejected"));
   $("#renders-empty").hidden = earlier.length > 0;
   const nodes = earlier.map((r) => {
-    const key = `${r.id}:${r.status}:${r.review}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
+    const key = `${r.id}:${r.status}:${r.review}:${r.rejectReason}:${r.downloaded}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
     const cached = renderEls.get(r.id);
     if (cached?.key === key) return cached.node;
-    const node = renderCard(r);
+    const node = tile(r);
     renderEls.set(r.id, { key, node });
     return node;
   });
   el.replaceChildren(...nodes);
 }
 
-function renderCard(r) {
-  const caption = [r.plan.postCaption, r.plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
-  const media =
-    r.status === "done"
-      ? h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, controls: true, loop: true, playsinline: true, preload: "none" })
-      : h("div", { class: "ph" },
-          h("div", {},
-            r.status === "error" ? "Render failed" : r.status === "queued" ? "Queued…" : `Rendering… ${Math.round(r.progress * 100)}%`,
-            r.status === "rendering" ? h("div", { class: "bar" }, h("i", { style: { width: `${r.progress * 100}%` } })) : null,
-          ),
-        );
-  return h("div", { class: "render" },
-    media,
-    h("div", { class: "body" },
-      h("div", { class: "title" }, r.plan.hook || r.plan.title),
-      r.error ? h("div", { class: "err" }, r.error) : null,
-      h("div", { class: "caption" }, caption),
-      h("div", { class: "row" },
-        r.status === "done" ? h("a", { class: "btn small primary", href: `/media/render/${r.id}.mp4?dl=1` }, "Download") : null,
-        h("button", {
-          class: "btn small",
-          onclick: async (e) => {
-            await navigator.clipboard.writeText(caption);
-            e.target.textContent = "Copied!";
-            setTimeout(() => (e.target.textContent = "Copy caption"), 1500);
-          },
-        }, "Copy caption"),
-        h("button", {
-          class: "btn small", title: "Delete",
-          onclick: async () => {
-            await api(`/api/renders/${r.id}`, { method: "DELETE" });
-            renderEls.delete(r.id);
-            refreshRenders();
-          },
-        }, "Delete"),
-      ),
+/** A video in the Kept / Earlier lists: a framed thumbnail; tap to open it. */
+function tile(r) {
+  const label = r.plan.overlays?.map((o) => o.text).join(" / ") || r.plan.hook || r.plan.title;
+  const badge =
+    r.status === "error" ? h("span", { class: "badge err" }, "Couldn't make this")
+    : r.status !== "done" ? h("span", { class: "badge" }, r.status === "queued" ? "Waiting…" : `Making… ${Math.round(r.progress * 100)}%`)
+    : r.review === "rejected" ? h("span", { class: "badge no" }, `Rejected${r.rejectReason && r.rejectReason !== "other" ? ` · ${REASON_LABEL[r.rejectReason]}` : ""}`)
+    : r.downloaded ? h("span", { class: "badge yes" }, "Saved ✓")
+    : r.review === "approved" ? h("span", { class: "badge yes" }, "Kept")
+    : null;
+  return h("div", { class: `tile ${r.status === "done" ? "openable" : ""}`, onclick: () => r.status === "done" && openSheet(r) },
+    h("div", { class: "tile-media" },
+      r.status === "done" ? h("img", { src: `/media/render/${r.id}.jpg`, alt: "", loading: "lazy" }) : h("div", { class: "tile-ph" }),
+      badge,
     ),
+    h("div", { class: "tile-text" }, label),
+    r.status === "error"
+      ? h("div", { class: "tile-actions" },
+          h("button", { class: "btn small", onclick: (e) => withBusy(e.currentTarget, "…", async () => {
+            await api(`/api/renders/${r.id}/retry`, { method: "POST" });
+            await refreshRenders();
+          }) }, "Try again"),
+          h("button", { class: "btn small quiet-btn", onclick: () => deleteVideo(r) }, "Delete"),
+        )
+      : null,
   );
 }
+
+async function deleteVideo(r) {
+  if (!confirm("Delete this video?")) return;
+  await api(`/api/renders/${r.id}`, { method: "DELETE" });
+  closeSheet();
+  await refreshRenders();
+}
+
+function openSheet(r) {
+  const sheet = $("#sheet");
+  prefetchFile(r);
+  const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, controls: true, autoplay: true, loop: true, playsinline: true });
+  const actions = h("div", { class: "sheet-actions" },
+    r.review === "rejected"
+      ? h("button", { class: "btn", onclick: async () => {
+          await api(`/api/renders/${r.id}`, { method: "PATCH", body: { review: "pending" } });
+          closeSheet();
+          await refreshRenders();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } }, "Review again")
+      : h("button", { class: "btn primary", onclick: () => { saveVideo(r); setTimeout(refreshRenders, 1000); } }, r.downloaded ? "Save again" : "Save video"),
+    h("button", { class: "btn quiet-btn", onclick: () => deleteVideo(r) }, "Delete"),
+  );
+  const details = detailsBody(r);
+  details.querySelector(':scope > a.btn[href*="dl=1"]')?.remove();
+  sheet.replaceChildren(
+    h("div", { class: "sheet-card" },
+      h("button", { class: "sheet-close", "aria-label": "Close", onclick: closeSheet }, "✕"),
+      h("div", { class: "sheet-media" }, video),
+      details,
+      actions,
+    ),
+  );
+  sheet.hidden = false;
+  document.body.classList.add("no-scroll");
+}
+
+function closeSheet() {
+  const sheet = $("#sheet");
+  sheet.querySelector("video")?.pause();
+  sheet.hidden = true;
+  sheet.replaceChildren();
+  document.body.classList.remove("no-scroll");
+}
+$("#sheet").addEventListener("click", (e) => e.target.id === "sheet" && closeSheet());
+document.addEventListener("keydown", (e) => e.key === "Escape" && !$("#sheet").hidden && closeSheet());
 
 // ---- Shared albums ----------------------------------------------------------
 
@@ -783,10 +817,10 @@ function renderBatch() {
     : today;
   $("#batch").replaceChildren(
     ...items.map((r) => {
-      const key = `${r.id}:${r.status}:${r.review}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
+      const key = `${r.id}:${r.status}:${r.review}:${r.downloaded}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
       const cached = batchEls.get(r.id);
       if (cached?.key === key) return cached.node;
-      const node = reviewCard(r);
+      const node = tile(r);
       batchEls.set(r.id, { key, node });
       return node;
     }),

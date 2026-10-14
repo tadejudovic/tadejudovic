@@ -75,7 +75,7 @@
       </div>
 
       <h2 id="kept-title" class="section-title" hidden>Kept · ready to post</h2>
-      <div id="batch" class="renders review"></div>
+      <div id="batch" class="tiles"></div>
       <div id="batch-empty" class="empty-card" hidden>
         <b id="batch-empty-title">No videos yet today</b>
         <p id="batch-empty-text">New videos are made every morning, or click “Make videos”.</p>
@@ -85,7 +85,7 @@
 
       <details class="fold earlier">
         <summary>Earlier videos</summary>
-        <div id="renders" class="renders"></div>
+        <div id="renders" class="tiles"></div>
         <p id="renders-empty" class="muted">No earlier videos.</p>
       </details>
     </section>
@@ -270,6 +270,9 @@
       <p class="signout"><a id="logout" class="link" href="/logout" hidden>Sign out</a></p>
     </section>
   </main>
+
+  <!-- One video opened from the Kept / Earlier lists -->
+  <div id="sheet" class="sheet" hidden></div>
 
   <script src="/app.js" type="module"></script>
 </body>

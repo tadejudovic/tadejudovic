@@ -311,6 +311,22 @@ function renderClips() {
             ...(state.status?.settings.scenes ?? []).map((sc) => h("option", { value: sc, selected: c.scene === sc }, sc)),
             h("option", { value: "other", selected: c.scene === "other" }, "other"),
           ),
+          landscape || c.status !== "ready" ? null : h("label", {
+            class: "muted edited-toggle",
+            title: "Videos that already have text or stickers on them are never used automatically",
+            onclick: (e) => e.stopPropagation(),
+          },
+            h("input", {
+              type: "checkbox",
+              checked: !!c.edited,
+              onchange: async (e) => {
+                c.edited = e.target.checked;
+                await api(`/api/clips/${c.id}`, { method: "PATCH", body: { edited: e.target.checked } });
+                refreshClips();
+              },
+            }),
+            " Has text already, don't use",
+          ),
           landscape || c.status !== "ready" ? null : h("button", {
             class: "btn small make",
             title: "Make a video from this clip now; it appears under Create for review",
@@ -1454,9 +1470,15 @@ function renderMaking(planning, importing = 0) {
   if (box.hidden) return;
   const n = busy.length;
   if (!n && !planning) {
-    $("#making-title").textContent = `Importing ${importing} new clip${importing === 1 ? "" : "s"} from your album…`;
-    box.classList.add("indeterminate");
-    $("#making-sub").textContent = "New videos are made from them next.";
+    // Clips go one at a time (~30–60 s each); the first videos start once 3 are sorted.
+    const today = new Date().toDateString();
+    const doneToday = state.clips.filter((c) => c.status !== "importing" && c.status !== "analyzing" && new Date(c.importedAt).toDateString() === today).length;
+    const total = doneToday + importing;
+    const pctImport = total ? Math.round((doneToday / total) * 100) : 0;
+    $("#making-title").textContent = `Importing clips: ${doneToday} of ${total} done`;
+    box.classList.toggle("indeterminate", pctImport === 0);
+    $("#making-fill").style.width = `${Math.max(4, pctImport)}%`;
+    $("#making-sub").textContent = `About ${Math.max(1, Math.round(importing * 0.75))} min left. The first videos start as soon as 3 clips are sorted into your situations.`;
     return;
   }
   const pct = n ? Math.round((busy.reduce((sum, r) => sum + (r.status === "rendering" ? r.progress : 0), 0) / n) * 100) : 0;

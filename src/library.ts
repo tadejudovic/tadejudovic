@@ -142,7 +142,13 @@ export async function aiTag(id: string) {
     });
     // Never overwrite a situation the creator picked by hand.
     const keepScene = current.sceneSetBy === "creator";
-    store.updateClip(id, { ai, edited: alreadyEdited, tagError: undefined, ...(keepScene ? {} : { scene, sceneSetBy: "ai" as const }) });
+    const keepEdited = current.editedSetBy === "creator";
+    store.updateClip(id, {
+      ai,
+      tagError: undefined,
+      ...(keepEdited ? {} : { edited: alreadyEdited }),
+      ...(keepScene ? {} : { scene, sceneSetBy: "ai" as const }),
+    });
   } catch (err) {
     // The heuristic moments still work, but without a situation the clip can't be used in strict
     // mode, so keep the reason (shown in diagnostics) and try again on the next start.

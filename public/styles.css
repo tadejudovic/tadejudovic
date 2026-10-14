@@ -664,3 +664,4 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .hint-inline { grid-column: 1 / -1; font-size: 13px; }
 
 .app-version { text-align: center; font-size: 12px; margin: 18px 0 0; }
+.edited-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }

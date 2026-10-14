@@ -425,8 +425,9 @@ app.post(
 
 /** The creator's own note about what's on the footage. */
 app.patch("/api/clips/:id", (req, res) => {
-  const { note, scene } = req.body ?? {};
+  const { note, scene, edited } = req.body ?? {};
   const patch: Partial<Clip> = {};
+  if (typeof edited === "boolean") Object.assign(patch, { edited, editedSetBy: "creator" as const });
   if (typeof note === "string") patch.note = note.trim().slice(0, 500) || undefined;
   if (typeof scene === "string") {
     if (scene && scene !== "other" && !store.settings().scenes.includes(scene)) return res.status(400).json({ error: "Unknown situation" });

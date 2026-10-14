@@ -777,9 +777,10 @@ function recoverWork() {
   // Unused clips whose AI look is missing (it failed, or ran before situations or edited-video
   // checks existed): look again (a tenth of a cent each).
   if (config.claude.enabled) queueMissingAiLooks(Infinity, crashedIds);
-  // ...then finish interrupted videos.
+  // Interrupted videos go ahead of all of that: they're what the creator is waiting for.
+  // (A video that crashed the server is in crashedIds and isn't retried.)
   for (const r of store.renders()) {
-    if (!crashedIds.has(r.id) && (r.status === "queued" || r.status === "rendering")) retryRender(r.id, { urgent: false });
+    if (!crashedIds.has(r.id) && (r.status === "queued" || r.status === "rendering")) retryRender(r.id);
   }
 }
 

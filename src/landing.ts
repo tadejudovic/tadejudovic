@@ -104,14 +104,15 @@ a{color:inherit}
 .wrap{max-width:1120px;margin:0 auto;padding:0 20px;position:relative}
 
 /* ---- Nav ---- */
-nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0;position:relative;z-index:3}
+nav{display:flex;justify-content:space-between;align-items:center;padding:14px 0;position:relative;z-index:3}
 .logo{font-weight:900;font-size:22px;letter-spacing:-.03em;text-decoration:none;display:flex;align-items:center;gap:8px}
 .logo i{width:26px;height:26px;border-radius:8px;background:conic-gradient(from 210deg,var(--accent),var(--accent2),var(--yellow),var(--cyan),var(--accent));display:inline-block}
 .signin{font-weight:600;font-size:15px;text-decoration:none;padding:9px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.18)}
 .signin:hover{background:rgba(255,255,255,.08)}
 
 /* ---- Hero ---- */
-.hero{position:relative;padding:40px 0 90px}
+.hero{position:relative;padding:0 0 90px}
+.hero-in{margin-top:28px}
 .glow{position:absolute;inset:-200px -20% auto;height:900px;pointer-events:none;z-index:0;
   background:radial-gradient(40% 40% at 25% 35%,rgba(254,44,85,.35),transparent 70%),radial-gradient(35% 35% at 75% 30%,rgba(255,138,61,.28),transparent 70%),radial-gradient(30% 30% at 60% 70%,rgba(37,244,238,.14),transparent 70%);
   filter:blur(20px);animation:drift 14s ease-in-out infinite alternate}

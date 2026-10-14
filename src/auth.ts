@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { NextFunction, Request, Response } from "express";
 import { config } from "./config.ts";
+import { landingHtml } from "./landing.ts";
 
 /**
  * Sign-in gate for running Rollcut on the public internet.
@@ -106,8 +107,10 @@ function recordFailure(ip: string) {
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!gateEnabled) return next();
-  if (["/login", "/logout", "/login/google", "/login/google/callback"].includes(req.path)) return next();
+  if (["/login", "/logout", "/login/google", "/login/google/callback", "/landing"].includes(req.path)) return next();
   if (sessionOf(readCookie(req, COOKIE))) return next();
+  // Signed-out visitors to the home page get the public landing page.
+  if (req.path === "/" && req.method === "GET") return sendLanding(res);
   if (req.path.startsWith("/api/") || req.path.startsWith("/media/")) return res.status(401).json({ error: "Signed out" });
   res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
 }
@@ -177,6 +180,11 @@ export function login(req: Request, res: Response) {
 export function logout(_req: Request, res: Response) {
   res.clearCookie(COOKIE, { path: "/" });
   res.redirect("/login");
+}
+
+export function sendLanding(res: Response) {
+  res.setHeader("content-type", "text/html; charset=utf-8");
+  res.send(landingHtml({ signInUrl: googleLogin ? "/login/google" : "/login", google: googleLogin }));
 }
 
 const escapeHtml = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);

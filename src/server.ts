@@ -19,7 +19,7 @@ import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
-import { gateEnabled, googleCallback, googleLogin, googleStart, login, loginPage, logout, requireAuth, signedInAs } from "./auth.ts";
+import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, login, loginPage, logout, requireAuth, signedInAs } from "./auth.ts";
 import { monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
 
@@ -37,6 +37,7 @@ app.get("/healthz", (_req, res) => res.send("ok"));
 app.get("/login", loginPage);
 app.post("/login", login);
 app.get("/logout", logout);
+app.get("/landing", (_req, res) => sendLanding(res)); // preview the public page while signed in
 app.get("/login/google", googleStart);
 app.get("/login/google/callback", (req, res, next) => { googleCallback(req, res).catch(next); });
 app.use(requireAuth);

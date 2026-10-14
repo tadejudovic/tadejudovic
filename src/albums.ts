@@ -1,4 +1,6 @@
 import { store, newId } from "./store.ts";
+import { config } from "./config.ts";
+import { aiAvailable } from "./ai/budget.ts";
 import { albumUrlFrom, fetchAlbum, isAlbumUrl, openVideo, saveResponse } from "./google/sharedAlbum.ts";
 import { enqueueClip, deleteClip, SkipItem } from "./library.ts";
 import { onTopic } from "./generate.ts";
@@ -17,6 +19,8 @@ const SPARE_CLIPS = 2;
 /** At most this many album clips are imported (and analyzed by the AI, ~$0.001 each) per day. */
 export const MAX_IMPORTS_PER_DAY = 80;
 export function importBudget(): number {
+  // Without AI credit new clips can't be sorted, so don't download more until it's back.
+  if (config.claude.enabled && !aiAvailable()) return 0;
   // Only footage that can actually be used counts: off-topic clips (beach, random) don't stop the
   // importer from looking further through the album for airport/plane clips.
   const unused = store.clips().filter((c) => c.status === "ready" && c.uses === 0 && !c.disliked && c.height >= c.width && onTopic(c)).length;

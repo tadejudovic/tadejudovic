@@ -9,7 +9,7 @@ import { store, newId } from "./store.ts";
 import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
-import { enqueueClip, importPicked, analyzeClip, aiTag, deleteClip, ensureProxy, fastModelError } from "./library.ts";
+import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses } from "./generate.ts";
 import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
@@ -20,7 +20,7 @@ import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from 
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, login, loginPage, logout, requireAuth, signedInAs } from "./auth.ts";
-import { monthlyLimit, spendThisMonth } from "./ai/budget.ts";
+import { aiOutOfCredit, monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -66,6 +66,7 @@ app.get("/api/diagnostics", (_req, res) => {
   const renders = store.renders();
   res.json({
     version: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
+    aiOutOfCredit,
     now: new Date().toISOString(),
     uptimeMin: Math.round(process.uptime() / 60),
     memoryMb,
@@ -103,6 +104,7 @@ app.get("/api/diagnostics", (_req, res) => {
 
 app.get("/api/status", (req, res) => {
   res.json({
+    aiOutOfCredit: aiOutOfCredit ? { since: aiOutOfCredit.since } : null,
     version: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
     google: { configured: googleConfigured(), connected: Boolean(store.google()) },
     claude: { enabled: config.claude.enabled, model: config.claude.model },
@@ -774,14 +776,7 @@ function recoverWork() {
   }
   // Unused clips whose AI look is missing (it failed, or ran before situations or edited-video
   // checks existed): look again (a tenth of a cent each).
-  if (config.claude.enabled) {
-    for (const c of store.clips()) {
-      const incomplete = !c.ai || c.edited === undefined || (!c.scene && c.sceneSetBy !== "creator");
-      if (c.status === "ready" && c.kind === "video" && incomplete && c.uses === 0 && !c.disliked && !crashedIds.has(c.id)) {
-        ingestQueue.push(() => aiTag(c.id), { kind: "clip", id: c.id });
-      }
-    }
-  }
+  if (config.claude.enabled) queueMissingAiLooks(Infinity, crashedIds);
   // ...then finish interrupted videos.
   for (const r of store.renders()) {
     if (!crashedIds.has(r.id) && (r.status === "queued" || r.status === "rendering")) retryRender(r.id, { urgent: false });

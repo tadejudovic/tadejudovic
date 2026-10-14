@@ -36,14 +36,39 @@ export function monthlyLimit(): number {
   return store.settings().aiMonthlyBudget;
 }
 
-/** Throw before an AI call if the month's budget is used up. */
+/**
+ * Set when Anthropic refuses calls because the account has no credit left. AI calls then pause
+ * (one is let through every few minutes to notice when credit is added) and the app says so.
+ */
+export let aiOutOfCredit: { since: string; retryAt: number } | null = null;
+const CREDIT_RETRY_MS = 5 * 60_000;
+
+export class OutOfCredit extends Error {
+  constructor() {
+    super("The Anthropic account is out of credit. Add credit at console.anthropic.com → Plans & Billing.");
+  }
+}
+
+export const isOutOfCreditError = (err: unknown) => /credit balance is too low/i.test(String((err as Error)?.message ?? err));
+
+/** Call with any error from the Claude API. */
+export function noteAiError(err: unknown) {
+  if (isOutOfCreditError(err)) aiOutOfCredit = { since: aiOutOfCredit?.since ?? new Date().toISOString(), retryAt: Date.now() + CREDIT_RETRY_MS };
+}
+
+/** Whether AI calls can go through right now (false while the account is out of credit). */
+export const aiAvailable = () => !aiOutOfCredit || Date.now() >= aiOutOfCredit.retryAt;
+
+/** Throw before an AI call if the month's budget is used up, or the account is out of credit. */
 export function assertBudget() {
+  if (!aiAvailable()) throw new OutOfCredit();
   const limit = monthlyLimit();
   if (spendThisMonth().usd >= limit) throw new BudgetExceeded(limit);
 }
 
 /** Add a finished call's cost to this month's total. */
 export function recordUsage(msg: Pick<Anthropic.Beta.BetaMessage, "usage" | "model">) {
+  aiOutOfCredit = null; // a call went through, so there's credit again
   const [inPrice, outPrice] = PRICES[msg.model] ?? PRICES[config.claude.model] ?? PRICES["claude-opus-5-5"];
   const u = msg.usage;
   const input =

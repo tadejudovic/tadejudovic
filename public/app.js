@@ -57,6 +57,7 @@ async function loadStatus() {
   $("#app-version").textContent = `Version ${s.version}`;
   $("#chip-google").classList.toggle("on", s.google.connected);
   $("#paused").hidden = !s.paused;
+  $("#ai-credit").hidden = !s.aiOutOfCredit;
   const sp = s.spend;
   $("#spend-used").textContent = `$${sp.usd.toFixed(2)}`;
   $("#spend-limit").textContent = `$${sp.limit.toFixed(0)}`;

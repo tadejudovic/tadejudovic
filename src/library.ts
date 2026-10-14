@@ -5,6 +5,7 @@ import { store, newId } from "./store.ts";
 import { probe, frameAt, photoToClip, needsProxy, makeProxy } from "./media/ffmpeg.ts";
 import { energyCurve, findMoments } from "./media/analyze.ts";
 import { tagClip } from "./ai/director.ts";
+import { isOutOfCreditError, OutOfCredit } from "./ai/budget.ts";
 import { download, type PickedMediaItem } from "./google/picker.ts";
 import { ingestQueue } from "./queue.ts";
 import { canDecode4K } from "./config.ts";
@@ -124,6 +125,23 @@ export async function analyzeClip(id: string) {
   if (config.claude.enabled) await aiTag(id);
 }
 
+/** A clip whose AI look is missing (it failed, or ran before situations or edited-video checks existed). */
+export const needsAiLook = (c: Clip) =>
+  c.status === "ready" && c.kind === "video" && c.uses === 0 && !c.disliked &&
+  (!c.ai || c.edited === undefined || (!c.scene && c.sceneSetBy !== "creator"));
+
+/** Queue AI looks for clips that are missing one (a tenth of a cent each). Returns how many were queued. */
+export function queueMissingAiLooks(limit = Infinity, skip = new Set<string>()): number {
+  let n = 0;
+  for (const c of store.clips()) {
+    if (n >= limit) break;
+    if (!needsAiLook(c) || skip.has(c.id)) continue;
+    ingestQueue.push(() => aiTag(c.id), { kind: "clip", id: c.id });
+    n++;
+  }
+  return n;
+}
+
 /** The last error from the cheap model, if it failed (shown in diagnostics). */
 export let fastModelError: string | undefined;
 
@@ -135,7 +153,7 @@ export async function aiTag(id: string) {
     const { petName, scenes } = store.settings();
     // The cheap model first; if it fails, the main model, so sorting never silently stops.
     const { scene, alreadyEdited, ...ai } = await tagClip(current, petName, scenes).catch((err: Error) => {
-      if (config.claude.fastModel === config.claude.model) throw err;
+      if (config.claude.fastModel === config.claude.model || isOutOfCreditError(err) || err instanceof OutOfCredit) throw err;
       console.warn(`[ai] fast model failed on ${current.filename} (${err.message}); trying ${config.claude.model}`);
       fastModelError = err.message.slice(0, 300);
       return tagClip(current, petName, scenes, config.claude.model);

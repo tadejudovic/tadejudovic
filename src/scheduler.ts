@@ -17,7 +17,8 @@ export function afterReview() {
   if (awaitingReview() === 0) runDue({ afterReview: true }).catch((err) => console.error("[scheduler]", err));
 }
 import { ingestQueue } from "./queue.ts";
-import { archiveUnusable, ARCHIVE_AFTER_DAYS } from "./library.ts";
+import { archiveUnusable, ARCHIVE_AFTER_DAYS, queueMissingAiLooks } from "./library.ts";
+import { aiAvailable } from "./ai/budget.ts";
 import { researchScene, researchStale } from "./ai/research.ts";
 import type { RenderOptions } from "./types.ts";
 
@@ -42,6 +43,7 @@ export function setPaused(value: boolean) {
 let lastAttempt = 0;
 let lastTopUp = 0;
 let lastArchive = 0;
+let lastRelook = Date.now(); // startup already queues them
 const TOP_UP_EVERY_MS = 2 * 60_000;
 /** Why the last automatic round couldn't be made (shown in the app instead of an endless spinner). */
 export let lastRoundError: { message: string; at: string } | null = null;
@@ -64,6 +66,13 @@ async function runDue({ afterReview = false } = {}) {
   }
   const auto = store.auto();
   if (!auto.enabled || paused) return;
+  // Clips whose AI look failed (e.g. while the account was out of credit) get another one once
+  // the import lane is free, a batch at a time.
+  if (config.claude.enabled && aiAvailable() && ingestQueue.pending === 0 && Date.now() - lastRelook > 2 * 60_000) {
+    lastRelook = Date.now();
+    const n = queueMissingAiLooks(20);
+    if (n) console.log(`[scheduler] sorting ${n} clip(s) that weren't sorted yet`);
+  }
   if (store.albums().length && Date.now() - lastSync > auto.syncEveryHours * 3600_000) {
     lastSync = Date.now();
     const { newItems } = await syncAll();

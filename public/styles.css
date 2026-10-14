@@ -599,3 +599,61 @@ section[data-tab="settings"] { max-width: 640px; margin: 0 auto; }
 .stack-sound .ico { width: 20px; height: 20px; }
 #activity .ico { margin-right: 6px; }
 #stack-undo { display: inline-flex; align-items: center; gap: 5px; }
+
+
+/* =====================================================================
+   Brand pass: same look as the landing page, calmer colors.
+   Neutral ink for primary actions; pink only as a small accent; the
+   pink-to-orange gradient only in tiny touches (logo mark, progress).
+   ===================================================================== */
+:root {
+  --ink: #0b0b0f;
+  --bg: #f6f6f8;
+  --line: #e7e7ec;
+  --muted: #6e6e7a;
+  --grad: linear-gradient(92deg, #fe2c55 0%, #ff8a3d 55%, #ffc93d 100%);
+  --shadow-soft: 0 1px 2px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.06);
+}
+body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+
+/* headings: bold and tight, like the landing page */
+h1, h2, .settings-title, .d-title { letter-spacing: -0.035em; }
+.settings-title { font-weight: 900; font-size: 34px; margin-top: 2px; }
+.sp-head h2 { font-weight: 800; letter-spacing: -0.02em; }
+.group-label { color: #8b8b98; }
+
+/* brand mark */
+.brand-row { display: flex; align-items: center; gap: 8px; margin: 8px 4px 0; font-weight: 900; font-size: 17px; letter-spacing: -0.03em; }
+.mark { width: 22px; height: 22px; border-radius: 7px; background: conic-gradient(from 210deg, #fe2c55, #ff8a3d, #ffc93d, #25f4ee, #fe2c55); display: inline-block; }
+
+/* buttons: ink primary, quiet secondary */
+.btn { border-radius: 14px; }
+.btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+.btn.primary:hover { background: #24242b; filter: none; }
+.btn:not(.primary) { background: #fff; border-color: var(--line); }
+
+/* cards, groups, tiles: one radius and one soft shadow */
+.group, .sp-body .grid-form, .sp-body .look, .tile, .stack-card, .d-source { box-shadow: var(--shadow-soft); }
+.group { border-radius: 20px; }
+.tile { border-radius: 18px; border-color: var(--line); }
+.tile-media { border-radius: 13px; }
+
+/* accents: small and purposeful */
+.bottom-nav button.on { color: var(--ink); }
+.bottom-nav button.on::after { content: ""; position: absolute; bottom: 2px; width: 18px; height: 3px; border-radius: 99px; background: var(--grad); }
+.bottom-nav .tab-count { background: #fe2c55; }
+.making-bar { background: rgba(0,0,0,.06); }
+.making-bar i { background: var(--grad); }
+.d-link, a.link, .link { color: #e11d48; }
+.d-proof { background: #fff6ef; }
+.d-sec-head { color: #8b8b98; }
+.chip, .d-chips .chip { background: #f1f1f4; }
+
+/* swipe card: same frame language as the landing phone */
+.stack-card { border-color: #e2e2e8; border-radius: 26px; }
+.stack-media { border-radius: 20px; }
+.stamp { font-family: Inter, system-ui, sans-serif; font-weight: 900; }
+
+/* inputs */
+input:not([type=checkbox]):not([type=radio]), select, textarea { background: #fff; border-color: var(--line); }
+input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08); border-color: #c9c9d2; }

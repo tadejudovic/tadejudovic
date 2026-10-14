@@ -764,7 +764,7 @@ if (!gateEnabled && !["127.0.0.1", "localhost", "::1"].includes(host)) {
   process.exit(1);
 }
 app.listen(config.port, host, () => {
-  console.log(`Lex Studio running at ${config.appUrl}`);
+  console.log(`Rollcut running at ${config.appUrl}`);
   console.log(`  Google Photos: ${googleConfigured() ? "configured" : "not configured (set GOOGLE_CLIENT_ID/SECRET)"}`);
   console.log(`  AI director:   ${config.claude.enabled ? config.claude.model : "off (set ANTHROPIC_API_KEY)"}`);
   console.log(`  Password gate: ${gateEnabled ? "on" : "off (local only)"}`);

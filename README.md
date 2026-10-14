@@ -1,4 +1,6 @@
-# Lex Studio ✈️
+# Rollcut 🎞️
+
+Turn your phone library into ready-to-post TikTok clips. Built first for @lex.poodle.
 
 Turn the pile of pet footage in your Google Photos library into ready-to-post **10–20 second vertical shorts** for TikTok, Reels and Shorts, several a day, in a few clicks.
 
@@ -9,9 +11,9 @@ Turn the pile of pet footage in your Google Photos library into ready-to-post **
 
 ## How it works for the creator
 
-Lex Studio replicates a creator's manual routine:
+Rollcut replicates a creator's manual routine:
 
-| By hand | In Lex Studio |
+| By hand | In Rollcut |
 |---|---|
 | Pick a clip from Google Photos | **Connectors**: a public Google Photos album is watched; new videos are imported automatically |
 | Choose a situation that has worked before (check-in desk, security, boarding gate, plane…) | Every clip is sorted into a **situation** (editable list); batches rotate situations and use unused clips first |
@@ -24,8 +26,8 @@ Lex Studio replicates a creator's manual routine:
 ## The daily flow
 
 1. **You curate in Google Photos.** Put the videos you think have potential into a shared album and turn on *link sharing*.
-2. **Paste the album link into Lex Studio** ("Watch album"). It is checked every few hours (1–24h, configurable), and new videos are imported and analyzed automatically. Photos in the album are skipped.
-3. **Every morning at a time you choose, Lex Studio prepares a batch** of 3–5 videos (configurable) for review. It favors footage that hasn't been used yet. Everything starts from the footage. For each clip, the AI director:
+2. **Paste the album link into Rollcut** ("Watch album"). It is checked every few hours (1–24h, configurable), and new videos are imported and analyzed automatically. Photos in the album are skipped.
+3. **Every morning at a time you choose, Rollcut prepares a batch** of 3–5 videos (configurable) for review. It favors footage that hasn't been used yet. Everything starts from the footage. For each clip, the AI director:
    - watches the clip and reads your optional note about it (e.g. *"first time at the airport, very excited"*);
    - looks at your **example videos that worked**;
    - decides what the clip is really about, which part to use, and the on-screen line that lands, e.g. *"POV: the energy shift when we pull into the airport"*, optionally with a delayed punchline overlay;
@@ -40,7 +42,7 @@ Trend inspiration comes from a starter list of proven patterns ("POV: the energy
 
 ### About shared-album links
 
-Google has no official API for reading an album from its share link. Lex Studio reads the same data the album page loads for its own viewer, so it only sees what anyone with the link can see. That has two consequences:
+Google has no official API for reading an album from its share link. Rollcut reads the same data the album page loads for its own viewer, so it only sees what anyone with the link can see. That has two consequences:
 
 - The reader may need updating if Google changes the page.
 - Very large albums may only expose their first few hundred items. Keep the "high potential" album focused, or start a new album every so often.

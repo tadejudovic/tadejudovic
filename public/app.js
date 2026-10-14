@@ -1232,7 +1232,8 @@ $("#btn-resume").addEventListener("click", (e) =>
 function renderMaking(planning) {
   const busy = state.renders.filter(inProgress);
   const box = $("#making");
-  box.hidden = !busy.length && !planning;
+  // Only once there's nothing left to swipe: then it says "more are on the way".
+  box.hidden = (!busy.length && !planning) || toReview().length > 0 || !!stack.whyFor;
   if (box.hidden) return;
   const n = busy.length;
   const pct = n ? Math.round((busy.reduce((sum, r) => sum + (r.status === "rendering" ? r.progress : 0), 0) / n) * 100) : 0;

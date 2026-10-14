@@ -39,7 +39,8 @@ app.get("/login", loginPage);
 app.post("/login", login);
 app.get("/logout", logout);
 app.use(requireAuth);
-app.use(express.static(path.join(here, "..", "public")));
+// Always check for a newer version, so an update shows up on the next page load instead of an old cached copy.
+app.use(express.static(path.join(here, "..", "public"), { setHeaders: (res) => res.setHeader("Cache-Control", "no-cache") }));
 
 const upload = multer({
   storage: multer.diskStorage({

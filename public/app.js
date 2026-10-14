@@ -396,6 +396,8 @@ function toReview() {
 function renderStack() {
   const queue = toReview();
   $("#stack").hidden = !queue.length && !stack.whyFor;
+  // While reviewing, only the card is on screen; kept and earlier videos show once you're through.
+  $('section[data-tab="review"]').classList.toggle("reviewing", queue.length > 0);
   $("#stack-undo").hidden = !stack.history.length;
   const r = queue.find((x) => x.id === stack.shownId) ?? queue[0];
   $(".stack-actions").hidden = !r;

@@ -374,3 +374,4 @@ main { max-width: 980px; }
 .stack-why { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .stack-why[hidden] { display: none; }
 .stack-why button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font: inherit; color: var(--ink); cursor: pointer; }
+.reviewing #kept-title, .reviewing #batch, .reviewing .fold.earlier, .reviewing #batch-empty { display: none !important; }

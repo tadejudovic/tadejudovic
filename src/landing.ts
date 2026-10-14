@@ -3,7 +3,51 @@
  * its thing (a phone that swipes through finished videos on its own), how it works, and how
  * to get in (it's invite-only). Pure HTML/CSS plus a few lines of JS for scroll reveals.
  */
+import fs from "node:fs";
+import { store } from "./store.ts";
+import { screenText, wrap } from "./media/render.ts";
+import { frameBuffer } from "./media/ffmpeg.ts";
+
+/**
+ * Real examples for the landing page: only videos the creator chose to post (swiped right),
+ * never unreviewed footage. Their source clips fill the "camera roll" and the hero.
+ */
+export function showcase() {
+  return store
+    .renders()
+    .filter((r) => r.status === "done" && r.review === "approved" && r.thumb && fs.existsSync(r.thumb))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((r) => ({ r, clip: store.clip(r.plan.segments[0]?.clipId ?? "") }))
+    .filter((x) => x.clip?.thumb && fs.existsSync(x.clip.thumb) && fs.existsSync(x.clip.file))
+    .slice(0, 15);
+}
+
+/** Public images for the landing page, limited to showcase videos. */
+const frames = new Map<string, Buffer>();
+export async function landingImage(kind: string, id: string): Promise<{ file?: string; buf?: Buffer } | null> {
+  const item = showcase().find((x) => (kind === "video" ? x.r.id : x.clip!.id) === id);
+  if (!item) return null;
+  if (kind === "thumb") return { file: item.clip!.thumb };
+  if (kind === "video") return { file: item.r.thumb };
+  if (kind === "frame") {
+    // A sharper frame for the full-screen hero, taken from the moment the video used.
+    if (!frames.has(id)) frames.set(id, await frameBuffer(item.clip!.file, item.r.plan.segments[0]?.start ?? 1, 720));
+    return { buf: frames.get(id) };
+  }
+  return null;
+}
+
+const short = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
 export function landingHtml(opts: { signInUrl: string; google: boolean }): string {
+  const items = showcase();
+  const hero = items[0];
+  const heroText = hero ? screenText(hero.r.plan.overlays?.[0]?.text ?? hero.r.plan.hook ?? "") : "";
+  const heroLines = hero && heroText ? wrap(heroText, 20).slice(0, 3) : ["POV: the energy shift", "when we pull into", "the airport"];
+  const heroViews = hero?.r.plan.basedOn?.views;
+  const heroTags = hero ? hero.r.plan.hashtags.slice(0, 3) : ["travelwithdog", "flyingwithdog", "dogatairport"];
+  const tagInfo = hero?.r.plan.hashtagInfo?.[0];
   const g = `<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
   const cta = (cls = "") =>
     `<a class="btn ${cls}" href="${opts.signInUrl}">${opts.google ? `${g}Sign in with Google` : "Sign in"}</a>`;
@@ -11,11 +55,15 @@ export function landingHtml(opts: { signInUrl: string; google: boolean }): strin
   // Camera-roll tiles for the hero animation: 3 columns, positions in % of the screen.
   const emo = ["🌅", "🐕", "🧳", "☕", "🐩", "🛂", "🌆", "✈️", "🍕", "🏖️", "🐾", "🎒", "🚇", "🌧️", "🛫"];
   const hues = ["#ffd3b0", "#c7d8ff", "#ffe8a3", "#d9f2c9", "#ffb37a", "#d9d2ff", "#ffcfc9", "#bfe9f2", "#f4c9e8", "#ffe08a", "#c9f2d4", "#ffd6a5", "#cfd8dc", "#b0c4de", "#fcd5ce"];
+  // Tile 4 (middle of row 2) is the one that gets picked: it shows the hero clip.
+  const order = items.length ? [1, 2, 3, 4, 0, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((k) => items[k % items.length]) : [];
   const tiles = emo.map((e, i) => ({
-    e,
+    e: order.length ? "" : e,
     x: 3 + (i % 3) * 31.67,
     y: 13 + Math.floor(i / 3) * 15.4,
-    bg: i === 4 ? "linear-gradient(160deg,#ffb37a,#e2604e 60%,#3b1e2a)" : hues[i],
+    bg: order.length
+      ? `url(/landing/thumb/${order[i].clip!.id}.jpg) center/cover`
+      : i === 4 ? "linear-gradient(160deg,#ffb37a,#e2604e 60%,#3b1e2a)" : hues[i],
     d: i % 4 === 1 ? "0:1" + (i % 6) : i === 4 ? "0:17" : "",
   }));
   const captions = [
@@ -241,8 +289,8 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
     <div class="hero-in">
       <div>
         <div class="pill r"><b></b>Now in beta</div>
-        <h1 class="r d1">Your camera roll is full of <span class="grad">TikToks.</span></h1>
-        <p class="lead r d2">Rollcut finds the moments in videos you already shot, writes text based on TikToks with millions of views, and hands you ready-to-post videos every day. You just swipe.</p>
+        <h1 class="r d1">Your camera roll, turned into <span class="grad">TikToks.</span></h1>
+        <p class="lead r d2">Ready-to-post videos from your camera roll. You just swipe.</p>
         <div class="ctas stack r d3">${cta()}<span class="note">Invite-only for now.</span></div>
       </div>
       <div class="stage r d2" aria-hidden="true">
@@ -252,16 +300,16 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
             ${tiles.map((t, i) => `<i class="tile" style="--x:${t.x}%;--y:${t.y}%;background:${t.bg}"><span>${t.e}</span>${t.d ? `<em>${t.d}</em>` : ""}</i>`).join("")}
             <i class="ring"></i>
           </div>
-          <div class="clip"><div class="emo">🐩</div>
-            <div class="ov"><span class="l1">POV: the energy shift</span><span class="l2">when we pull into</span><span class="l3">the airport</span></div>
-            <div class="tags"><span>#travelwithdog</span><span>#flyingwithdog</span><span>#dogatairport</span></div>
+          <div class="clip"${hero ? ` style="background:url(/landing/frame/${hero.clip!.id}.jpg) center/cover"` : ""}>${hero ? "" : `<div class="emo">🐩</div>`}
+            <div class="ov">${heroLines.map((l, i) => `<span class="l${i + 1}">${esc(l)}</span>`).join("")}</div>
+            <div class="tags">${heroTags.map((t) => `<span>#${esc(t)}</span>`).join("")}</div>
             <span class="stamp yes">POST</span>
             <div class="ui"><span class="n">✕</span><span class="y">✓</span></div>
           </div>
           <div class="cap">Picking the best moment…</div>
         </div></div>
-        <div class="chip c1">🔥 Text from a 2.1M-view TikTok</div>
-        <div class="chip c2"># travelwithdog <small>2.4M posts</small></div>
+        <div class="chip c1">🔥 ${heroViews ? `Text from a ${short(heroViews)}-view TikTok` : "Text from a viral TikTok"}</div>
+        <div class="chip c2"># ${esc(tagInfo?.tag ?? heroTags[0] ?? "travelwithdog")} ${tagInfo ? `<small>${short(tagInfo.posts)} posts</small>` : ""}</div>
         <div class="chip c3">✓ Caption copied · ready to post</div>
       </div>
     </div>
@@ -289,16 +337,18 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
       <div class="r">
         <div class="roll">${Array.from({ length: 16 }, (_, i) => {
           const hues = ["#ffd3b0", "#c7d8ff", "#ffe8a3", "#c9f2d4", "#f4c9e8", "#d9d2ff", "#ffcfc9", "#bfe9f2"];
-          return `<i style="--c:${hues[i % hues.length]}" class="${[2, 7, 13].includes(i) ? "pick" : ""}"></i>`;
+          const it = items.length ? items[i % items.length] : null;
+          const bg = it ? `url(/landing/thumb/${it.clip!.id}.jpg) center/cover` : hues[i % hues.length];
+          return `<i style="--c:${bg}" class="${[2, 7, 13].includes(i) ? "pick" : ""}"></i>`;
         }).join("")}</div>
         <div class="flowcap"><span>Your camera roll</span><span>3 picked</span></div>
       </div>
       <div class="arrow r d1">→</div>
       <div class="r d2">
         <div class="posts">
-          <div class="post" style="--c:linear-gradient(160deg,#ffb37a,#e2604e 60%,#3b1e2a)"><b>POV: the energy shift at the gate</b><span>Posted</span></div>
-          <div class="post" style="--c:linear-gradient(160deg,#9ad0ff,#4f6bd8 60%,#1d1b3a)"><b>me: quick flight / him:</b><span>Posted</span></div>
-          <div class="post" style="--c:linear-gradient(160deg,#ffe08a,#f29c38 60%,#4a2412)"><b>first class behavior, economy ticket</b><span>Posted</span></div>
+          ${(items.length ? items.slice(0, 3) : [null, null, null]).map((it, i) => it
+            ? `<div class="post" style="--c:url(/landing/video/${it.r.id}.jpg) center/cover"><span>Posted</span></div>`
+            : `<div class="post" style="--c:${["linear-gradient(160deg,#ffb37a,#e2604e 60%,#3b1e2a)", "linear-gradient(160deg,#9ad0ff,#4f6bd8 60%,#1d1b3a)", "linear-gradient(160deg,#ffe08a,#f29c38 60%,#4a2412)"][i]}"><b>${["POV: the energy shift at the gate", "me: quick flight / him:", "first class behavior, economy ticket"][i]}</b><span>Posted</span></div>`).join("")}
         </div>
         <div class="flowcap"><span>Ready to post</span><span>with captions + hashtags</span></div>
       </div>

@@ -108,6 +108,8 @@ function recordFailure(ip: string) {
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!gateEnabled) return next();
   if (["/login", "/logout", "/login/google", "/login/google/callback", "/landing"].includes(req.path)) return next();
+  // Images for the public landing page (files in public/landing/ only).
+  if (/^\/landing\/[\w-]+\.(jpe?g|png|webp)$/.test(req.path)) return next();
   if (sessionOf(readCookie(req, COOKIE))) return next();
   // Signed-out visitors to the home page get the public landing page.
   if (req.path === "/" && req.method === "GET") return sendLanding(res);

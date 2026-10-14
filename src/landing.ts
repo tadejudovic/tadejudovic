@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 /**
  * The public landing page: what signed-out visitors see at "/". The hero phone tells the story:
  * a camera roll (styled like the iPhone Photos app), one clip gets picked, it grows into a
@@ -24,6 +27,7 @@ const ICONS: Record<string, string> = {
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   inbox: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  play: '<path d="M7 4v16l13-8z"/>',
   music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
 };
 const ico = (name: string, cls = "") =>
@@ -67,11 +71,22 @@ const STORIES = [
   { tile: 3, lines: ["the beach day", "that fixed my", "whole week"], tags: ["beachday", "summervibes", "oceanlover"], views: "1.6M", tag: "beachday", posts: "3.1M", likes: 27 },
   { tile: 1, lines: ["POV: you finally", "booked the trip", "you kept talking about"], tags: ["vacation", "windowseat", "wanderlust"], views: "2.1M", tag: "windowseat", posts: "1.2M", likes: 39 },
 ];
-const photoBg = (i: number, w = 240) => `url(${U(PHOTOS[i][0], w, w)}) center/cover, ${PHOTOS[i][1]}`;
+/**
+ * Your own images win over the stock ones: drop files named roll-01.jpg … roll-24.jpg into
+ * public/landing/ (e.g. one consistent set of AI images of the same person) and they're used
+ * for the camera roll, the stories and the grid, in that order.
+ */
+const LOCAL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public", "landing");
+const local = (i: number) => {
+  const name = `roll-${String(i + 1).padStart(2, "0")}.jpg`;
+  return fs.existsSync(path.join(LOCAL_DIR, name)) ? `/landing/${name}` : null;
+};
+const photoUrl = (i: number, w: number, h: number) => local(i) ?? U(PHOTOS[i][0], w, h);
+const photoBg = (i: number, w = 240) => `url(${photoUrl(i, w, w)}) center/cover, ${PHOTOS[i][1]}`;
 
 export function landingHtml(opts: { signInUrl: string; google: boolean }): string {
   const first = STORIES[0];
-  const heroBg = (tile: number) => `url(${U(PHOTOS[tile][0], 720, 1520)}) center/cover, ${PHOTOS[tile][1]}`;
+  const heroBg = (tile: number) => `url(${photoUrl(tile, 720, 1520)}) center/cover, ${PHOTOS[tile][1]}`;
   const storiesJson = JSON.stringify(STORIES.map((st) => ({ ...st, bg: heroBg(st.tile), r: Math.floor(st.tile / 4), c: st.tile % 4 })));
   const g = `<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
   const cta = (cls = "") =>
@@ -162,7 +177,7 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 @keyframes float{50%{transform:translateY(-10px)}}
 
 /* ---- Hero story: camera roll -> one clip is picked -> it becomes a viral-style video -> posted ---- */
-.story{--T:12s;background:#fff;container-type:size}
+.story{--T:15s;background:#fff;container-type:size}
 .stage{--pr:0;--pc:1}
 .roll-ui{position:absolute;inset:0;background:#fff;animation:rollUi var(--T) infinite;font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif}
 /* iPhone Photos look: status bar, big "Recents", edge-to-edge square grid with hairline gaps */
@@ -189,43 +204,62 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 @keyframes scan{
   0%,4%{opacity:0;left:0;top:16cqh}
   6%{opacity:1;left:0;top:16cqh}
-  12%{opacity:1;left:75.375cqw;top:16cqh}
-  18%{opacity:1;left:50.25cqw;top:calc(16cqh + 50.25cqw)}
-  24%,30%{opacity:1;left:calc(var(--pc) * 25.125cqw);top:calc(16cqh + var(--pr) * 25.125cqw);transform:scale(1)}
-  27%{opacity:1;transform:scale(1.08)}
-  32%,100%{opacity:0;left:calc(var(--pc) * 25.125cqw);top:calc(16cqh + var(--pr) * 25.125cqw)}}
-@keyframes rollUi{0%,30%{opacity:1}38%,97%{opacity:0}100%{opacity:1}}
+  14%{opacity:1;left:75.375cqw;top:calc(16cqh + 50.25cqw)}
+  22%,28%{opacity:1;left:calc(var(--pc) * 25.125cqw);top:calc(16cqh + var(--pr) * 25.125cqw);transform:scale(1)}
+  25%{opacity:1;transform:scale(1.08)}
+  30%,100%{opacity:0;left:calc(var(--pc) * 25.125cqw);top:calc(16cqh + var(--pr) * 25.125cqw)}}
+@keyframes rollUi{0%,28%{opacity:1}34%,97%{opacity:0}100%{opacity:1}}
 /* the picked tile grows into the full video */
 .clip{--from:inset(calc(16cqh + var(--pr) * 25.125cqw) calc(75.375cqw - var(--pc) * 25.125cqw) calc(84cqh - var(--pr) * 25.125cqw - 24.625cqw) calc(var(--pc) * 25.125cqw));position:absolute;inset:0;display:grid;place-items:center;
-  clip-path:var(--from);opacity:0;animation:grow var(--T) infinite}
+  clip-path:var(--from);opacity:0;animation:grow var(--T) infinite;transform-origin:0 0}
 @keyframes grow{
-  0%,30%{opacity:0;clip-path:var(--from);transform:none}
-  31%{opacity:1}
-  40%{clip-path:inset(0 0 0 0 round 36px)}
+  0%,28%{opacity:0;clip-path:var(--from);transform:none}
+  29%{opacity:1}
+  37%{clip-path:inset(0 0 0 0 round 36px)}
   84%{opacity:1;transform:none;clip-path:inset(0 0 0 0 round 36px)}
-  95%{opacity:1;clip-path:inset(0 0 0 0 round 36px)}
-  100%{opacity:0;transform:none;clip-path:inset(0 0 0 0 round 36px)}}
+  89%,97%{opacity:1;transform:translate(.5cqw,34cqh) scale(.3266);clip-path:inset(0 0 0 0 round 30px)}
+  100%{opacity:0;transform:translate(.5cqw,34cqh) scale(.3266);clip-path:inset(0 0 0 0 round 30px)}}
 .clip .emo{font-size:120px;filter:drop-shadow(0 16px 24px rgba(0,0,0,.4));animation:bob 2.4s ease-in-out infinite}
 .ov{position:absolute;top:12%;left:7%;right:7%;display:grid;justify-items:center;text-align:center;color:var(--yellow);font-weight:900;font-size:21px;line-height:1.18;
   -webkit-text-stroke:1.2px #1a1400;paint-order:stroke fill;text-shadow:3px 3px 0 rgba(0,0,0,.35)}
 .ov span{opacity:0;animation:line var(--T) infinite}
 .ov .l1{--a:43%}.ov .l2{animation-name:line2}.ov .l3{animation-name:line3}
-@keyframes line{0%,43%{opacity:0;transform:translateY(8px) scale(.96)}46%,95%{opacity:1;transform:none}100%{opacity:0}}
-@keyframes line2{0%,48%{opacity:0;transform:translateY(8px) scale(.96)}51%,95%{opacity:1;transform:none}100%{opacity:0}}
-@keyframes line3{0%,53%{opacity:0;transform:translateY(8px) scale(.96)}56%,95%{opacity:1;transform:none}100%{opacity:0}}
+@keyframes line{0%,40%{opacity:0;transform:translateY(8px) scale(.96)}43%,97%{opacity:1;transform:none}100%{opacity:0}}
+@keyframes line2{0%,44%{opacity:0;transform:translateY(8px) scale(.96)}47%,97%{opacity:1;transform:none}100%{opacity:0}}
+@keyframes line3{0%,48%{opacity:0;transform:translateY(8px) scale(.96)}51%,97%{opacity:1;transform:none}100%{opacity:0}}
 .tags{position:absolute;bottom:20%;left:6%;right:6%;display:flex;flex-wrap:wrap;justify-content:center;gap:5px;opacity:0;animation:tags var(--T) infinite}
 .tags span{font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,.45);padding:4px 8px;border-radius:999px}
-@keyframes tags{0%,60%{opacity:0;transform:translateY(10px)}64%,78%{opacity:1;transform:none}81%,100%{opacity:0}}
+@keyframes tags{0%,54%{opacity:0;transform:translateY(10px)}58%,68%{opacity:1;transform:none}70%,100%{opacity:0}}
 .clip .ui{opacity:0;animation:uiIn var(--T) infinite}
-@keyframes uiIn{0%,58%{opacity:0}62%,78%{opacity:1}81%,100%{opacity:0}}
+@keyframes uiIn{0%,52%{opacity:0}56%,69%{opacity:1}71%,100%{opacity:0}}
 .clip .ui .y{animation:press var(--T) infinite}
-@keyframes press{0%,70%{transform:none}72%{transform:scale(.86)}74%,100%{transform:none}}
+@keyframes press{0%,63%{transform:none}65%{transform:scale(.86)}67%,100%{transform:none}}
 .clip .stamp.yes{animation:stampPost var(--T) infinite}
-@keyframes stampPost{0%,72%{opacity:0;transform:rotate(-14deg) scale(1.4)}74%,79%{opacity:1;transform:rotate(-14deg) scale(1)}81%,100%{opacity:0}}
+@keyframes stampPost{0%,64%{opacity:0;transform:rotate(-14deg) scale(1.4)}66%,70%{opacity:1;transform:rotate(-14deg) scale(1)}72%,100%{opacity:0}}
+/* after posting: the profile feed, where the new post lands first in the grid */
+.profile{position:absolute;inset:0;background:#fff;opacity:0;animation:profileIn var(--T) infinite;color:#111;font-family:-apple-system,Inter,system-ui,sans-serif}
+@keyframes profileIn{0%,84%{opacity:0}87%,97%{opacity:1}100%{opacity:0}}
+.pf-head{position:absolute;top:7cqh;left:0;right:0;display:grid;justify-items:center;gap:1cqh}
+.pf-av{width:15cqw;height:15cqw;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:6cqw;background:linear-gradient(135deg,#fe2c55,#ff8a3d)}
+.pf-head > b{font-size:4.4cqw}
+.pf-stats{display:flex;gap:4cqw;font-size:3.2cqw;color:#6b6b76}
+.pf-stats b{color:#111;margin-right:1cqw}
+.pf-tabs{position:absolute;top:29cqh;left:0;right:0;display:flex;justify-content:space-around;border-bottom:1px solid #eee;padding-bottom:1cqh;color:#999}
+.pf-tabs .on{color:#111;border-bottom:2px solid #111;padding:0 6cqw 1cqh;margin-bottom:-1cqh}
+.pf-tabs .ico{width:5cqw;height:5cqw}
+.pg{position:absolute;width:32.66cqw;height:32.66cqh;border-radius:2px}
+.pg b{position:absolute;left:1.6cqw;bottom:1.2cqh;display:flex;align-items:center;gap:1cqw;color:#fff;font-size:3cqw;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.pg b .ico{width:3cqw;height:3cqw}
+.profile .feed-nav{background:#fff;border-top:1px solid #eee;color:#111}
+.profile .feed-nav .add{background:#111;color:#fff}
+.just{position:absolute;z-index:4;left:3cqw;top:36cqh;display:flex;align-items:center;gap:1cqw;padding:1cqh 2.4cqw;border-radius:99px;background:#fff;color:#111;
+  font-size:3cqw;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,.25);opacity:0;animation:justIn var(--T) infinite}
+.just .ico{width:3.4cqw;height:3.4cqw;color:#16a34a;stroke-width:3}
+@keyframes justIn{0%,89%{opacity:0;transform:scale(.8)}91%,97%{opacity:1;transform:none}100%{opacity:0}}
 /* the posted video in a neutral social feed: rail of actions, likes counting up, handle + caption */
 @property --likes{syntax:"<integer>";inherits:false;initial-value:0}
 .feed{position:absolute;inset:0;opacity:0;animation:feedIn var(--T) infinite;pointer-events:none;color:#fff;font-family:-apple-system,Inter,system-ui,sans-serif}
-@keyframes feedIn{0%,80%{opacity:0}84%,95%{opacity:1}100%{opacity:0}}
+@keyframes feedIn{0%,71%{opacity:0}74%,85%{opacity:1}88%,100%{opacity:0}}
 .feed::before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.25),transparent 18%,transparent 50%,rgba(0,0,0,.6))}
 /* bottom navigation of a generic social app: the clearest "this is a feed" signal */
 .feed-nav{position:absolute;left:0;right:0;bottom:0;height:9%;display:flex;justify-content:space-around;align-items:center;background:#000;border-top:1px solid rgba(255,255,255,.12)}
@@ -239,10 +273,10 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
   background:#fff;color:#0b0b0f;font-size:12px;font-weight:700;padding:7px 12px;border-radius:999px;box-shadow:0 8px 20px rgba(0,0,0,.3);
   opacity:0;animation:toastIn var(--T) infinite;z-index:2}
 .feed-toast .ico{width:14px;height:14px;color:#16a34a;stroke-width:3}
-@keyframes toastIn{0%,83%{opacity:0;transform:translate(-50%,-30px)}86%,93%{opacity:1;transform:translate(-50%,0)}96%,100%{opacity:0;transform:translate(-50%,-10px)}}
+@keyframes toastIn{0%,74%{opacity:0;transform:translate(-50%,-30px)}76%,84%{opacity:1;transform:translate(-50%,0)}86%,100%{opacity:0;transform:translate(-50%,-10px)}}
 .burst{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%) scale(0);color:#fe2c55;opacity:0;animation:burst var(--T) infinite;filter:drop-shadow(0 6px 16px rgba(0,0,0,.35))}
 .burst .ico{width:96px;height:96px}
-@keyframes burst{0%,85%{opacity:0;transform:translate(-50%,-50%) scale(.2)}87%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}89%{transform:translate(-50%,-50%) scale(1)}92%,100%{opacity:0;transform:translate(-50%,-60%) scale(1.25)}}
+@keyframes burst{0%,75%{opacity:0;transform:translate(-50%,-50%) scale(.2)}77%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}79%{transform:translate(-50%,-50%) scale(1)}82%,100%{opacity:0;transform:translate(-50%,-60%) scale(1.25)}}
 .rail .me{position:relative;margin-bottom:6px}
 .rail .me em{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:2px solid #fff;font-style:normal;font-size:16px;font-weight:800;
   background:linear-gradient(135deg,#fe2c55,#ff8a3d)}
@@ -254,27 +288,27 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 .who small .ico{width:12px;height:12px}
 .feed-top{position:absolute;top:5%;left:0;right:0;display:flex;justify-content:center;gap:16px;font-size:13px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.5)}
 .feed-top{animation:tabsDip var(--T) infinite}
-@keyframes tabsDip{0%,84%{opacity:1}86%,93%{opacity:0}96%,100%{opacity:1}}
+@keyframes tabsDip{0%,74%{opacity:1}76%,84%{opacity:0}86%,100%{opacity:1}}
 .feed-top span{opacity:.65}.feed-top b{border-bottom:2px solid #fff;padding-bottom:3px}
 .rail{position:absolute;right:3.5%;bottom:13%;display:grid;gap:11px;justify-items:center;font-size:11px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .rail i{font-style:normal;font-size:26px;line-height:1;display:block}
 .rail .h i{color:#fe2c55;animation:heart var(--T) infinite}
-@keyframes heart{0%,84%{transform:scale(.6)}87%{transform:scale(1.35)}90%,100%{transform:scale(1)}}
+@keyframes heart{0%,75%{transform:scale(.6)}78%{transform:scale(1.35)}80%,100%{transform:scale(1)}}
 .rail .h b{--likes:0;counter-reset:likes var(--likes);animation:likes var(--T) infinite}
 .rail .h b::after{content:counter(likes) "K"}
-@keyframes likes{0%,82%{--likes:0}95%,100%{--likes:var(--max,48)}}
+@keyframes likes{0%,74%{--likes:0}85%,100%{--likes:var(--max,48)}}
 .who{position:absolute;left:5%;right:22%;bottom:12%;text-align:left;font-size:12px;line-height:1.35;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .who b{display:block;font-size:13px;margin-bottom:2px}
 .cap{position:absolute;left:50%;bottom:16%;z-index:3;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:700;color:#fff;background:rgba(17,17,20,.85);
   padding:7px 12px;border-radius:999px;opacity:0;animation:capIn var(--T) infinite}
 @keyframes capIn{0%,8%{opacity:0}11%,30%{opacity:1}33%,100%{opacity:0}}
 /* the floating proof chips appear when their moment happens */
-.stage .chip{animation:float 6s ease-in-out infinite,chip1 var(--T,12s) infinite;opacity:0}
-.stage .c2{animation:float 6s ease-in-out infinite -2s,chip2 12s infinite}
-.stage .c3{animation:float 6s ease-in-out infinite -4s,chip3 12s infinite}
-@keyframes chip1{0%,45%{opacity:0}49%,80%{opacity:1}83%,100%{opacity:0}}
-@keyframes chip2{0%,61%{opacity:0}65%,80%{opacity:1}83%,100%{opacity:0}}
-@keyframes chip3{0%,73%{opacity:0}76%,96%{opacity:1}99%,100%{opacity:0}}
+.stage .chip{animation:float 6s ease-in-out infinite,chip1 15s infinite;opacity:0}
+.stage .c2{animation:float 6s ease-in-out infinite -2s,chip2 15s infinite}
+.stage .c3{animation:float 6s ease-in-out infinite -4s,chip3 15s infinite}
+@keyframes chip1{0%,40%{opacity:0}44%,68%{opacity:1}71%,100%{opacity:0}}
+@keyframes chip2{0%,54%{opacity:0}58%,68%{opacity:1}71%,100%{opacity:0}}
+@keyframes chip3{0%,70%{opacity:0}73%,96%{opacity:1}99%,100%{opacity:0}}
 .ctas.stack{flex-direction:column;align-items:flex-start;gap:10px}
 
 /* ---- Icons ---- */
@@ -361,7 +395,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 }
 @media (prefers-reduced-motion:reduce){
   *{animation:none !important;transition:none !important}
-  .roll-ui{opacity:0}.clip{opacity:1;clip-path:none}.ov span,.tags,.clip .ui,.stage .chip{opacity:1}
+  .roll-ui,.profile,.just{opacity:0}.clip{opacity:1;clip-path:none}.ov span,.tags,.clip .ui,.stage .chip{opacity:1}
   .r{opacity:1;transform:none}
 }
 </style></head><body>
@@ -387,6 +421,13 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
             <div class="roll-count">1,284 Photos, 312 Videos</div>
             <div class="ios-tabs"><span class="on">${ico("grid")}<small>Library</small></span><span>${ico("heart")}<small>For You</small></span><span>${ico("album")}<small>Albums</small></span><span>${ico("search")}<small>Search</small></span></div>
           </div>
+          <div class="profile">
+            <div class="ios-status"><b>9:41</b><span class="ios-icons"><i></i><i></i><i></i><em></em></span></div>
+            <div class="pf-head"><span class="pf-av">Y</span><b>@you</b><span class="pf-stats"><span><b>128</b> Posts</span><span><b class="pf-f">12.4K</b> Followers</span><span><b>980K</b> Likes</span></span></div>
+            <div class="pf-tabs"><span class="on">${ico("grid")}</span><span>${ico("heart")}</span></div>
+            ${[1, 2, 3, 4, 5].map((k) => { const i = [12, 6, 15, 9, 14][k - 1]; return `<i class="pg" style="left:${0.5 + (k % 3) * 33.16}cqw;top:${34 + Math.floor(k / 3) * 33.16}cqh;background:${photoBg(i, 200)}"><b>${ico("play", "fill")} ${["24.1K", "8,902", "113K", "15.6K", "41.2K"][k - 1]}</b></i>`; }).join("")}
+            <nav class="feed-nav"><span>${ico("home")}<small>Home</small></span><span>${ico("search")}<small>Discover</small></span><span class="add">${ico("plus")}</span><span>${ico("inbox")}<small>Inbox</small></span><span class="on">${ico("user")}<small>Profile</small></span></nav>
+          </div>
           <div class="clip" style="background:${heroBg(first.tile)}">
             <div class="ov">${first.lines.map((l, i) => `<span class="l${i + 1}">${l}</span>`).join("")}</div>
             <div class="tags">${first.tags.map((t) => `<span>#${t}</span>`).join("")}</div>
@@ -408,6 +449,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
             <div class="ui"><span class="n">${ico("x")}</span><span class="y">${ico("check")}</span></div>
           </div>
           <div class="cap">Picking the best moment…</div>
+          <div class="just">${ico("check")} Just posted</div>
         </div></div>
         <div class="chip c1">🔥 <span>Text from a <span class="v">${first.views}</span>-view TikTok</span></div>
         <div class="chip c2"><span>#<span class="t">${first.tag}</span></span> <small><span class="p">${first.posts}</span> posts</small></div>
@@ -443,7 +485,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
       <div class="r d2">
         <div class="posts">
           ${[[2, "POV: the energy shift at the gate"], [5, "me: quick flight / him:"], [13, "first class behavior, economy ticket"]]
-            .map(([i, t]) => `<div class="post" style="--c:url(${U(PHOTOS[i as number][0], 300, 534)}) center/cover, ${PHOTOS[i as number][1]}"><b>${t}</b><span>Posted</span></div>`).join("")}
+            .map(([i, t]) => `<div class="post" style="--c:url(${photoUrl(i as number, 300, 534)}) center/cover, ${PHOTOS[i as number][1]}"><b>${t}</b><span>Posted</span></div>`).join("")}
         </div>
         <div class="flowcap"><span>Ready to post</span><span>with captions + hashtags</span></div>
       </div>

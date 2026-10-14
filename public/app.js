@@ -54,6 +54,7 @@ const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)
 
 async function loadStatus() {
   const s = (state.status = await api("/api/status"));
+  $("#app-version").textContent = `Version ${s.version}`;
   $("#chip-google").classList.toggle("on", s.google.connected);
   $("#paused").hidden = !s.paused;
   const sp = s.spend;
@@ -920,6 +921,10 @@ async function refreshAlbums() {
 
 /** Add an album. It's saved straight away; if Google is slow to answer, reading it carries on in the background. */
 async function addAlbum(form, busyLabel) {
+  if (!form.url.value.trim()) {
+    form.url.focus();
+    return banner("Paste the album's share link first.");
+  }
   await withBusy(form.querySelector("button"), busyLabel, async () => {
     const r = await api("/api/albums", { method: "POST", body: { url: form.url.value } });
     form.reset();

@@ -24,7 +24,7 @@
       <div id="onboard" class="empty-card big" hidden>
         <b>Connect your Google Photos album</b>
         <p>Put the videos you want to use in a shared album, turn on link sharing, and paste the link here. Rollcut makes new videos from it every morning.</p>
-        <form id="onboard-form" class="inline-form">
+        <form id="onboard-form" class="inline-form" novalidate>
           <input name="url" type="text" inputmode="url" autocomplete="off" placeholder="https://photos.app.goo.gl/…" required />
           <button class="btn primary" type="submit">Connect</button>
         </form>
@@ -125,12 +125,13 @@
         <button class="srow danger" id="btn-reset"><span class="row-title">Start over</span><span class="row-value">remove albums, clips &amp; videos</span></button>
         <a class="srow danger" id="logout" href="/logout" hidden><span class="row-title">Sign out</span><span class="row-value" id="sum-user"></span></a>
       </div>
+      <p class="muted app-version" id="app-version"></p>
 
       <div class="subpage" id="sp-album" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Google Photos albums</h2></header>
         <div class="sp-body">
         <p class="sp-intro">Put the videos you want to use in shared Google Photos albums and paste their links here, as many as you like. New videos are picked up every few hours, and a video that's in more than one album is only imported once.</p>
-        <form id="album-form" class="inline-form">
+        <form id="album-form" class="inline-form" novalidate>
           <input name="url" type="text" inputmode="url" autocomplete="off" placeholder="Paste a shared-album link (photos.google.com/share/… works best)" required />
           <button class="btn" type="submit">Add album</button>
         </form>

@@ -99,6 +99,7 @@ app.get("/api/diagnostics", (_req, res) => {
 
 app.get("/api/status", (req, res) => {
   res.json({
+    version: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
     google: { configured: googleConfigured(), connected: Boolean(store.google()) },
     claude: { enabled: config.claude.enabled, model: config.claude.model },
     gate: gateEnabled,

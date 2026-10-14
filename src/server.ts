@@ -68,6 +68,11 @@ app.get("/api/diagnostics", (_req, res) => {
     rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
     paused,
     aiEnabled: config.claude.enabled,
+    tiktokSearch: apifyEnabled(),
+    research: store.settings().scenes.map((scene) => {
+      const r = store.research(scene);
+      return r && { scene, source: r.source, updatedAt: r.updatedAt, error: r.error, captions: r.captions.length, hashtags: r.hashtags, hashtagNote: r.hashtagNote };
+    }).filter(Boolean),
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     queuePending: ingestQueue.pending,
     clips: {

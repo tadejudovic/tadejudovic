@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -35,6 +35,11 @@ export interface Settings {
   maxVideosPerDay: number;
   /** Only clips sorted into one of `scenes` are used automatically ("other" clips only by hand). */
   onlySituations: boolean;
+  /**
+   * Who the on-screen text speaks to: "pets" (dog lovers), "everyone" (the shared human moment,
+   * the dog as the punchline) or "mix" (alternating, so the account reaches beyond dog lovers).
+   */
+  captionAudience: CaptionAudience;
   /** Set once the yellow CapCut look became the default (keeps later manual choices). */
   lookV2?: boolean;
 }
@@ -54,6 +59,7 @@ const DEFAULT_SETTINGS: Settings = {
   fontId: "montserrat",
   textStyle: "yellow",
   textSize: "medium",
+  captionAudience: "mix",
   scenes: DEFAULT_SCENES,
   aiMonthlyBudget: Number(process.env.AI_MONTHLY_BUDGET) || 20,
   maxVideosPerDay: 5,

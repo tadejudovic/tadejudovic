@@ -145,10 +145,14 @@ export async function plan(
     };
     const overlays: { example: string }[] = [];
     const failures: string[] = [];
+    // "mix": every other video speaks to everyone, starting with the first.
+    const { captionAudience } = store.settings();
+    const audienceFor = (i: number): "pets" | "everyone" =>
+      captionAudience === "everyone" ? "everyone" : captionAudience === "pets" ? "pets" : i % 2 === 0 ? "everyone" : "pets";
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {
         try {
-          const p = await directClip(clip, { ...ctx, proven: provenCaptions(clip.scene) });
+          const p = await directClip(clip, { ...ctx, proven: provenCaptions(clip.scene), audience: audienceFor(i) });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);
           onPlan?.(p);

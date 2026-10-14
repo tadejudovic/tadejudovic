@@ -1360,6 +1360,13 @@ async function loadFonts() {
   $("#look-preview").className = `look-preview ${textStyle} size-${textSize}`;
   for (const r of document.querySelectorAll("#text-style input")) r.checked = r.value === textStyle;
   for (const r of document.querySelectorAll("#text-size input")) r.checked = r.value === textSize;
+  const audience = state.status.settings.captionAudience ?? "mix";
+  for (const r of document.querySelectorAll("#caption-audience input")) r.checked = r.value === audience;
+  $("#audience-hint").textContent = {
+    pets: "Text written for dog lovers.",
+    mix: "Every other video speaks to everyone (travel, everyday moments) with Lex as the punchline, so you reach beyond dog lovers.",
+    everyone: "Text about the moment anyone recognizes (travel stress, waiting, tiny seats), with Lex as the punchline.",
+  }[audience];
   renderSummaries();
   // Font names in the dropdown are shown in their own typeface where the browser supports it.
   $("#font-select").replaceChildren(
@@ -1371,6 +1378,11 @@ async function loadFonts() {
 
 $("#font-select").addEventListener("change", async (e) => {
   state.status.settings = await api("/api/settings", { method: "PUT", body: { fontId: e.target.value } });
+  loadFonts();
+});
+
+$("#caption-audience").addEventListener("change", async (e) => {
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { captionAudience: e.target.value } });
   loadFonts();
 });
 

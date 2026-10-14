@@ -311,6 +311,8 @@ export interface DirectContext {
   proven: ProvenCaption[];
   /** What the creator kept and rejected recently. */
   feedback?: ReviewFeedback;
+  /** Who this video's text speaks to: dog lovers, or everyone (the shared human moment). */
+  audience?: "pets" | "everyone";
 }
 
 const REASON_TEXT: Record<string, string> = {
@@ -334,23 +336,38 @@ export function feedbackText(f: ReviewFeedback | undefined): string {
   );
 }
 
-function provenText(proven: ProvenCaption[], scene?: string): string {
+function provenText(proven: ProvenCaption[], scene?: string, audience: "pets" | "everyone" = "pets"): string {
   if (!proven.length) return "";
+  const forEveryone = audience === "everyone";
   return (
     `\n\nPROVEN CAPTIONS for this situation${scene ? ` ("${scene}")` : ""}: the on-screen text of the most-viewed ` +
-    `TikToks of pets in the same situation, from TikTok search. The creator's method is to take the one that best ` +
-    `matches what happens in this clip and use it as is or with small changes (names, details), because proven ` +
-    `wording performs. Always adapt one of these and set basedOn to it; only if none fits the footage at all, write ` +
-    `a line in the same style. Avoid ones already posted recently.\n` +
+    `TikToks in the same situation, from TikTok search ("pet video" = from pet accounts, "general" = from anyone). ` +
+    `The creator's method is to take the one that best matches what happens in this clip and use it as is or with ` +
+    `small changes (names, details), because proven wording performs. ` +
+    (forEveryone
+      ? `For THIS video prefer a "general" one (or turn a pet one into the shared human moment); `
+      : `For this video prefer a pet one; `) +
+    `set basedOn to the one you adapt. Only if none fits the footage at all, write a line in the same style. Avoid ` +
+    `ones already posted recently.\n` +
     proven
       .map(
         (c, i) =>
           `${i + 1}. "${c.text}"` +
           (c.views ? ` — ${c.views.toLocaleString("en")} views` : "") +
-          ` (${c.kind === "creator" ? "found by the creator" : c.kind})`,
+          ` (${c.kind === "creator" ? "found by the creator" : c.audience === "everyone" ? "general" : "pet video"})`,
       )
       .join("\n")
   );
+}
+
+/** How to aim the text: at dog lovers, or at everyone with the dog as the punchline. */
+function audienceText(audience: "pets" | "everyone" = "pets", petName: string): string {
+  return audience === "everyone"
+    ? `\n\nAUDIENCE for this video: EVERYONE, not just dog lovers. Write about the moment any person recognizes ` +
+        `(travel stress, waiting in line, security, cramped seats, delays, the vibe of the day) so someone who doesn't ` +
+        `care about dogs still laughs or nods; ${petName} is the visual punchline that makes it land. Phrase it like ` +
+        `"me when…", "POV: …", "nobody: / …" about the human experience; avoid dog-owner insider terms.`
+    : `\n\nAUDIENCE for this video: dog lovers. Speak to what dog owners recognize about ${petName}.`;
 }
 
 function examplesText(examples: Example[]): string {
@@ -405,7 +422,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
         ? `\n\nText formats currently working for pet accounts (optional inspiration):\n` +
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
-      provenText(ctx.proven, clip.scene) +
+      audienceText(ctx.audience, ctx.petName) +
+      provenText(ctx.proven, clip.scene, ctx.audience) +
       examplesText(ctx.examples) +
       feedbackText(ctx.feedback) +
       (ctx.recentOverlays.length
@@ -424,7 +442,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     hashtags: string[];
   }>({
     system:
-      "You are an editor for a pet creator on TikTok. You start from what is on screen, never from a template. " +
+      "You are an editor for a creator on TikTok whose videos star their dog, made to reach a broad audience, not " +
+      "only pet lovers. You start from what is on screen, never from a template. " +
       "You write on-screen text like a real creator: specific to the moment, relatable, funny or warm, never generic " +
       "or cringe, and never describing what the viewer can already see. You know the first second decides whether " +
       "people keep watching.",

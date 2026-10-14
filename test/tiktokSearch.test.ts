@@ -59,3 +59,11 @@ test("hashtag post counts are read from the different shapes Apify actors return
   assert.deepEqual(parseHashtagItem({ challengeName: "petcabin", statsV2: { videoCount: "9800" } }), ["petcabin", 9800]);
   assert.equal(parseHashtagItem({ name: "x" }), null);
 });
+
+test("each situation is also searched without the pet, for text that speaks to everyone", async () => {
+  const { generalQueries, searchQueries: petQueries } = await import("../src/ai/tiktokSearch.ts");
+  const general = generalQueries("Security Check");
+  assert.ok(general.length >= 2);
+  for (const q of general) assert.ok(!/dog|pet/.test(q), q);
+  assert.ok(petQueries("security check").every((q) => /dog/.test(q)));
+});

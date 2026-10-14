@@ -71,6 +71,8 @@ export interface ProvenCaption {
   /** Who posted it / any context. */
   note?: string;
   foundAt: string;
+  /** "pets": from pet videos; "everyone": from general videos of the same situation (works for any audience). */
+  audience?: "pets" | "everyone";
 }
 
 export interface PickedHashtag {
@@ -198,6 +200,8 @@ export interface RenderOptions {
 
 export type TextStyle = "yellow" | "classic" | "box" | "plain";
 export type TextSize = "small" | "medium" | "large";
+/** Who the on-screen text is written for. */
+export type CaptionAudience = "pets" | "mix" | "everyone";
 
 export interface GenerateRequest {
   template: TemplateId;

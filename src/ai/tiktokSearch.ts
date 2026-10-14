@@ -24,7 +24,9 @@ export const apifyEnabled = () => Boolean(config.apify.token);
 const USD_PER_RESULT = 0.005;
 const RESULTS_PER_QUERY = 20;
 /** How many of the most-viewed videos get their cover read by Claude. */
-const COVERS_TO_READ = 12;
+const COVERS_TO_READ = 14;
+/** How many of those are general (non-pet) videos of the same situation. */
+const GENERAL_COVERS = 6;
 /** Ignore small videos: the point is wording that's proven to travel. */
 const MIN_VIEWS = 20_000;
 
@@ -37,6 +39,12 @@ export interface TikTokVideo {
   cover?: string;
   postedAt?: string;
   tags: string[];
+}
+
+/** The same situation without the pet: wording from these works for any audience. */
+export function generalQueries(scene: string): string[] {
+  const s = scene.toLowerCase();
+  return [`${s} pov`, `${s} relatable`];
 }
 
 export function searchQueries(scene: string): string[] {
@@ -156,7 +164,7 @@ const READ_SCHEMA = {
         required: ["n", "relevant", "onScreenText", "reusableCaption"],
         properties: {
           n: { type: "integer", description: "The video's number" },
-          relevant: { type: "boolean", description: "A pet in (or clearly about) the searched situation" },
+          relevant: { type: "boolean", description: "Pet video: a pet in the situation. General video: about the situation and relatable to anyone" },
           onScreenText: { type: "string", description: "The text overlaid on the cover frame, exactly as written, or empty" },
           reusableCaption: {
             type: "string",
@@ -190,12 +198,27 @@ export interface TikTokResearch {
 
 /** Search TikTok for a situation: captions of the most-viewed relevant videos, and three hashtags from them. */
 export async function researchSceneOnTikTok(scene: string, petName: string): Promise<TikTokResearch> {
-  const popular = (await searchTikTok(searchQueries(scene))).filter((v) => v.views >= MIN_VIEWS);
-  if (!popular.length) return { captions: [], hashtags: [], hashtagNote: "No videos with 20K+ views found for this search." };
-  const videos = popular.slice(0, COVERS_TO_READ);
+  // Pet videos in the situation, and general videos of the same situation (for text that speaks to
+  // everyone, not only dog lovers). A failed general search doesn't sink the research.
+  const [petResults, generalResults] = await Promise.all([
+    searchTikTok(searchQueries(scene)),
+    searchTikTok(generalQueries(scene)).catch((err: Error) => {
+      console.warn(`[research] general search for ${scene}: ${err.message}`);
+      return [] as TikTokVideo[];
+    }),
+  ]);
+  const popular = petResults.filter((v) => v.views >= MIN_VIEWS);
+  const petUrls = new Set(popular.map((v) => v.url));
+  const general = generalResults.filter((v) => v.views >= MIN_VIEWS && !petUrls.has(v.url));
+  if (!popular.length && !general.length) return { captions: [], hashtags: [], hashtagNote: "No videos with 20K+ views found for this search." };
+  // Most-viewed of each kind, so both kinds of caption come back.
+  const videos: (TikTokVideo & { audience: "pets" | "everyone" })[] = [
+    ...popular.slice(0, COVERS_TO_READ - GENERAL_COVERS).map((v) => ({ ...v, audience: "pets" as const })),
+    ...general.slice(0, GENERAL_COVERS).map((v) => ({ ...v, audience: "everyone" as const })),
+  ];
 
   // Post counts come from Apify; TikTok's own page is only a fallback (it usually blocks us).
-  const cands = candidates(popular).slice(0, 20);
+  const cands = candidates([...popular, ...general]).slice(0, 20);
   let apifyError: string | undefined;
   const counts = await hashtagPostCounts(cands.map((c) => c.tag)).catch((err: Error) => {
     apifyError = err.message;
@@ -212,15 +235,21 @@ export async function researchSceneOnTikTok(scene: string, petName: string): Pro
   const content: any[] = [];
   for (const [i, v] of videos.entries()) {
     const img = v.cover ? await coverImage(v.cover, path.join(config.tmpDir, `cover-${newId()}`)) : null;
-    content.push({ type: "text", text: `Video ${i + 1}: ${v.views.toLocaleString("en")} views. Post caption: "${v.description}"` });
+    content.push({
+      type: "text",
+      text: `Video ${i + 1} (${v.audience === "pets" ? "pet video" : "general video"}): ${v.views.toLocaleString("en")} views. Post caption: "${v.description}"`,
+    });
     if (img) content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: img } });
   }
   content.push({
     type: "text",
     text:
-      `These are TikTok search results for pets at "${scene}". For each video, read the text overlaid on its cover ` +
-      `frame and say whether it's relevant. reusableCaption should be wording another creator could put on a video of ` +
-      `their own dog (${petName}) in the same situation.`,
+      `These are TikTok search results for "${scene}": pet videos, and general videos of the same situation. For each ` +
+      `video, read the text overlaid on its cover frame and say whether it's relevant: a pet video is relevant if it ` +
+      `shows a pet in (or is clearly about) that situation; a general video is relevant if it's about that situation ` +
+      `and its text is relatable to anyone who has been there. reusableCaption should be wording another creator could ` +
+      `put on a video of their own dog (${petName}) in the same situation; for general videos keep it about the shared ` +
+      `human moment so it still speaks to people who aren't into dogs.`,
   });
 
   const out = await structured<{ videos: { n: number; relevant: boolean; onScreenText: string; reusableCaption: string }[] }>({
@@ -243,6 +272,7 @@ export async function researchSceneOnTikTok(scene: string, petName: string): Pro
       views: v.views,
       url: v.url,
       kind: r.onScreenText.trim() ? "overlay" : "description",
+      audience: v.audience,
       note: [v.author && `@${v.author}`, v.postedAt?.slice(0, 10), v.likes && `${v.likes.toLocaleString("en")} likes`]
         .filter(Boolean)
         .join(", "),

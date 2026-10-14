@@ -104,6 +104,10 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0
 .pill{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);margin-bottom:22px}
 .pill b{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.2)}
 h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin:0 0 22px;font-weight:900}
+.rot{display:inline-block;position:relative;vertical-align:bottom}
+.rot .word{display:inline-block;transition:transform .45s cubic-bezier(.2,.7,.2,1),opacity .45s ease}
+.rot .word.out{transform:translateY(-40%);opacity:0}
+.rot .word.in{transform:translateY(40%);opacity:0;transition:none}
 .grad{background:linear-gradient(92deg,var(--accent) 0%,var(--accent2) 45%,var(--yellow) 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .lead{font-size:clamp(17px,2.1vw,21px);color:#c4c4cf;margin:0 0 32px;max-width:31em}
 .ctas{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
@@ -305,7 +309,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
     <div class="hero-in">
       <div>
         <div class="pill r"><b></b>Now in beta</div>
-        <h1 class="r d1">Your camera roll, turned into <span class="grad">TikToks.</span></h1>
+        <h1 class="r d1">Your camera roll, turned into <span class="rot" aria-live="polite"><span class="grad word">TikToks.</span></span></h1>
         <p class="lead r d2">Ready-to-post videos from your camera roll. For everyone who films everything and posts nothing.</p>
         <div class="ctas stack r d3">${cta()}<span class="note">Invite-only for now.</span></div>
       </div>
@@ -401,6 +405,24 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 <div class="wrap"><footer><span>© ${new Date().getFullYear()} Rollcut</span><span>Invite-only beta</span></footer></div>
 
 <script>
+  // The platform word in the headline: TikToks, Reels, Shorts, posts.
+  (() => {
+    const el = document.querySelector(".rot .word");
+    if (!el || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const words = ["TikToks.", "Reels.", "Shorts.", "posts."];
+    let i = 0;
+    setInterval(() => {
+      el.classList.add("out");
+      setTimeout(() => {
+        i = (i + 1) % words.length;
+        el.textContent = words[i];
+        el.classList.remove("out");
+        el.classList.add("in");
+        el.offsetWidth; // restart from below
+        el.classList.remove("in");
+      }, 450);
+    }, 2400);
+  })();
   // Rotate the hero story each loop: new photo, its own text, hashtags and numbers.
   (() => {
     const stories = ${storiesJson};

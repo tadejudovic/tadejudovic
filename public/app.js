@@ -451,6 +451,19 @@ async function refreshAlbums() {
             `${a.videoCount} video${a.videoCount === 1 ? "" : "s"} imported · `,
             a.lastSyncAt ? `checked ${new Date(a.lastSyncAt).toLocaleString()}` : "not checked yet",
           ),
+          h("label", { class: "muted recent" }, "Import ",
+            h("select", {
+              onchange: async (e) => {
+                await api(`/api/albums/${a.id}`, { method: "PATCH", body: { recentDays: Number(e.target.value) } });
+                const r = await api(`/api/albums/${a.id}/sync`, { method: "POST" });
+                banner(r.newItems ? `Found ${r.newItems} video(s) to import…` : "Saved.", "ok");
+                await Promise.all([refreshAlbums(), refreshClips()]);
+              },
+            }, ...[[30, "videos from the last 30 days"], [60, "videos from the last 60 days"], [0, "all videos"]].map(([v, t]) =>
+              h("option", { value: v, selected: (a.recentDays ?? 0) === v }, t))),
+          ),
+          a.tooOld || a.waiting ? h("div", { class: "muted" },
+            [a.tooOld ? `${a.tooOld} older item(s) left out` : "", a.waiting ? `${a.waiting} more will import at the next checks` : ""].filter(Boolean).join(" · ")) : null,
           a.lastError ? h("div", { class: "err" }, a.lastError) : null,
           a.skipped && Object.keys(a.skipped).length
             ? h("div", { class: "muted", title: "What Google returned for items that weren't recognized as videos" },

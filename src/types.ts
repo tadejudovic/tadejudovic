@@ -201,6 +201,12 @@ export interface AlbumSource {
   failures?: Record<string, number>;
   /** What Google answered for items that weren't recognized as videos, counted ("=dv: image/jpeg" → 12). */
   skipped?: Record<string, number>;
+  /** Only import videos taken in the last N days (for live albums that auto-add every video of the pet). 0/unset = all. */
+  recentDays?: number;
+  /** Videos left out at the last check because they're older than recentDays. */
+  tooOld?: number;
+  /** Videos waiting for a later check (each check imports a limited number). */
+  waiting?: number;
 }
 
 /** A text-overlay format that is currently performing on TikTok. */

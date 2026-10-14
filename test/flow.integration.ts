@@ -24,7 +24,7 @@ const { runDailyBatch } = await import("../src/scheduler.ts");
 const { ingestQueue, renderQueue } = await import("../src/queue.ts");
 const wait = async (q: { pending: number }) => { while (q.pending) await new Promise((r) => setTimeout(r, 500)); };
 
-const album = addAlbum("https://photos.app.goo.gl/TestAlbum123");
+const album = addAlbum("https://photos.app.goo.gl/TestAlbum123", 0);
 console.log("first sync:", await syncAlbum(album.id));
 await wait(ingestQueue);
 console.log("clips:", store.clips().map((c) => [c.source, c.status, c.duration, c.capturedAt]));

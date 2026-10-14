@@ -3,12 +3,17 @@ import { fetchAlbum, isAlbumUrl, openVideo, saveResponse } from "./google/shared
 import { enqueueClip, deleteClip, SkipItem } from "./library.ts";
 import type { AlbumSource } from "./types.ts";
 
-export function addAlbum(url: string): AlbumSource {
+/** New albums only import recent videos: a live album that auto-adds every video of the pet can hold years of them. */
+export const DEFAULT_RECENT_DAYS = 30;
+/** At most this many new videos per check, so a big album doesn't eat the AI budget or disk in one go. */
+const MAX_NEW_PER_SYNC = 15;
+
+export function addAlbum(url: string, recentDays = DEFAULT_RECENT_DAYS): AlbumSource {
   url = url.trim();
   if (!isAlbumUrl(url)) throw new Error("Paste a Google Photos shared-album link (photos.app.goo.gl/… or photos.google.com/share/…).");
   const existing = store.albums().find((a) => a.url === url);
   if (existing) return existing;
-  return store.addAlbum({ id: newId(), kind: "google_photos_album", url, addedAt: new Date().toISOString(), seen: [], videoCount: 0 });
+  return store.addAlbum({ id: newId(), kind: "google_photos_album", url, addedAt: new Date().toISOString(), seen: [], videoCount: 0, recentDays });
 }
 
 const syncing = new Set<string>();
@@ -53,7 +58,14 @@ export async function syncAlbum(id: string): Promise<{ newItems: number }> {
       }
     }
     const seen = new Set(store.album(id)!.seen);
-    const fresh = page.items.filter((it) => !seen.has(it.id) && !store.hasSource(it.id));
+    const unseen = page.items.filter((it) => !seen.has(it.id) && !store.hasSource(it.id));
+    // Too-old items aren't marked as seen, so widening the window later picks them up.
+    const days = store.album(id)!.recentDays ?? 0;
+    const cutoff = days > 0 ? Date.now() - days * 86400_000 : 0;
+    const recent = unseen.filter((it) => !it.takenAt || it.takenAt >= cutoff);
+    const newestFirst = recent.sort((a, b) => (b.takenAt ?? 0) - (a.takenAt ?? 0));
+    const fresh = newestFirst.slice(0, MAX_NEW_PER_SYNC);
+    store.updateAlbum(id, { tooOld: unseen.length - recent.length, waiting: recent.length - fresh.length });
     for (const item of fresh) {
       enqueueClip({
         source: "shared_album",
@@ -86,6 +98,10 @@ export async function syncAlbum(id: string): Promise<{ newItems: number }> {
   } finally {
     syncing.delete(id);
   }
+}
+
+export function setRecentDays(id: string, days: number) {
+  return store.updateAlbum(id, { recentDays: Math.max(0, Math.min(3650, Math.round(days))) });
 }
 
 export async function syncAll() {

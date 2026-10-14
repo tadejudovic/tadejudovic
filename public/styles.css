@@ -332,3 +332,4 @@ main { max-width: 980px; }
 
 .scene .tags { margin: 6px 0 4px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
 .scene .tags .tag { white-space: nowrap; }
+.albums .recent select { margin-left: 4px; font: inherit; padding: 2px 4px; max-width: 100%; }

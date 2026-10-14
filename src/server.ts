@@ -12,7 +12,7 @@ import { createSession, getSession, listPicked, deleteSession } from "./google/p
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy } from "./library.ts";
 import { forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRender } from "./generate.ts";
-import { addAlbum, forgetItem, syncAlbum } from "./albums.ts";
+import { addAlbum, forgetItem, setRecentDays, syncAlbum } from "./albums.ts";
 import { localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
@@ -261,6 +261,13 @@ app.post(
     res.json(await syncAlbum(String(req.params.id)));
   }),
 );
+
+app.patch("/api/albums/:id", (req, res) => {
+  const days = Number(req.body?.recentDays);
+  if (!store.album(String(req.params.id))) return res.status(404).json({ error: "Unknown album" });
+  if (Number.isFinite(days)) setRecentDays(String(req.params.id), days);
+  res.json(store.album(String(req.params.id)));
+});
 
 app.delete("/api/albums/:id", (req, res) => {
   store.removeAlbum(String(req.params.id));

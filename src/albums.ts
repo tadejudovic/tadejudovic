@@ -7,13 +7,15 @@ import type { AlbumSource, Clip } from "./types.ts";
 /** New albums only import recent videos: a live album that auto-adds every video of the pet can hold years of them. */
 export const DEFAULT_RECENT_DAYS = 30;
 /**
- * Clips are imported only as they're needed: enough unused footage for the next round plus a
- * couple spare. Importing costs AI analysis per clip, so the rest of the album waits until
- * reviews use these up. (Items left waiting aren't marked seen, so later checks pick them up.)
+ * Clips are imported as they're needed: enough usable footage for the next five rounds plus a
+ * couple spare, so rounds can rotate situations and pick the strongest moments, and fast
+ * reviewing never waits on imports. The rest of the album waits until reviews use these up.
+ * (Items left waiting aren't marked seen, so later checks pick them up.)
  */
+const ROUNDS_AHEAD = 5;
 const SPARE_CLIPS = 2;
-/** At most this many album clips are imported (and analyzed by the AI) per day. */
-export const MAX_IMPORTS_PER_DAY = 30;
+/** At most this many album clips are imported (and analyzed by the AI, ~$0.001 each) per day. */
+export const MAX_IMPORTS_PER_DAY = 80;
 export function importBudget(): number {
   // Only footage that can actually be used counts: off-topic clips (beach, random) don't stop the
   // importer from looking further through the album for airport/plane clips.
@@ -21,7 +23,7 @@ export function importBudget(): number {
   const inFlight = store.clips().filter((c) => c.status === "importing" || c.status === "analyzing").length;
   const today = new Date().toDateString();
   const importedToday = store.clips().filter((c) => c.source === "shared_album" && new Date(c.importedAt).toDateString() === today).length;
-  return Math.max(0, Math.min(store.auto().dailyCount + SPARE_CLIPS - unused - inFlight, MAX_IMPORTS_PER_DAY - importedToday));
+  return Math.max(0, Math.min(store.auto().dailyCount * ROUNDS_AHEAD + SPARE_CLIPS - unused - inFlight, MAX_IMPORTS_PER_DAY - importedToday));
 }
 
 export function addAlbum(pasted: string, recentDays = DEFAULT_RECENT_DAYS): AlbumSource {

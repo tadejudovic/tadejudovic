@@ -1,6 +1,6 @@
 import { config } from "./config.ts";
 import { store } from "./store.ts";
-import { syncAll } from "./albums.ts";
+import { importBudget, syncAll } from "./albums.ts";
 import { plan, queueRender, isPortrait, onTopic } from "./generate.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
 
@@ -39,6 +39,8 @@ export function setPaused(value: boolean) {
   paused = value;
 }
 let lastAttempt = 0;
+let lastTopUp = 0;
+const TOP_UP_EVERY_MS = 2 * 60_000;
 /** Why the last automatic round couldn't be made (shown in the app instead of an endless spinner). */
 export let lastRoundError: { message: string; at: string } | null = null;
 let batchRunning = false;
@@ -58,6 +60,17 @@ async function runDue({ afterReview = false } = {}) {
     lastSync = Date.now();
     const { newItems } = await syncAll();
     if (newItems) console.log(`[scheduler] ${newItems} new album item(s) found`);
+  } else if (
+    // Keep the pipeline full between the regular checks: photos and off-topic clips use up import
+    // slots, so as soon as imports finish and there's room for more, take the next ones waiting.
+    ingestQueue.pending === 0 &&
+    Date.now() - lastTopUp > TOP_UP_EVERY_MS &&
+    store.albums().some((a) => (a.waiting ?? 0) > 0) &&
+    importBudget() > 0
+  ) {
+    lastTopUp = Date.now();
+    const { newItems } = await syncAll();
+    if (newItems) console.log(`[scheduler] topping up: importing ${newItems} more album item(s)`);
   }
   // Let imports (download, analysis, situation sorting) finish before picking clips.
   if (ingestQueue.pending > 0) return;

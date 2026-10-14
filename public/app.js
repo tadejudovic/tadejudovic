@@ -1500,7 +1500,13 @@ function renderHomeState() {
   const vt = state.status?.videosToday;
   const atLimit = vt && vt.made >= vt.limit;
   const keptCount = state.renders.filter((r) => r.status === "done" && r.review === "approved" && !r.downloaded).length;
-  const readyClips = state.clips.filter((c) => c.status === "ready" && c.height >= c.width && !c.disliked);
+  // Only clips a round can actually use (same rules as the server): unused, not already an edit or
+  // a duplicate, and, with "only my situations" on, sorted into one of them.
+  const st = state.status?.settings;
+  const strict = st?.onlySituations && state.status?.claude?.enabled;
+  const fresh = state.clips.filter((c) => c.status === "ready" && c.height >= c.width && !c.disliked && !c.edited && !c.duplicateOf && !c.uses);
+  const readyClips = fresh.filter((c) => !strict || (c.scene && st.scenes.includes(c.scene)));
+  const unsorted = strict ? fresh.filter((c) => !c.scene).length : 0;
   const n = readyClips.length;
   const time = state.auto?.dailyTime ?? "08:00";
   const caughtUp = vt?.made > 0;
@@ -1511,7 +1517,9 @@ function renderHomeState() {
       ? `${caughtUp ? "" : `Videos are made every morning at ${time}. `}Want ${caughtUp ? "more" : "them now"}? Make the next round.`
       : importing
         ? "Your clips are being imported. Videos will follow."
-        : "Add videos to your Google Photos album; new ones are picked up every few hours.";
+        : unsorted
+          ? `${unsorted} clip${unsorted === 1 ? " is" : "s are"} still being sorted into your situations.`
+          : "None of your clips are from your situations yet. New videos in your albums are picked up every few hours.";
   $("#btn-batch-empty").hidden = !n || atLimit;
   $("#btn-batch-empty").textContent = "Make the next round";
   $("#btn-batch").hidden ||= !$("#batch-empty").hidden;

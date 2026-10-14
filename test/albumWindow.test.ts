@@ -30,13 +30,13 @@ test("new albums only import videos from the last 30 days; old ones aren't marke
   globalThis.fetch = realFetch;
 });
 
-test("clips are imported only as the next round needs them", async () => {
+test("clips are imported as the next five rounds need them", async () => {
   const { importBudget } = await import("../src/albums.ts");
   for (const c of store.clips()) store.updateClip(c.id, { status: "error" });
   store.updateAuto({ dailyCount: 5 });
-  assert.equal(importBudget(), 7); // a round of 5 + 2 spare
+  assert.equal(importBudget(), 27); // 5 rounds of 5 + 2 spare
   const base = { source: "upload", filename: "x.mp4", file: "/x", kind: "video", importedAt: "", duration: 5, width: 1080, height: 1920, hasAudio: true, uses: 0 } as any;
-  for (let i = 0; i < 6; i++) store.addClip({ ...base, id: `u${i}`, status: "ready" });
+  for (let i = 0; i < 26; i++) store.addClip({ ...base, id: `u${i}`, status: "ready" });
   store.addClip({ ...base, id: "busy", status: "importing" });
   assert.equal(importBudget(), 0); // enough unused footage: nothing more is imported
 });

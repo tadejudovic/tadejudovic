@@ -27,6 +27,8 @@ export function withThreadLimit(args: string[]): string[] {
   return out;
 }
 
+const RUN_LIMIT_MS = Number(process.env.FFMPEG_TIME_LIMIT_MS) || 30 * 60_000;
+
 /** Run ffmpeg/ffprobe and collect output. Rejects with the tail of stderr on failure. */
 export function run(
   bin: "ffmpeg" | "ffprobe",
@@ -36,6 +38,9 @@ export function run(
   if (bin === "ffmpeg") args = withThreadLimit(args);
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
+    // A hung ffmpeg would block the single heavy-work lane forever: stop it after 30 minutes.
+    const killer = setTimeout(() => proc.kill("SIGKILL"), RUN_LIMIT_MS);
+    proc.on("close", () => clearTimeout(killer));
     const out: Buffer[] = [];
     let err = "";
     proc.stdout.on("data", (d: Buffer) => out.push(d));

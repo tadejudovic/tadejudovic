@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
 
 /**
  * Read a public Google Photos shared-album link (photos.app.goo.gl/… or
@@ -232,14 +233,20 @@ export async function openVideo(item: AlbumItem, suffixes = ["=m37", "=m22", "=d
   // original, and light to decode on a small server. The original (=dv) is the fallback.
   for (const suffix of suffixes) {
     let res: Response;
+    // Google sometimes never answers: give up on this version after 45s instead of waiting forever.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(new Error("no answer within 45s")), 45_000);
     try {
       res = await fetch(`${item.baseUrl}${suffix}`, {
         headers: { ...HEADERS, referer: "https://photos.google.com/" },
         redirect: "follow",
+        signal: ctrl.signal,
       });
     } catch (err) {
       answers.push(`${suffix}: ${(err as Error).message}`);
       continue;
+    } finally {
+      clearTimeout(timer);
     }
     const type = (res.headers.get("content-type") ?? "?").split(";")[0];
     if (!res.ok || !res.body) {
@@ -296,9 +303,29 @@ async function peek(stream: ReadableStream<Uint8Array>, n: number) {
   return { head: new Uint8Array(head), body };
 }
 
-export async function saveResponse(res: Response, dest: string) {
+/**
+ * Save a download to disk. A download that stops sending data (it happens with Google's video
+ * servers) is abandoned after `stallMs`, so one stuck clip can't block every import behind it.
+ */
+export async function saveResponse(res: Response, dest: string, stallMs = 60_000) {
   if (!res.body) throw new Error("Empty download");
-  await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(dest));
+  let timer: NodeJS.Timeout | undefined;
+  const watchdog = new Transform({
+    transform(chunk, _enc, cb) {
+      arm();
+      cb(null, chunk);
+    },
+  });
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => watchdog.destroy(new Error(`Download stalled (no data for ${Math.round(stallMs / 1000)}s)`)), stallMs);
+  };
+  arm();
+  try {
+    await pipeline(Readable.fromWeb(res.body as any), watchdog, fs.createWriteStream(dest));
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const decodeEntities = (s: string) =>

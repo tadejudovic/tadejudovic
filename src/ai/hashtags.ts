@@ -69,7 +69,7 @@ export async function postCount(tag: string): Promise<number | undefined> {
   ];
   for (const url of urls) {
     try {
-      const res = await fetch(url, { headers: { "user-agent": UA, "accept-language": "en-US,en;q=0.9" }, signal: AbortSignal.timeout(15_000) });
+      const res = await fetch(url, { headers: { "user-agent": UA, "accept-language": "en-US,en;q=0.9" }, signal: AbortSignal.timeout(6_000) });
       if (!res.ok) continue;
       const n = parseVideoCount(await res.text());
       if (n) return n;
@@ -82,9 +82,13 @@ export async function postCount(tag: string): Promise<number | undefined> {
 export async function chooseHashtags(cands: TagCandidate[], lookup = postCount, max = 20): Promise<{ picked: PickedHashtag[]; looked: number; found: number }> {
   const top = cands.slice(0, max);
   let found = 0;
+  let missesInARow = 0;
   for (const c of top) {
     c.posts = await lookup(c.tag);
     if (c.posts) found++;
+    // TikTok often blocks these lookups outright; don't spend minutes confirming it.
+    missesInARow = c.posts ? 0 : missesInARow + 1;
+    if (!found && missesInARow >= 3) break;
   }
   return { picked: pickThree(top), looked: top.length, found };
 }

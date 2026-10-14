@@ -43,6 +43,7 @@ export function setPaused(value: boolean) {
 let lastAttempt = 0;
 let lastTopUp = 0;
 let lastArchive = 0;
+let researching = false;
 let lastRelook = Date.now(); // startup already queues them
 const TOP_UP_EVERY_MS = 2 * 60_000;
 /** Why the last automatic round couldn't be made (shown in the app instead of an endless spinner). */
@@ -92,13 +93,6 @@ async function runDue({ afterReview = false } = {}) {
   // Don't wait for a whole import to finish: once a few usable clips are sorted, start the round
   // (renders jump ahead of the remaining imports).
   if (ingestQueue.pending > 0 && usableClips() < enoughToStart()) return;
-  // Keep caption research fresh for situations that have clips waiting, one situation per tick,
-  // so suggestions can show the caption they'd use before anything is made.
-  if (config.claude.enabled) {
-    const waiting = new Set(store.clips().filter((c) => c.status === "ready" && c.uses === 0 && c.scene).map((c) => c.scene!));
-    const next = store.settings().scenes.find((sc) => waiting.has(sc) && researchStale(sc) && !store.research(sc)?.error);
-    if (next) await researchScene(next).catch((err) => console.warn(`[research] ${next}:`, (err as Error).message));
-  }
   const [hh, mm] = auto.dailyTime.split(":").map(Number);
   const now = new Date();
   // The first round of the day is ready by the set time; later rounds follow each finished review.
@@ -115,6 +109,18 @@ async function runDue({ afterReview = false } = {}) {
     } catch (err) {
       lastRoundError = { message: (err as Error).message, at: new Date().toISOString() };
       throw err;
+    }
+  }
+  // Keep caption research fresh for situations that have clips waiting, one situation per tick,
+  // after the round so it never delays videos.
+  if (config.claude.enabled && !batchRunning && !researching) {
+    const waiting = new Set(store.clips().filter((c) => c.status === "ready" && c.uses === 0 && c.scene).map((c) => c.scene!));
+    const next = store.settings().scenes.find((sc) => waiting.has(sc) && researchStale(sc) && !store.research(sc)?.error);
+    if (next) {
+      researching = true;
+      await researchScene(next)
+        .catch((err) => console.warn(`[research] ${next}:`, (err as Error).message))
+        .finally(() => (researching = false));
     }
   }
 }

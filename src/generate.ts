@@ -110,10 +110,12 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
   if (req.template === "auto") {
     // Footage first: each video is built around one clip, directed from what's in it.
     const chosen = req.clipIds?.length ? rankClips(clips).slice(0, req.count) : pickBySituation(clips, req.count);
-    // Make sure each situation has fresh caption research (every two weeks), like checking TikTok before posting.
+    // Each situation needs caption research (TikTok's most-viewed videos) before its first video.
+    // Research that's merely old is still used, and refreshed later, so it never holds up a round.
     if (aiOn) {
       const scenes = [...new Set(chosen.map((c) => c.scene).filter((x): x is string => !!x && x !== "other"))];
-      await mapLimit(scenes.filter(researchStale), 2, (scene) =>
+      const never = scenes.filter((sc) => researchStale(sc) && !store.research(sc)?.captions.length);
+      await mapLimit(never, 2, (scene) =>
         researchScene(scene).catch((err) => console.warn(`[research] ${scene}:`, (err as Error).message)),
       );
     }

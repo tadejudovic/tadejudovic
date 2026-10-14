@@ -124,12 +124,22 @@ export async function analyzeClip(id: string) {
   if (config.claude.enabled) await aiTag(id);
 }
 
+/** The last error from the cheap model, if it failed (shown in diagnostics). */
+export let fastModelError: string | undefined;
+
 /** Claude's look at a clip: its situation, best moments, and whether it's already an edited video. */
 export async function aiTag(id: string) {
   const current = store.clip(id);
   if (!current) return;
   try {
-    const { scene, alreadyEdited, ...ai } = await tagClip(current, store.settings().petName, store.settings().scenes);
+    const { petName, scenes } = store.settings();
+    // The cheap model first; if it fails, the main model, so sorting never silently stops.
+    const { scene, alreadyEdited, ...ai } = await tagClip(current, petName, scenes).catch((err: Error) => {
+      if (config.claude.fastModel === config.claude.model) throw err;
+      console.warn(`[ai] fast model failed on ${current.filename} (${err.message}); trying ${config.claude.model}`);
+      fastModelError = err.message.slice(0, 300);
+      return tagClip(current, petName, scenes, config.claude.model);
+    });
     // Never overwrite a situation the creator picked by hand.
     const keepScene = current.sceneSetBy === "creator";
     store.updateClip(id, { ai, edited: alreadyEdited, tagError: undefined, ...(keepScene ? {} : { scene, sceneSetBy: "ai" as const }) });

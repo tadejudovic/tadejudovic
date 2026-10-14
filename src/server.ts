@@ -9,7 +9,7 @@ import { store, newId } from "./store.ts";
 import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
-import { enqueueClip, importPicked, analyzeClip, aiTag, deleteClip, ensureProxy } from "./library.ts";
+import { enqueueClip, importPicked, analyzeClip, aiTag, deleteClip, ensureProxy, fastModelError } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses } from "./generate.ts";
 import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
@@ -85,6 +85,7 @@ app.get("/api/diagnostics", (_req, res) => {
       landscape: clips.filter((c) => c.status === "ready" && c.width > c.height).length,
       errors: [...new Set(clips.filter((c) => c.error).map((c) => c.error!))].slice(0, 10),
       tagErrors: [...new Set(clips.filter((c) => c.tagError).map((c) => c.tagError!))].slice(0, 5),
+      fastModelError,
       edited: clips.filter((c) => c.edited).length,
       duplicates: clips.filter((c) => c.duplicateOf).length,
     },

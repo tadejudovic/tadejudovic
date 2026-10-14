@@ -76,6 +76,7 @@ export async function tagClip(
   clip: Clip,
   petName: string,
   scenes: string[],
+  model = config.claude.fastModel,
 ): Promise<NonNullable<Clip["ai"]> & { scene: string; alreadyEdited: boolean }> {
   // Four frames on the small, fast model: enough to tell the situation and the best moments, for a tenth of a cent.
   const frames = Math.max(2, Math.min(4, Math.ceil(clip.duration / 2)));
@@ -124,7 +125,7 @@ export async function tagClip(
     content,
     schema,
     effort: "low",
-    model: config.claude.fastModel,
+    model,
   });
   result.moments = result.moments
     .map((m) => clampMoment(m, clip.duration))

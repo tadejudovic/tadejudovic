@@ -397,10 +397,12 @@ function renderStack() {
   const queue = toReview();
   $("#stack").hidden = !queue.length && !stack.whyFor;
   // While reviewing, only the card is on screen; kept and earlier videos show once you're through.
-  $('section[data-tab="review"]').classList.toggle("reviewing", queue.length > 0);
+  $('section[data-tab="review"]').classList.toggle("reviewing", queue.length > 0 || !!stack.whyFor);
   $("#stack-undo").hidden = !stack.history.length;
-  const r = queue.find((x) => x.id === stack.shownId) ?? queue[0];
+  // A rejection needs its reason before the next video shows.
+  const r = stack.whyFor ? null : queue.find((x) => x.id === stack.shownId) ?? queue[0];
   $(".stack-actions").hidden = !r;
+  $("#stack-why").hidden = !stack.whyFor;
   if (!r) {
     stack.shownId = null;
     $("#stack-stage").replaceChildren();
@@ -535,20 +537,21 @@ function decide(dir) {
   const review = dir === "right" ? "approved" : "rejected";
   stack.history.push(r.id);
   stack.whyFor = review === "rejected" ? r.id : null;
-  $("#stack-why").hidden = review !== "rejected";
   r.review = review;
+  if (!toReview().length) state.nextRoundUntil = Date.now() + 6 * 60_000;
   if (review === "approved") banner("Kept and saved. It's under “Kept” if you need it again.", "ok");
   api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } }).catch((err) => banner(err.message));
-  setTimeout(() => { stack.shownId = null; renderStack(); renderBatch(); }, 230);
+  setTimeout(() => { stack.shownId = null; renderStack(); renderBatch(); renderHomeState(); }, 230);
 }
 
 $("#stack-why").addEventListener("click", (e) => {
   const reason = e.target.dataset?.reason;
   if (!reason || !stack.whyFor) return;
   api(`/api/renders/${stack.whyFor}`, { method: "PATCH", body: { rejectReason: reason } }).catch((err) => banner(err.message));
-  $("#stack-why").hidden = true;
   stack.whyFor = null;
   renderStack();
+  renderBatch();
+  renderHomeState();
 });
 
 $("#stack-undo").addEventListener("click", async () => {
@@ -568,7 +571,7 @@ $("#stack-undo").addEventListener("click", async () => {
 $("#stack-yes").addEventListener("click", () => decide("right"));
 $("#stack-no").addEventListener("click", () => decide("left"));
 document.addEventListener("keydown", (e) => {
-  if ($("#stack").hidden || e.target.closest?.("input, textarea, select")) return;
+  if ($("#stack").hidden || stack.whyFor || e.target.closest?.("input, textarea, select")) return;
   if (e.key === "ArrowRight") decide("right");
   else if (e.key === "ArrowLeft") decide("left");
 });
@@ -1206,6 +1209,12 @@ function renderHomeState() {
   const parts = [];
   if (importing) parts.push(`Importing ${importing} clip${importing === 1 ? "" : "s"} from your album…`);
   if (making) parts.push(`Making ${making} video${making === 1 ? "" : "s"}…`);
+  const reviewing = state.renders.some((r) => r.status === "done" && r.review === "pending");
+  const vt = state.status?.videosToday;
+  if (!making && !reviewing && state.renders.length) {
+    if (vt && vt.made >= vt.limit) parts.push(`All reviewed. That's today's ${vt.limit} videos; the next round comes tomorrow at ${state.auto?.dailyTime ?? "08:00"}.`);
+    else if (state.nextRoundUntil > Date.now()) parts.push("All reviewed. Making the next round of videos (1–3 min)…");
+  }
   $("#activity").textContent = parts.join(" ");
   $("#activity").hidden = !parts.length;
   // Clips are raw footage; show them so "ready" means something, and offer to make videos right away.
@@ -1274,4 +1283,11 @@ setInterval(async () => {
   if (busyClips || busyRenders) renderHomeState();
   if (busyRenders) await refreshRenders().catch(() => {});
   if (state.examplesBusy) await refreshExamples().catch(() => {});
+  // After the last swipe the server plans the next round; check every 10s until its videos show up.
+  if (!busyRenders && state.nextRoundUntil > Date.now() && ++state.roundTicks % 5 === 0) {
+    await Promise.all([refreshRenders(), loadStatus()]).catch(() => {});
+    if (state.renders.some((r) => r.status === "queued" || r.status === "rendering")) state.nextRoundUntil = 0;
+    renderHomeState();
+  }
 }, 2000);
+state.roundTicks = 0;

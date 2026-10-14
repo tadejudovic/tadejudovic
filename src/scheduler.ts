@@ -3,6 +3,19 @@ import { store } from "./store.ts";
 import { syncAll } from "./albums.ts";
 import { plan, queueRender, isPortrait } from "./generate.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
+
+/**
+ * Videos are made in rounds: the next batch only starts once every video of the last one
+ * has been reviewed (kept or rejected), so each decision can shape the next round.
+ */
+export function awaitingReview(): number {
+  return store.renders().filter((r) => r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending")).length;
+}
+
+/** Called after a review: if that was the last one, start the next round right away. */
+export function afterReview() {
+  if (awaitingReview() === 0) runDue({ afterReview: true }).catch((err) => console.error("[scheduler]", err));
+}
 import { refreshTrends, trendsStale } from "./ai/trends.ts";
 import { ingestQueue } from "./queue.ts";
 import { researchScene, researchStale } from "./ai/research.ts";
@@ -37,7 +50,7 @@ export function startScheduler() {
   setInterval(tick, 60_000);
 }
 
-async function runDue() {
+async function runDue({ afterReview = false } = {}) {
   const auto = store.auto();
   if (!auto.enabled || paused) return;
   if (store.albums().length && Date.now() - lastSync > auto.syncEveryHours * 3600_000) {
@@ -56,11 +69,13 @@ async function runDue() {
   }
   const [hh, mm] = auto.dailyTime.split(":").map(Number);
   const now = new Date();
-  const due = now.getHours() * 60 + now.getMinutes() >= hh * 60 + mm;
+  // The first round of the day is ready by the set time; later rounds follow each finished review.
+  const due = afterReview || now.getHours() * 60 + now.getMinutes() >= hh * 60 + mm;
   // If a batch fails (e.g. no footage yet), retry every 30 minutes rather than every tick.
-  if (due && auto.lastBatchDate !== today() && Date.now() - lastAttempt > 30 * 60_000) {
+  if (due && !batchRunning && awaitingReview() === 0 && videosLeftToday() > 0 && (afterReview || Date.now() - lastAttempt > 30 * 60_000)) {
     lastAttempt = Date.now();
-    await runDailyBatch();
+    const r = await runDailyBatch({ force: true });
+    if (r.renders.length) lastAttempt = 0;
   }
 }
 
@@ -72,6 +87,12 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
   const date = today();
   try {
     if (!opts.force && auto.lastBatchDate === date) return { renders: [], skipped: "already done today" };
+    // Every video of the last round needs a decision before more are made.
+    const waiting = awaitingReview();
+    if (waiting) {
+      if (opts.force) throw new Error(`Review the ${waiting} video${waiting === 1 ? "" : "s"} you have first (swipe right or left). Then the next ones are made.`);
+      return { renders: [], skipped: "waiting for review" };
+    }
     // Checked before any AI call, so a reached limit costs nothing.
     const left = videosLeftToday();
     if (!left) {

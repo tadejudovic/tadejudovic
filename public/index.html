@@ -53,10 +53,14 @@
         </div>
         <div id="stack-stage" class="stack-stage"></div>
         <div id="stack-why" class="stack-why" hidden>
-          <span>What was wrong?</span>
-          <button data-reason="text">The text</button>
-          <button data-reason="clip">The clip</button>
-          <button data-reason="edit">The cut</button>
+          <b>What was wrong?</b>
+          <span class="muted">Your answer shapes the next videos.</span>
+          <div class="why-options">
+            <button data-reason="text">The text</button>
+            <button data-reason="clip">The clip</button>
+            <button data-reason="edit">The cut</button>
+            <button data-reason="other">Something else</button>
+          </div>
         </div>
         <div class="stack-actions">
           <button id="stack-no" class="round no" aria-label="Reject (swipe left)">
@@ -136,7 +140,7 @@
           <span class="muted" id="videos-today"></span>
         </form>
         <form id="auto" class="grid-form spaced">
-          <label>Videos per day <input type="number" name="dailyCount" min="1" max="10" /></label>
+          <label>Videos per round <input type="number" name="dailyCount" min="1" max="10" /></label>
           <label>Ready by <input type="time" name="dailyTime" /></label>
           <label>Length
             <select name="targetSeconds"><option value="10">10s</option><option value="12">12s</option><option value="15">15s</option><option value="20">20s</option></select>

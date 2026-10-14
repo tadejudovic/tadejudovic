@@ -371,7 +371,11 @@ main { max-width: 980px; }
 .round.yes { background: #16a34a; color: #fff; border: 2.5px solid #16a34a; box-shadow: 0 6px 18px rgba(22,163,74,.35); }
 .round.no:hover { background: #fef2f2; }
 .round.yes:hover { background: #15803d; }
-.stack-why { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.stack-why { width: min(100%, 400px); display: grid; gap: 6px; justify-items: center; text-align: center; padding: 22px 16px;
+  background: #fff; border: 1px solid #d4d4d8; border-radius: 22px; box-shadow: 0 12px 32px rgba(0,0,0,.1); font-size: 14px; }
+.stack-why b { font-size: 18px; }
+.why-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 8px; }
 .stack-why[hidden] { display: none; }
-.stack-why button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font: inherit; color: var(--ink); cursor: pointer; }
-.reviewing #kept-title, .reviewing #batch, .reviewing .fold.earlier, .reviewing #batch-empty { display: none !important; }
+.stack-why button { border: 1.5px solid #d4d4d8; background: #fff; border-radius: 12px; padding: 12px; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; }
+.stack-why button:hover { border-color: var(--ink); }
+.reviewing #btn-batch, .reviewing #kept-title, .reviewing #batch, .reviewing .fold.earlier, .reviewing #batch-empty { display: none !important; }

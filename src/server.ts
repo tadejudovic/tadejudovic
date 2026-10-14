@@ -14,7 +14,7 @@ import { forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from 
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRender } from "./generate.ts";
 import { addAlbum, forgetItem, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
-import { localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
+import { afterReview, awaitingReview, localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
@@ -104,6 +104,7 @@ app.get("/api/status", (_req, res) => {
     memoryMb,
     tiktokSearch: apifyEnabled(),
     videosToday: { made: videosMadeToday(), limit: dailyLimit() },
+    awaitingReview: awaitingReview(),
     settings: store.settings(),
     templates: Object.values(TEMPLATES).map(({ id, name, description }) => ({ id, name, description })),
     music: listMusic(),
@@ -550,6 +551,8 @@ app.patch("/api/renders/:id", (req, res) => {
   const clipIds = [...new Set(r.plan.segments.map((s) => s.clipId))];
   if (now.review === "rejected" && now.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: true });
   else if (r.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: false });
+  // Last video of the round reviewed: start the next round.
+  if (review && review !== "pending") afterReview();
   res.json(store.render(r.id));
 });
 

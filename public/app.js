@@ -524,9 +524,13 @@ function prefetchFile(r) {
 function saveVideo(r) {
   const file = files.get(r.id);
   const markSaved = () => api(`/api/renders/${r.id}`, { method: "PATCH", body: { downloaded: true } }).then(() => (r.downloaded = true)).catch(() => {});
+  // The caption + hashtags go on the clipboard, ready to paste into TikTok / Instagram.
+  const caption = [r.plan.postCaption, r.plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
+  navigator.clipboard?.writeText(caption).catch(() => {});
   const isPhone = matchMedia("(pointer: coarse)").matches;
   if (isPhone && file && navigator.canShare?.({ files: [file] })) {
-    navigator.share({ files: [file] }).then(markSaved).catch(() => {});
+    // Opens the phone's share sheet: pick TikTok, Instagram, YouTube… (or Save Video).
+    navigator.share({ files: [file], text: caption }).then(markSaved).catch(() => {});
     return;
   }
   const a = h("a", { href: `/media/render/${r.id}.mp4?dl=1`, download: fileName(r) });
@@ -550,7 +554,7 @@ function decide(dir) {
     state.nextRoundUntil = Date.now() + 6 * 60_000;
     state.roundStartedAt = new Date().toISOString();
   }
-  if (review === "approved") banner("Saved to your phone. It's also in Ready.", "ok");
+  if (review === "approved") banner("Caption copied. Pick the app to post to, then paste the caption. The video is also in Ready.", "ok");
   api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } }).catch((err) => banner(err.message));
   setTimeout(() => { stack.shownId = null; renderStack(); renderBatch(); renderRenders(); renderHomeState(); }, 230);
 }

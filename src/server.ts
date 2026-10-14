@@ -260,9 +260,11 @@ app.post(
   "/api/albums",
   h(async (req, res) => {
     const album = addAlbum(String(req.body?.url ?? ""));
-    // First sync right away so the creator sees videos arriving.
-    const result = await syncAlbum(album.id).catch((err: Error) => ({ error: err.message }));
-    res.json({ album, ...result });
+    // First check right away so videos start arriving. The album is saved already; if Google is
+    // slow, answer anyway and let the check finish in the background.
+    const sync = syncAlbum(album.id).catch((err: Error) => ({ error: err.message }));
+    const result = await Promise.race([sync, new Promise<{ pending: true }>((r) => setTimeout(() => r({ pending: true }), 12_000))]);
+    res.json({ album: store.album(album.id) ?? album, ...result });
   }),
 );
 

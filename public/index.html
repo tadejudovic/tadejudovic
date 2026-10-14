@@ -25,7 +25,7 @@
         <b>Connect your Google Photos album</b>
         <p>Put the videos you want to use in a shared album, turn on link sharing, and paste the link here. Rollcut makes new videos from it every morning.</p>
         <form id="onboard-form" class="inline-form">
-          <input name="url" type="url" placeholder="https://photos.app.goo.gl/…" required />
+          <input name="url" type="text" inputmode="url" autocomplete="off" placeholder="https://photos.app.goo.gl/…" required />
           <button class="btn primary" type="submit">Connect</button>
         </form>
       </div>
@@ -131,8 +131,8 @@
         <div class="sp-body">
         <p class="sp-intro">Put the videos you want to use in shared Google Photos albums and paste their links here, as many as you like. New videos are picked up every few hours, and a video that's in more than one album is only imported once.</p>
         <form id="album-form" class="inline-form">
-          <input name="url" type="url" placeholder="Paste a shared-album link (photos.google.com/share/… works best)" required />
-          <button class="btn" type="submit">Add</button>
+          <input name="url" type="text" inputmode="url" autocomplete="off" placeholder="Paste a shared-album link (photos.google.com/share/… works best)" required />
+          <button class="btn" type="submit">Add album</button>
         </form>
         <ul id="albums" class="albums"></ul>
         <p class="hint">Tip: make the album add Lex by itself: in Google Photos open the album, ⋮ → Options → Automatically add → People &amp; pets → Lex. New albums use videos from the last 30 days. Clips are imported only as they're needed for the next round, so nothing is spent on footage before you've reviewed what's there.</p>

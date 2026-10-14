@@ -64,3 +64,11 @@ test("follows a chain of short links to the album", async () => {
     globalThis.fetch = real;
   }
 });
+
+test("album links are found in pasted share text", async () => {
+  const { albumUrlFrom } = await import("../src/google/sharedAlbum.ts");
+  assert.equal(albumUrlFrom("Check out this album: https://photos.app.goo.gl/AbC123xyz"), "https://photos.app.goo.gl/AbC123xyz");
+  assert.equal(albumUrlFrom("photos.app.goo.gl/AbC123xyz"), "https://photos.app.goo.gl/AbC123xyz");
+  assert.equal(albumUrlFrom(" https://photos.google.com/share/AF1Qip?key=abc. "), "https://photos.google.com/share/AF1Qip?key=abc");
+  assert.equal(albumUrlFrom("http://photos.app.goo.gl/x1"), "https://photos.app.goo.gl/x1");
+});

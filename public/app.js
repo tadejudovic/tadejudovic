@@ -867,7 +867,6 @@ async function refreshAlbums() {
   // Once one album is connected, make it obvious the box adds another rather than replacing it.
   const input = $("#album-form").url;
   input.placeholder = albums.length ? "Paste another shared-album link" : "Paste a shared-album link (photos.google.com/share/… works best)";
-  $("#album-form button").textContent = albums.length ? "Add album" : "Add";
   $("#albums").replaceChildren(
     ...albums.map((a, i) =>
       h("li", {},
@@ -876,7 +875,7 @@ async function refreshAlbums() {
           h("a", { href: a.url, target: "_blank", rel: "noopener", class: "muted" }, "open"),
           h("div", { class: "muted" },
             `${a.videoCount} video${a.videoCount === 1 ? "" : "s"} imported · `,
-            a.lastSyncAt ? `checked ${new Date(a.lastSyncAt).toLocaleString()}` : "not checked yet",
+            a.lastSyncAt ? `checked ${new Date(a.lastSyncAt).toLocaleString()}` : "reading the album…",
           ),
           h("label", { class: "muted recent" }, "Import ",
             h("select", {
@@ -919,17 +918,26 @@ async function refreshAlbums() {
   );
 }
 
-$("#album-form").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  withBusy(form.querySelector("button"), "Reading album…", async () => {
+/** Add an album. It's saved straight away; if Google is slow to answer, reading it carries on in the background. */
+async function addAlbum(form, busyLabel) {
+  await withBusy(form.querySelector("button"), busyLabel, async () => {
     const r = await api("/api/albums", { method: "POST", body: { url: form.url.value } });
-    if (r.error) banner(`Album saved, but reading it failed: ${r.error}`);
     form.reset();
     await Promise.all([refreshAlbums(), refreshClips()]);
     const n = state.albumCount;
-    if (!r.error) banner(`Added “${r.album.title || "album"}”${n > 1 ? `, now watching ${n} albums` : ""}. ${r.newItems} item(s) found; videos are importing now.`, "ok");
+    const name = `“${r.album.title || "album"}”${n > 1 ? `, now watching ${n} albums` : ""}`;
+    if (r.error) banner(`Added ${name}, but reading it failed: ${r.error}`);
+    else if (r.pending) banner(`Added ${name}. Google is slow to answer; it keeps reading the album in the background.`, "ok");
+    else banner(`Added ${name}. ${r.newItems} item(s) found; videos are importing now.`, "ok");
+    // Pick up the result of a check that's still running.
+    if (r.pending) for (const ms of [15_000, 45_000, 90_000]) setTimeout(() => Promise.all([refreshAlbums(), refreshClips()]).catch(() => {}), ms);
+    renderHomeState();
   });
+}
+
+$("#album-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  addAlbum(e.currentTarget, "Adding…");
 });
 
 // ---- Daily batch --------------------------------------------------------------
@@ -1510,15 +1518,7 @@ function renderHomeState() {
 
 $("#onboard-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  const form = e.currentTarget;
-  withBusy(form.querySelector("button"), "Connecting…", async () => {
-    const r = await api("/api/albums", { method: "POST", body: { url: form.url.value } });
-    if (r.error) banner(`Couldn't read the album: ${r.error}`);
-    else banner(`Connected “${r.album.title || "your album"}”. Importing videos now.`, "ok");
-    form.reset();
-    await Promise.all([refreshAlbums(), refreshClips()]);
-    renderHomeState();
-  });
+  addAlbum(e.currentTarget, "Connecting…");
 });
 
 // ---- Tabs -------------------------------------------------------------------

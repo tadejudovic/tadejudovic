@@ -69,6 +69,21 @@ export function findShareUrl(html: string): string | undefined {
   return unescapeUrlText(html).match(/https:\/\/photos\.google\.com\/(?:u\/\d+\/)?share\/[A-Za-z0-9_-]+(?:\?key=[A-Za-z0-9_-]+)?/)?.[0];
 }
 
+/** Google can be slow, but an album page that hasn't arrived in this long isn't coming. */
+const PAGE_TIMEOUT_MS = 45_000;
+
+/**
+ * The link out of whatever was pasted: share sheets often add text ("Check out this album: https://…"),
+ * and phones sometimes drop the https://.
+ */
+export function albumUrlFrom(text: string): string {
+  const t = text.trim();
+  const found = t.match(/https?:\/\/\S+/)?.[0] ?? t.match(/(?:photos\.app\.goo\.gl|photos\.google\.com|goo\.gl)\/\S+/)?.[0];
+  if (!found) return t;
+  const url = found.replace(/[)\].,;!?'"]+$/, "");
+  return /^https?:\/\//.test(url) ? url.replace(/^http:/, "https:") : `https://${url}`;
+}
+
 const isShareUrl = (u: string) => /^https:\/\/photos\.google\.com\/(u\/\d+\/)?share\//.test(u);
 
 /**
@@ -84,7 +99,7 @@ async function resolveShareUrl(url: string): Promise<{ url: string; html?: strin
   for (const agent of agents) {
     let current = url;
     for (let hop = 0; hop < 8; hop++) {
-      const res = await fetch(current, { headers: { ...HEADERS, "user-agent": agent }, redirect: "manual" });
+      const res = await fetch(current, { headers: { ...HEADERS, "user-agent": agent }, redirect: "manual", signal: AbortSignal.timeout(PAGE_TIMEOUT_MS) });
       const location = res.headers.get("location");
       if (location && res.status >= 300 && res.status < 400) {
         await res.body?.cancel();
@@ -115,7 +130,7 @@ export async function fetchAlbum(url: string): Promise<AlbumPage> {
   let html = resolved.html;
   let finalUrl = resolved.url;
   if (!html) {
-    const res = await fetch(resolved.url, { headers: HEADERS, redirect: "follow" });
+    const res = await fetch(resolved.url, { headers: HEADERS, redirect: "follow", signal: AbortSignal.timeout(PAGE_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`Couldn't open the album (HTTP ${res.status}). Is link sharing turned on?`);
     html = await res.text();
     finalUrl = res.url;

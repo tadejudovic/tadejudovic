@@ -1,5 +1,5 @@
 import { store, newId } from "./store.ts";
-import { fetchAlbum, isAlbumUrl, openVideo, saveResponse } from "./google/sharedAlbum.ts";
+import { albumUrlFrom, fetchAlbum, isAlbumUrl, openVideo, saveResponse } from "./google/sharedAlbum.ts";
 import { enqueueClip, deleteClip, SkipItem } from "./library.ts";
 import { onTopic } from "./generate.ts";
 import type { AlbumSource, Clip } from "./types.ts";
@@ -24,8 +24,8 @@ export function importBudget(): number {
   return Math.max(0, Math.min(store.auto().dailyCount + SPARE_CLIPS - unused - inFlight, MAX_IMPORTS_PER_DAY - importedToday));
 }
 
-export function addAlbum(url: string, recentDays = DEFAULT_RECENT_DAYS): AlbumSource {
-  url = url.trim();
+export function addAlbum(pasted: string, recentDays = DEFAULT_RECENT_DAYS): AlbumSource {
+  const url = albumUrlFrom(pasted);
   if (!isAlbumUrl(url)) throw new Error("Paste a Google Photos shared-album link (photos.app.goo.gl/… or photos.google.com/share/…).");
   const existing = store.albums().find((a) => a.url === url);
   if (existing) return existing;

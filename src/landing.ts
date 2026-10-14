@@ -8,13 +8,16 @@ export function landingHtml(opts: { signInUrl: string; google: boolean }): strin
   const cta = (cls = "") =>
     `<a class="btn ${cls}" href="${opts.signInUrl}">${opts.google ? `${g}Sign in with Google` : "Sign in"}</a>`;
 
-  // The cards the demo phone swipes through (right = post, left = skip).
-  const cards = [
-    { text: "POV: the energy shift when we pull into the airport", bg: "linear-gradient(160deg,#ffb37a,#e2604e 55%,#3b1e2a)", emoji: "🐩", dir: "yes" },
-    { text: "me: it's a quick flight / him:", bg: "linear-gradient(160deg,#9ad0ff,#4f6bd8 55%,#1d1b3a)", emoji: "✈️", dir: "no" },
-    { text: "first class behavior, economy ticket", bg: "linear-gradient(160deg,#ffe08a,#f29c38 55%,#4a2412)", emoji: "🐕", dir: "yes" },
-    { text: "the TSA agent didn't stand a chance", bg: "linear-gradient(160deg,#c6f5c9,#3aa881 55%,#12322b)", emoji: "🛂", dir: "yes" },
-  ];
+  // Camera-roll tiles for the hero animation: 3 columns, positions in % of the screen.
+  const emo = ["🌅", "🐕", "🧳", "☕", "🐩", "🛂", "🌆", "✈️", "🍕", "🏖️", "🐾", "🎒", "🚇", "🌧️", "🛫"];
+  const hues = ["#ffd3b0", "#c7d8ff", "#ffe8a3", "#d9f2c9", "#ffb37a", "#d9d2ff", "#ffcfc9", "#bfe9f2", "#f4c9e8", "#ffe08a", "#c9f2d4", "#ffd6a5", "#cfd8dc", "#b0c4de", "#fcd5ce"];
+  const tiles = emo.map((e, i) => ({
+    e,
+    x: 3 + (i % 3) * 31.67,
+    y: 13 + Math.floor(i / 3) * 15.4,
+    bg: i === 4 ? "linear-gradient(160deg,#ffb37a,#e2604e 60%,#3b1e2a)" : hues[i],
+    d: i % 4 === 1 ? "0:1" + (i % 6) : i === 4 ? "0:17" : "",
+  }));
   const captions = [
     "POV: the energy shift at the gate",
     "nobody: / my dog at 6am:",
@@ -75,31 +78,13 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 .phone{position:relative;aspect-ratio:9/19;border-radius:46px;background:#000;padding:11px;
   box-shadow:0 0 0 1.5px rgba(255,255,255,.14),0 40px 90px rgba(0,0,0,.6),0 0 120px rgba(254,44,85,.25);transform:rotate(-3deg)}
 .screen{position:relative;height:100%;border-radius:36px;overflow:hidden;background:#111}
-.card{position:absolute;inset:0;border-radius:36px;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  animation:deck 16s infinite;opacity:0}
-.card .t{position:absolute;top:13%;left:8%;right:8%;text-align:center;color:var(--yellow);font-weight:900;font-size:21px;line-height:1.15;
-  -webkit-text-stroke:1.2px #1a1400;paint-order:stroke fill;text-shadow:3px 3px 0 rgba(0,0,0,.35)}
-.card .e{font-size:120px;filter:drop-shadow(0 16px 24px rgba(0,0,0,.4));animation:bob 2.4s ease-in-out infinite}
-@keyframes bob{50%{transform:translateY(-8px) rotate(-3deg)}}
 .stamp{position:absolute;top:40%;padding:4px 12px;border:4px solid;border-radius:10px;font-weight:900;font-size:30px;letter-spacing:.06em;background:rgba(255,255,255,.9);opacity:0}
 .stamp.yes{left:12%;color:#16a34a;transform:rotate(-14deg)}
-.stamp.no{right:12%;color:#dc2626;transform:rotate(14deg)}
+@keyframes bob{50%{transform:translateY(-8px) rotate(-3deg)}}
 .ui{position:absolute;bottom:6%;left:0;right:0;display:flex;justify-content:center;gap:28px;z-index:5}
 .ui span{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;font-size:26px;font-weight:900;box-shadow:0 8px 20px rgba(0,0,0,.35)}
 .ui .n{background:#fff;color:#dc2626;border:3px solid #dc2626}
 .ui .y{background:#16a34a;color:#fff}
-/* each card owns a 4s slot: shows, gets swiped, flies off */
-/* Each card: appears underneath the one being swiped (z 1), comes on top (z 2), gets its stamp,
-   flies off and reveals the next. 4 cards x 4s = 16s loop, no gaps. */
-${cards.map((c, i) => `.card:nth-child(${i + 1}){background:${c.bg};animation-delay:${i * 4 - 1}s}
-.card:nth-child(${i + 1}) .stamp.${c.dir}{animation:stamp 16s infinite ${i * 4 - 1}s}`).join("\n")}
-@keyframes deck{
-  0%{opacity:1;transform:none;z-index:1}
-  6.25%,24%{opacity:1;transform:none;z-index:2}
-  31%{opacity:0;transform:var(--out);z-index:2}
-  31.1%,100%{opacity:0;transform:none;z-index:0}}
-@keyframes stamp{0%,19%{opacity:0}22%,29%{opacity:1}31%,100%{opacity:0}}
-${cards.map((c, i) => `.card:nth-child(${i + 1}){--out:translateX(${c.dir === "yes" ? "" : "-"}130%) rotate(${c.dir === "yes" ? "" : "-"}18deg)}`).join("\n")}
 .chip{position:absolute;z-index:6;display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:13px;font-weight:600;color:var(--ink);
   background:#fff;padding:10px 14px;border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.45);animation:float 6s ease-in-out infinite}
 .chip small{color:#6b6b76;font-weight:500}
@@ -107,6 +92,64 @@ ${cards.map((c, i) => `.card:nth-child(${i + 1}){--out:translateX(${c.dir === "y
 .c2{top:47%;right:-36%;animation-delay:-2s}
 .c3{bottom:20%;right:-30%;animation-delay:-4s}
 @keyframes float{50%{transform:translateY(-10px)}}
+
+/* ---- Hero story: camera roll -> one clip is picked -> it becomes a viral-style video -> posted ---- */
+.story{--T:12s;background:#fff}
+.roll-ui{position:absolute;inset:0;background:#fff;animation:rollUi var(--T) infinite}
+.roll-head{position:absolute;top:4.5%;left:5%;right:5%;display:flex;justify-content:space-between;align-items:baseline;color:#111;font-size:15px}
+.roll-head b{font-size:19px;font-weight:800}
+.roll-head span{color:#2f7cf6;font-weight:600;font-size:13px}
+.tile{position:absolute;left:var(--x);top:var(--y);width:30.67%;height:14.6%;border-radius:6px;display:grid;place-items:center;overflow:hidden}
+.tile span{font-size:26px}
+.tile em{position:absolute;right:5px;bottom:3px;font-style:normal;font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.ring{position:absolute;width:30.67%;height:14.6%;border-radius:8px;border:3px solid var(--accent);box-shadow:0 0 0 4px rgba(254,44,85,.25);
+  left:3%;top:13%;animation:scan var(--T) infinite}
+@keyframes scan{
+  0%,4%{opacity:0;left:3%;top:13%}
+  6%{opacity:1;left:3%;top:13%}
+  12%{opacity:1;left:66.34%;top:13%}
+  18%{opacity:1;left:3%;top:28.4%}
+  24%,30%{opacity:1;left:34.67%;top:28.4%;transform:scale(1)}
+  27%{opacity:1;transform:scale(1.1)}
+  32%,100%{opacity:0;left:34.67%;top:28.4%}}
+@keyframes rollUi{0%,30%{opacity:1}38%,92%{opacity:0}100%{opacity:1}}
+/* the picked tile grows into the full video */
+.clip{position:absolute;inset:0;background:linear-gradient(160deg,#ffb37a,#e2604e 60%,#3b1e2a);display:grid;place-items:center;
+  clip-path:inset(28.4% 34.66% 57% 34.67% round 6px);opacity:0;animation:grow var(--T) infinite}
+@keyframes grow{
+  0%,30%{opacity:0;clip-path:inset(28.4% 34.66% 57% 34.67% round 6px);transform:none}
+  31%{opacity:1}
+  40%{clip-path:inset(0 0 0 0 round 36px)}
+  84%{opacity:1;transform:none;clip-path:inset(0 0 0 0 round 36px)}
+  92%,100%{opacity:0;transform:translateX(130%) rotate(16deg);clip-path:inset(0 0 0 0 round 36px)}}
+.clip .emo{font-size:120px;filter:drop-shadow(0 16px 24px rgba(0,0,0,.4));animation:bob 2.4s ease-in-out infinite}
+.ov{position:absolute;top:12%;left:7%;right:7%;display:grid;justify-items:center;text-align:center;color:var(--yellow);font-weight:900;font-size:21px;line-height:1.18;
+  -webkit-text-stroke:1.2px #1a1400;paint-order:stroke fill;text-shadow:3px 3px 0 rgba(0,0,0,.35)}
+.ov span{opacity:0;animation:line var(--T) infinite}
+.ov .l1{--a:43%}.ov .l2{animation-name:line2}.ov .l3{animation-name:line3}
+@keyframes line{0%,43%{opacity:0;transform:translateY(8px) scale(.96)}46%,90%{opacity:1;transform:none}92%,100%{opacity:0}}
+@keyframes line2{0%,48%{opacity:0;transform:translateY(8px) scale(.96)}51%,90%{opacity:1;transform:none}92%,100%{opacity:0}}
+@keyframes line3{0%,53%{opacity:0;transform:translateY(8px) scale(.96)}56%,90%{opacity:1;transform:none}92%,100%{opacity:0}}
+.tags{position:absolute;bottom:20%;left:6%;right:6%;display:flex;flex-wrap:wrap;justify-content:center;gap:5px;opacity:0;animation:tags var(--T) infinite}
+.tags span{font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,.45);padding:4px 8px;border-radius:999px}
+@keyframes tags{0%,60%{opacity:0;transform:translateY(10px)}64%,88%{opacity:1;transform:none}92%,100%{opacity:0}}
+.clip .ui{opacity:0;animation:uiIn var(--T) infinite}
+@keyframes uiIn{0%,58%{opacity:0}62%,88%{opacity:1}92%,100%{opacity:0}}
+.clip .ui .y{animation:press var(--T) infinite}
+@keyframes press{0%,72%{transform:none}75%{transform:scale(.86)}78%,100%{transform:none}}
+.clip .stamp.yes{animation:stampPost var(--T) infinite}
+@keyframes stampPost{0%,75%{opacity:0;transform:rotate(-14deg) scale(1.4)}78%,88%{opacity:1;transform:rotate(-14deg) scale(1)}92%,100%{opacity:0}}
+.cap{position:absolute;left:50%;bottom:6%;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:700;color:#fff;background:rgba(17,17,20,.85);
+  padding:7px 12px;border-radius:999px;opacity:0;animation:capIn var(--T) infinite}
+@keyframes capIn{0%,8%{opacity:0}11%,30%{opacity:1}33%,100%{opacity:0}}
+/* the floating proof chips appear when their moment happens */
+.stage .chip{animation:float 6s ease-in-out infinite,chip1 var(--T,12s) infinite;opacity:0}
+.stage .c2{animation:float 6s ease-in-out infinite -2s,chip2 12s infinite}
+.stage .c3{animation:float 6s ease-in-out infinite -4s,chip3 12s infinite}
+@keyframes chip1{0%,45%{opacity:0}49%,90%{opacity:1}94%,100%{opacity:0}}
+@keyframes chip2{0%,61%{opacity:0}65%,90%{opacity:1}94%,100%{opacity:0}}
+@keyframes chip3{0%,77%{opacity:0}80%,96%{opacity:1}99%,100%{opacity:0}}
+.ctas.stack{flex-direction:column;align-items:flex-start;gap:10px}
 
 /* ---- Caption ribbon ---- */
 .ribbon{position:relative;z-index:2;border-block:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);overflow:hidden;padding:18px 0}
@@ -171,6 +214,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
   .hero-in{grid-template-columns:1fr;text-align:center;gap:70px}
   .lead{margin-left:auto;margin-right:auto}
   .ctas{justify-content:center}
+  .ctas.stack{align-items:center}
   .pill{margin-left:auto;margin-right:auto}
   .c1{left:-14%;top:4%}.c2{right:-14%}.c3{right:auto;left:-12%;bottom:30%}
   .steps,.feats{grid-template-columns:1fr}
@@ -185,7 +229,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 }
 @media (prefers-reduced-motion:reduce){
   *{animation:none !important;transition:none !important}
-  .card:first-child{opacity:1}
+  .roll-ui{opacity:0}.clip{opacity:1;clip-path:none}.ov span,.tags,.clip .ui,.stage .chip{opacity:1}
   .r{opacity:1;transform:none}
 }
 </style></head><body>
@@ -196,17 +240,27 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
     <nav><a class="logo" href="/"><i></i>Rollcut</a><a class="signin" href="${opts.signInUrl}">Sign in</a></nav>
     <div class="hero-in">
       <div>
-        <div class="pill r"><b></b>Invite-only beta</div>
+        <div class="pill r"><b></b>Now in beta</div>
         <h1 class="r d1">Your camera roll is full of <span class="grad">TikToks.</span></h1>
         <p class="lead r d2">Rollcut finds the moments in videos you already shot, writes text based on TikToks with millions of views, and hands you ready-to-post videos every day. You just swipe.</p>
-        <div class="ctas r d3">${cta()}<span class="note">Takes 2 minutes to connect your album.</span></div>
+        <div class="ctas stack r d3">${cta()}<span class="note">Invite-only for now.</span></div>
       </div>
       <div class="stage r d2" aria-hidden="true">
-        <div class="phone"><div class="screen">
-          ${cards.map((c) => `<div class="card"><div class="t">${c.text}</div><div class="e">${c.emoji}</div><span class="stamp yes">POST</span><span class="stamp no">NOPE</span></div>`).join("")}
-          <div class="ui"><span class="n">✕</span><span class="y">✓</span></div>
+        <div class="phone"><div class="screen story">
+          <div class="roll-ui">
+            <div class="roll-head"><b>Recents</b><span>Select</span></div>
+            ${tiles.map((t, i) => `<i class="tile" style="--x:${t.x}%;--y:${t.y}%;background:${t.bg}"><span>${t.e}</span>${t.d ? `<em>${t.d}</em>` : ""}</i>`).join("")}
+            <i class="ring"></i>
+          </div>
+          <div class="clip"><div class="emo">🐩</div>
+            <div class="ov"><span class="l1">POV: the energy shift</span><span class="l2">when we pull into</span><span class="l3">the airport</span></div>
+            <div class="tags"><span>#travelwithdog</span><span>#flyingwithdog</span><span>#dogatairport</span></div>
+            <span class="stamp yes">POST</span>
+            <div class="ui"><span class="n">✕</span><span class="y">✓</span></div>
+          </div>
+          <div class="cap">Picking the best moment…</div>
         </div></div>
-        <div class="chip c1">🔥 Based on a 2.1M-view TikTok</div>
+        <div class="chip c1">🔥 Text from a 2.1M-view TikTok</div>
         <div class="chip c2"># travelwithdog <small>2.4M posts</small></div>
         <div class="chip c3">✓ Caption copied · ready to post</div>
       </div>

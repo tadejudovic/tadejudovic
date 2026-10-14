@@ -592,3 +592,10 @@ section[data-tab="settings"] { max-width: 640px; margin: 0 auto; }
 .d-proof > span:last-child { display: grid; gap: 4px; }
 .d-proof-text { color: var(--ink); }
 .d-proof a { justify-self: start; text-decoration: none; }
+
+/* Line icons */
+.ico { width: 1.1em; height: 1.1em; vertical-align: -0.2em; flex: none; }
+.stack-sound { display: grid; place-items: center; }
+.stack-sound .ico { width: 20px; height: 20px; }
+#activity .ico { margin-right: 6px; }
+#stack-undo { display: inline-flex; align-items: center; gap: 5px; }

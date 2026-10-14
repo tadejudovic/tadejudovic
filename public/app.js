@@ -29,6 +29,17 @@ function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+/** Line icons (same set as the landing page). */
+const ICONS = {
+  muted: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>',
+  sound: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+};
+function icon(name) {
+  return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+
 function banner(msg, kind = "warn") {
   const b = $("#banner");
   b.textContent = msg;
@@ -475,7 +486,8 @@ function renderStack() {
 function stackCard(r) {
   const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, autoplay: true, muted: true, loop: true, playsinline: true });
   video.muted = true;
-  const sound = h("button", { class: "stack-sound", "aria-label": "Sound", onclick: (e) => { video.muted = !video.muted; e.currentTarget.textContent = video.muted ? "🔇" : "🔊"; } }, "🔇");
+  const sound = h("button", { class: "stack-sound", "aria-label": "Sound", onclick: (e) => { video.muted = !video.muted; e.currentTarget.innerHTML = icon(video.muted ? "muted" : "sound"); } });
+  sound.innerHTML = icon("muted");
   const card = h("div", { class: "stack-card" },
     h("div", { class: "stack-media" }, video, sound,
       h("span", { class: "stamp keep" }, "POST"),
@@ -1419,9 +1431,10 @@ function renderMaking(planning, importing = 0) {
 }
 
 /** A small pill at the top that fades out on its own. */
-function toast(text) {
+function toast(text, iconName) {
   const el = $("#activity");
-  el.textContent = text;
+  el.innerHTML = iconName ? icon(iconName) : "";
+  el.append(text);
   el.hidden = false;
   el.classList.remove("out");
   clearTimeout(toast.t1);
@@ -1441,7 +1454,7 @@ function renderHomeState() {
   // Nothing new can start while a round is being made or reviewed.
   $("#btn-batch").hidden = noSource || making > 0 || planning || reviewing;
   // While swiping, new imports only get a small pill that fades away by itself.
-  if (importing > (state.lastImporting ?? 0) && reviewing) toast(`↓ ${importing} new clip${importing === 1 ? "" : "s"} importing`);
+  if (importing > (state.lastImporting ?? 0) && reviewing) toast(`${importing} new clip${importing === 1 ? "" : "s"} importing`, "download");
   state.lastImporting = importing;
 
   // Nothing to review and nothing being made: say what's next.

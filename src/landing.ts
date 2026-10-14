@@ -5,6 +5,25 @@
  * browser; each sits on a soft color so a missing image never shows as broken.
  */
 
+
+/** Line icons (Lucide-style, 24px grid, stroke = currentColor). The only emoji on the page is 🔥. */
+const ICONS: Record<string, string> = {
+  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  sparkle: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+  message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  share: '<path d="m15 17 5-5-5-5"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  album: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v8l3-2 3 2V3"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+};
+const ico = (name: string, cls = "") =>
+  `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
 const U = (id: string, w: number, h: number) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&h=${h}&q=60`;
 /** Unsplash photos for a believable camera roll: people, travel, food, dogs. [id, fallback color] */
 const PHOTOS: [string, string][] = [
@@ -73,7 +92,7 @@ export function landingHtml(opts: { signInUrl: string; google: boolean }): strin
 <meta name="description" content="Rollcut turns the videos already on your phone into ready-to-post TikToks, with text based on videos that got millions of views. You just swipe.">
 <meta property="og:title" content="Rollcut · your camera roll, turned into TikToks">
 <meta property="og:description" content="Ready-to-post videos from your camera roll, every day. You just swipe.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎞️</text></svg>">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fe2c55%22/%3E%3Cstop offset=%221%22 stop-color=%22%23ffb020%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22url(%23g)%22/%3E%3Cpath d=%22M12 10v12l10-6z%22 fill=%22%23fff%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -225,6 +244,18 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 @keyframes chip3{0%,73%{opacity:0}76%,96%{opacity:1}99%,100%{opacity:0}}
 .ctas.stack{flex-direction:column;align-items:flex-start;gap:10px}
 
+/* ---- Icons ---- */
+.ico{width:1em;height:1em;vertical-align:-.15em;flex:none}
+.ico.fill{fill:currentColor}
+.step .ic .ico{width:26px;height:26px;color:var(--accent)}
+.arrow .ico{width:44px;height:44px;stroke-width:2.6}
+.ui .ico{width:26px;height:26px;stroke-width:3}
+.rail i .ico{width:26px;height:26px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+.ios-tabs .ico{width:6cqw;height:6cqw}
+.tile u .ico{width:3.6cqw;height:3.6cqw;color:#fff;filter:drop-shadow(0 0 2px rgba(0,0,0,.5))}
+.chip .ico.ok{width:16px;height:16px;color:#16a34a;stroke-width:3}
+.tag .ico{width:14px;height:14px;stroke-width:2.6}
+
 /* ---- Light sections ---- */
 .light{background:var(--paper);color:var(--ink)}
 section.block{padding:100px 0}
@@ -318,10 +349,10 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
           <div class="roll-ui">
             <div class="ios-status"><b>9:41</b><span class="ios-icons"><i></i><i></i><i></i><em></em></span></div>
             <div class="roll-head"><b>Recents</b><span>Select</span></div>
-            ${tiles.map((t) => `<i class="tile" style="--r:${t.r};--c:${t.c};background:${photoBg(t.i)}">${t.d ? `<em>${t.d}</em>` : ""}${t.fav ? `<u>♥</u>` : ""}</i>`).join("")}
+            ${tiles.map((t) => `<i class="tile" style="--r:${t.r};--c:${t.c};background:${photoBg(t.i)}">${t.d ? `<em>${t.d}</em>` : ""}${t.fav ? `<u>${ico("heart", "fill")}</u>` : ""}</i>`).join("")}
             <i class="ring"></i>
             <div class="roll-count">1,284 Photos, 312 Videos</div>
-            <div class="ios-tabs"><span class="on">▦<small>Library</small></span><span>❤︎<small>For You</small></span><span>▢<small>Albums</small></span><span>⌕<small>Search</small></span></div>
+            <div class="ios-tabs"><span class="on">${ico("grid")}<small>Library</small></span><span>${ico("heart")}<small>For You</small></span><span>${ico("album")}<small>Albums</small></span><span>${ico("search")}<small>Search</small></span></div>
           </div>
           <div class="clip" style="background:${heroBg(first.tile)}">
             <div class="ov">${first.lines.map((l, i) => `<span class="l${i + 1}">${l}</span>`).join("")}</div>
@@ -329,16 +360,16 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
             <span class="stamp yes">POST</span>
             <div class="feed">
               <div class="feed-top"><span>Following</span><b>For You</b></div>
-              <div class="rail"><span class="h"><i>♥</i><b></b></span><span><i>💬</i>1,204</span><span><i>↗</i>3.9K</span></div>
-              <div class="who"><b>@you · just now</b><span class="feed-cap">${first.lines.join(" ")} ✨</span></div>
+              <div class="rail"><span class="h"><i>${ico("heart", "fill")}</i><b></b></span><span><i>${ico("message")}</i>1,204</span><span><i>${ico("share")}</i>3.9K</span></div>
+              <div class="who"><b>@you · just now</b><span class="feed-cap">${first.lines.join(" ")}</span></div>
             </div>
-            <div class="ui"><span class="n">✕</span><span class="y">✓</span></div>
+            <div class="ui"><span class="n">${ico("x")}</span><span class="y">${ico("check")}</span></div>
           </div>
           <div class="cap">Picking the best moment…</div>
         </div></div>
         <div class="chip c1">🔥 <span>Text from a <span class="v">${first.views}</span>-view TikTok</span></div>
         <div class="chip c2"><span>#<span class="t">${first.tag}</span></span> <small><span class="p">${first.posts}</span> posts</small></div>
-        <div class="chip c3">✓ Posted · caption and hashtags included</div>
+        <div class="chip c3">${ico("check", "ok")} Posted · caption and hashtags included</div>
       </div>
     </div>
   </div>
@@ -352,9 +383,9 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
     <h2 class="r d1">Three steps. Then it runs itself.</h2>
     <p class="sub r d2">No editing app, no scrolling for ideas, no guessing which caption will land.</p>
     <div class="steps">
-      <div class="step r"><div class="big">1</div><div class="ic">📸</div><h3>Connect your album</h3><p>Share a Google Photos album, or let it fill itself with every video of your pet. New footage is picked up automatically.</p></div>
-      <div class="step r d1"><div class="big">2</div><div class="ic">✨</div><h3>Videos made for you</h3><p>Each clip is trimmed, gets text adapted from TikToks that already went viral, and three hashtags sized to get seen.</p></div>
-      <div class="step r d2"><div class="big">3</div><div class="ic">👉</div><h3>Swipe to post</h3><p>Right opens TikTok or Instagram with the caption ready to paste. Left skips it. Every swipe makes the next round better.</p></div>
+      <div class="step r"><div class="big">1</div><div class="ic">${ico("camera")}</div><h3>Connect your album</h3><p>Share a Google Photos album, or let it fill itself with every video of your pet. New footage is picked up automatically.</p></div>
+      <div class="step r d1"><div class="big">2</div><div class="ic">${ico("sparkle")}</div><h3>Videos made for you</h3><p>Each clip is trimmed, gets text adapted from TikToks that already went viral, and three hashtags sized to get seen.</p></div>
+      <div class="step r d2"><div class="big">3</div><div class="ic">${ico("send")}</div><h3>Swipe to post</h3><p>Right opens TikTok or Instagram with the caption ready to paste. Left skips it. Every swipe makes the next round better.</p></div>
     </div>
   </div></section>
 
@@ -366,7 +397,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
         <div class="roll">${Array.from({ length: 16 }, (_, i) => `<i style="--c:${photoBg(i, 160)}" class="${[2, 5, 13].includes(i) ? "pick" : ""}"></i>`).join("")}</div>
         <div class="flowcap"><span>Your camera roll</span><span>3 picked</span></div>
       </div>
-      <div class="arrow r d1">→</div>
+      <div class="arrow r d1">${ico("arrow")}</div>
       <div class="r d2">
         <div class="posts">
           ${[[2, "POV: the energy shift at the gate"], [5, "me: quick flight / him:"], [13, "first class behavior, economy ticket"]]
@@ -386,7 +417,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
       <div class="feat r d1"><h3>Hashtags that get seen</h3><p>One big, one mid-size, one niche: the mix that gets you discovered instead of buried.</p>
         <div class="demo"><span class="tag">#travelwithdog <small>2.4M</small></span><span class="tag">#flyingwithdog <small>240K</small></span><span class="tag">#dogatairport <small>11K</small></span></div></div>
       <div class="feat r"><h3>Learns your taste</h3><p>Every swipe tells it what you like. Rejected because of the text, the clip or the cut? The next round adjusts.</p>
-        <div class="demo"><span class="tag">✓ Posted</span><span class="tag">✕ The text</span><span class="tag">✕ The clip</span></div></div>
+        <div class="demo"><span class="tag">${ico("check")} Posted</span><span class="tag">${ico("x")} The text</span><span class="tag">${ico("x")} The clip</span></div></div>
       <div class="feat r d1"><h3>Your look, every time</h3><p>Your font, your colors, your text size. Every video looks like you made it in CapCut, minus the hour.</p>
         <div class="demo"><span class="tag" style="color:#ffe41a">Yellow</span><span class="tag">Outline</span><span class="tag">Box</span></div></div>
     </div>
@@ -441,7 +472,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
       stage.querySelector(".c2 .t").textContent = st.tag;
       stage.querySelector(".c2 .p").textContent = st.posts;
       stage.querySelector(".rail .h b").style.setProperty("--max", st.likes);
-      stage.querySelector(".feed-cap").textContent = st.lines.join(" ") + " ✨";
+      stage.querySelector(".feed-cap").textContent = st.lines.join(" ");
     };
     show(stories[0]);
     clip.addEventListener("animationiteration", (e) => {

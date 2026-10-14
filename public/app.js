@@ -389,6 +389,8 @@ async function refreshRenders() {
 const REASON_LABEL = { text: "the text", clip: "the clip", edit: "the cut", other: "" };
 const stack = { shownId: null, node: null, history: [], whyFor: null };
 
+const inProgress = (r) => r.status === "queued" || r.status === "rendering";
+
 function toReview() {
   return state.renders.filter((r) => r.status === "done" && r.review === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -583,7 +585,7 @@ function renderRenders() {
   const latest = latestBatch();
   // Everything not shown above: older batches and rejected videos, minus what's waiting in the swipe stack.
   const inStack = new Set(toReview().map((r) => r.id));
-  const earlier = state.renders.filter((r) => !inStack.has(r.id) && (!latest || r.batch !== latest || r.review === "rejected"));
+  const earlier = state.renders.filter((r) => !inStack.has(r.id) && !inProgress(r) && (!latest || r.batch !== latest || r.review === "rejected"));
   $("#renders-empty").hidden = earlier.length > 0;
   const nodes = earlier.map((r) => {
     const key = `${r.id}:${r.status}:${r.review}:${r.rejectReason}:${r.downloaded}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
@@ -803,7 +805,7 @@ function renderBatch() {
   const all = state.renders.filter((r) => r.batch && r.batch === latest);
   const inStack = new Set(toReview().map((r) => r.id));
   // Kept videos first; rejected ones are under "Earlier videos".
-  const items = all.filter((r) => !inStack.has(r.id) && r.review !== "rejected")
+  const items = all.filter((r) => !inStack.has(r.id) && r.review !== "rejected" && !inProgress(r))
     .sort((a, b) => (b.review === "approved") - (a.review === "approved"));
   $("#batch-empty").hidden = all.length > 0;
   $("#kept-title").hidden = !items.some((r) => r.review === "approved");
@@ -1231,6 +1233,22 @@ $("#btn-resume").addEventListener("click", (e) =>
 
 // ---- Onboarding & activity ---------------------------------------------------
 
+/** A single progress bar for the round being made; the videos themselves stay hidden until done. */
+function renderMaking(planning) {
+  const busy = state.renders.filter(inProgress);
+  const box = $("#making");
+  box.hidden = !busy.length && !planning;
+  if (box.hidden) return;
+  const n = busy.length;
+  const pct = n ? Math.round((busy.reduce((sum, r) => sum + (r.status === "rendering" ? r.progress : 0), 0) / n) * 100) : 0;
+  $("#making-title").textContent = n ? `Making ${n} new video${n === 1 ? "" : "s"}…` : "Getting the next videos ready…";
+  box.classList.toggle("indeterminate", !n || pct === 0);
+  $("#making-fill").style.width = `${Math.max(4, pct)}%`;
+  $("#making-sub").textContent = n
+    ? `${pct ? `${pct}% · ` : ""}They'll appear here when they're finished. You can leave this page.`
+    : "Picking clips and writing the text (1–3 min).";
+}
+
 function renderHomeState() {
   const noSource = state.albumCount === 0 && state.clips.length === 0;
   $("#onboard").hidden = !noSource;
@@ -1242,13 +1260,15 @@ function renderHomeState() {
   const making = state.renders.filter((r) => r.status === "queued" || r.status === "rendering").length;
   const parts = [];
   if (importing) parts.push(`Importing ${importing} clip${importing === 1 ? "" : "s"} from your album…`);
-  if (making) parts.push(`Making ${making} video${making === 1 ? "" : "s"}…`);
   const reviewing = state.renders.some((r) => r.status === "done" && r.review === "pending");
   const vt = state.status?.videosToday;
-  if (!making && !reviewing && state.renders.length) {
-    if (vt && vt.made >= vt.limit) parts.push(`All reviewed. That's today's ${vt.limit} videos; the next round comes tomorrow at ${state.auto?.dailyTime ?? "08:00"}.`);
-    else if (state.nextRoundUntil > Date.now()) parts.push("All reviewed. Making the next round of videos (1–3 min)…");
+  const planning = !making && state.nextRoundUntil > Date.now();
+  if (!making && !planning && !reviewing && state.renders.length && vt && vt.made >= vt.limit) {
+    parts.push(`All reviewed. That's today's ${vt.limit} videos; the next round comes tomorrow at ${state.auto?.dailyTime ?? "08:00"}.`);
   }
+  renderMaking(planning);
+  // Nothing new can start while a round is being made or reviewed.
+  $("#btn-batch").hidden = noSource || making > 0 || planning;
   $("#activity").textContent = parts.join(" ");
   $("#activity").hidden = !parts.length;
   // Clips are raw footage; show them so "ready" means something, and offer to make videos right away.

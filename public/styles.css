@@ -409,3 +409,13 @@ main { max-width: 980px; }
 .sheet-card .body > * { min-width: 0; }
 .sheet-actions { display: flex; gap: 8px; padding: 4px 6px 6px; }
 .sheet-actions .btn.primary { flex: 1; }
+
+/* ---- Progress while a round is being made ---- */
+.making { width: min(100%, 400px); margin: 0 auto 20px; display: grid; gap: 8px; padding: 18px 18px 16px; background: #fff;
+  border: 1px solid #d4d4d8; border-radius: 22px; box-shadow: 0 12px 32px rgba(0,0,0,.08); font-size: 14px; }
+.making[hidden] { display: none; }
+.making-bar { height: 10px; border-radius: 999px; background: #f0f0f2; overflow: hidden; }
+.making-bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent, #ff2d55); transition: width .6s ease; }
+.making.indeterminate .making-bar i { width: 35% !important; animation: making-slide 1.3s ease-in-out infinite; }
+@keyframes making-slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.making-sub { font-size: 13px; }

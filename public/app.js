@@ -1262,13 +1262,19 @@ $("#btn-resume").addEventListener("click", (e) =>
 // ---- Onboarding & activity ---------------------------------------------------
 
 /** A single progress bar for the round being made; the videos themselves stay hidden until done. */
-function renderMaking(planning) {
+function renderMaking(planning, importing = 0) {
   const busy = state.renders.filter(inProgress);
   const box = $("#making");
   // Only once there's nothing left to swipe: then it says "more are on the way".
-  box.hidden = (!busy.length && !planning) || toReview().length > 0 || !!stack.whyFor;
+  box.hidden = (!busy.length && !planning && !importing) || toReview().length > 0 || !!stack.whyFor;
   if (box.hidden) return;
   const n = busy.length;
+  if (!n && !planning) {
+    $("#making-title").textContent = `Importing ${importing} new clip${importing === 1 ? "" : "s"} from your album…`;
+    box.classList.add("indeterminate");
+    $("#making-sub").textContent = "New videos are made from them next.";
+    return;
+  }
   const pct = n ? Math.round((busy.reduce((sum, r) => sum + (r.status === "rendering" ? r.progress : 0), 0) / n) * 100) : 0;
   $("#making-title").textContent = n ? `Making ${n} new video${n === 1 ? "" : "s"}…` : "Getting the next videos ready…";
   box.classList.toggle("indeterminate", !n || pct === 0);
@@ -1278,6 +1284,18 @@ function renderMaking(planning) {
     : "Picking clips and writing the text (1–3 min).";
 }
 
+/** A small pill at the top that fades out on its own. */
+function toast(text) {
+  const el = $("#activity");
+  el.textContent = text;
+  el.hidden = false;
+  el.classList.remove("out");
+  clearTimeout(toast.t1);
+  clearTimeout(toast.t2);
+  toast.t1 = setTimeout(() => el.classList.add("out"), 3500);
+  toast.t2 = setTimeout(() => (el.hidden = true), 4000);
+}
+
 function renderHomeState() {
   const noSource = state.albumCount === 0 && state.clips.length === 0;
   $("#onboard").hidden = !noSource;
@@ -1285,14 +1303,15 @@ function renderHomeState() {
   const making = state.renders.filter(inProgress).length;
   const reviewing = toReview().length > 0 || !!stack.whyFor;
   const planning = !making && state.nextRoundUntil > Date.now();
-  renderMaking(planning);
+  renderMaking(planning, importing);
   // Nothing new can start while a round is being made or reviewed.
   $("#btn-batch").hidden = noSource || making > 0 || planning || reviewing;
-  $("#activity").textContent = importing ? `Importing ${importing} clip${importing === 1 ? "" : "s"} from your album…` : "";
-  $("#activity").hidden = !importing;
+  // While swiping, new imports only get a small pill that fades away by itself.
+  if (importing > (state.lastImporting ?? 0) && reviewing) toast(`↓ ${importing} new clip${importing === 1 ? "" : "s"} importing`);
+  state.lastImporting = importing;
 
   // Nothing to review and nothing being made: say what's next.
-  $("#batch-empty").hidden = noSource || reviewing || making > 0 || planning;
+  $("#batch-empty").hidden = noSource || reviewing || making > 0 || planning || importing > 0;
   const vt = state.status?.videosToday;
   const atLimit = vt && vt.made >= vt.limit;
   const keptCount = state.renders.filter((r) => r.status === "done" && r.review === "approved" && !r.downloaded).length;

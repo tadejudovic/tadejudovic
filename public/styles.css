@@ -497,3 +497,13 @@ main:has(section[data-tab="review"]:not([hidden]) #stack:not([hidden])) {
 html, body { overflow-x: clip; max-width: 100%; }
 .stack, .stack-stage { overflow-x: clip; }
 @media (max-width: 600px) { .details-view { max-width: none; } }
+
+/* Import notice: a small pill that fades in and out at the top while you swipe. */
+#activity { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 45;
+  margin: 0; padding: 7px 14px; border-radius: 999px; background: rgba(20,20,24,.82); color: #fff; font-size: 13px; font-weight: 500;
+  white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; box-shadow: 0 6px 18px rgba(0,0,0,.18);
+  transition: opacity .4s ease; animation: toast-in .3s ease; }
+#activity[hidden] { display: none; }
+#activity.out { opacity: 0; }
+#activity::before { display: none; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }

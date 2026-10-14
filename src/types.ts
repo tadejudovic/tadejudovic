@@ -49,6 +49,8 @@ export interface Clip {
   disliked?: boolean;
   /** Already an edited video (text, captions or stickers on it): never picked automatically. */
   edited?: boolean;
+  /** The same video was already imported (e.g. it's in two albums) as this clip: never picked automatically. */
+  duplicateOf?: string;
 }
 
 /** A caption/overlay that is known to have done well on TikTok for a situation. */

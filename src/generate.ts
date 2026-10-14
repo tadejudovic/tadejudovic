@@ -44,8 +44,9 @@ export function reviewFeedback(limit = 15): ReviewFeedback {
  * Without the AI there are no situations, so everything counts.
  */
 export function onTopic(c: Clip): boolean {
-  // Videos that are already edits (text on them) are never re-edited automatically.
-  if (c.edited) return false;
+  // Videos that are already edits (text on them) are never re-edited automatically, and a video
+  // that's in two albums is only used once.
+  if (c.edited || c.duplicateOf) return false;
   const { onlySituations, scenes } = store.settings();
   if (!onlySituations || !config.claude.enabled) return true;
   return !!c.scene && scenes.includes(c.scene);

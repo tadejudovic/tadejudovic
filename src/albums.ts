@@ -2,7 +2,7 @@ import { store, newId } from "./store.ts";
 import { fetchAlbum, isAlbumUrl, openVideo, saveResponse } from "./google/sharedAlbum.ts";
 import { enqueueClip, deleteClip, SkipItem } from "./library.ts";
 import { onTopic } from "./generate.ts";
-import type { AlbumSource } from "./types.ts";
+import type { AlbumSource, Clip } from "./types.ts";
 
 /** New albums only import recent videos: a live album that auto-adds every video of the pet can hold years of them. */
 export const DEFAULT_RECENT_DAYS = 30;
@@ -44,6 +44,36 @@ export function forgetItem(sourceId: string) {
   }
 }
 
+/** Capture times (ms) of album videos already in the library or being imported. */
+function capturedKeys(): Set<number> {
+  return new Set(
+    store.clips().flatMap((c) => (c.source === "shared_album" && c.capturedAt && c.status !== "error" ? [Date.parse(c.capturedAt)] : [])),
+  );
+}
+
+/**
+ * Clips imported twice before duplicates were caught (one video in two albums): keep the one
+ * already used (or imported first) and set the others aside.
+ */
+export function markDuplicates(): number {
+  const groups = new Map<string, Clip[]>();
+  for (const c of store.clips()) {
+    if (c.source !== "shared_album" || !c.capturedAt || c.status !== "ready" || c.duplicateOf) continue;
+    const key = `${Date.parse(c.capturedAt)}:${Math.round(c.duration)}`;
+    groups.set(key, [...(groups.get(key) ?? []), c]);
+  }
+  let marked = 0;
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const [keep, ...rest] = group.sort((a, b) => b.uses - a.uses || a.importedAt.localeCompare(b.importedAt));
+    for (const c of rest) {
+      store.updateClip(c.id, { duplicateOf: keep.id });
+      marked++;
+    }
+  }
+  return marked;
+}
+
 /**
  * Check a shared album for items we haven't seen and import the videos.
  * Photos in the album are remembered and skipped.
@@ -74,7 +104,15 @@ export async function syncAlbum(id: string): Promise<{ newItems: number }> {
       }
     }
     const seen = new Set(store.album(id)!.seen);
-    const unseen = page.items.filter((it) => !seen.has(it.id) && !store.hasSource(it.id));
+    // The same video in two albums has a different id in each, but the same capture time to the millisecond.
+    const have = capturedKeys();
+    const unseen = page.items.filter((it) => {
+      if (seen.has(it.id) || store.hasSource(it.id)) return false;
+      if (!it.takenAt) return true;
+      if (have.has(it.takenAt)) return false;
+      have.add(it.takenAt); // also catches the same video twice in one album
+      return true;
+    });
     // Too-old items aren't marked as seen, so widening the window later picks them up.
     const days = store.album(id)!.recentDays ?? 0;
     const cutoff = days > 0 ? Date.now() - days * 86400_000 : 0;

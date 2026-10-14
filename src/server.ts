@@ -12,7 +12,7 @@ import { createSession, getSession, listPicked, deleteSession } from "./google/p
 import { enqueueClip, importPicked, analyzeClip, aiTag, deleteClip, ensureProxy } from "./library.ts";
 import { forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses } from "./generate.ts";
-import { addAlbum, forgetItem, setRecentDays, syncAlbum } from "./albums.ts";
+import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
@@ -717,6 +717,10 @@ if (paused) console.warn(`[recovery] ${uncleanBoots} crashes in 20 minutes: auto
 for (const r of store.renders()) {
   if (r.status === "error" && r.plan.segments.some((s) => !store.clip(s.clipId))) deleteRender(r.id);
 }
+
+// The same video imported from two albums before duplicates were caught: use it only once.
+const duplicates = markDuplicates();
+if (duplicates) console.log(`[albums] set aside ${duplicates} duplicate clip(s)`);
 
 // Videos rejected before clips were handed back on rejection: hand them back now.
 for (const r of store.renders()) syncClipUses(r.id);

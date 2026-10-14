@@ -286,7 +286,9 @@ function renderClips() {
             h("span", {}, c.duration ? fmt(c.duration) : "–"),
             h("span", {}, c.capturedAt ? new Date(c.capturedAt).toLocaleDateString() : ""),
             c.status === "ready" && !landscape
-              ? c.edited
+              ? c.duplicateOf
+                ? h("span", { class: "use", title: "The same video is already in your library from another album" }, "duplicate")
+                : c.edited
                 ? h("span", { class: "use", title: "Already has text on it, so it isn't used automatically" }, "already edited")
                 : h("span", { class: `use ${c.uses ? "" : "fresh"}` }, c.uses ? `used ${c.uses}×` : "not used yet")
               : null,

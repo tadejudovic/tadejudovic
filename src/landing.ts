@@ -18,7 +18,7 @@ const PHOTOS: [string, string][] = [
   ["1501785888041-af3ef285b470", "#8fb3a8"], // lake and mountains
   ["1500648767791-00dcc994a43e", "#c9b19b"], // portrait
   ["1517849845537-4d257902454a", "#d6c1a6"], // dog
-  ["1488646953014-85cb44e25828", "#d8c8a8"], // travel planning
+  ["1519689680058-324335c77eba", "#ead9cf"], // baby
   ["1469474968028-56623f02e42e", "#9bb88a"], // landscape
   ["1438761681033-6461ffad8d80", "#d9b8a8"], // portrait
   ["1543466835-00a7907e9de1", "#c7b7a0"], // dog
@@ -38,9 +38,10 @@ const PHOTOS: [string, string][] = [
  * it text that fits that photo. (View and post counts are illustrative.)
  */
 const STORIES = [
-  { tile: 1, lines: ["POV: you finally", "booked the trip", "you kept talking about"], tags: ["travel", "windowseat", "wanderlust"], views: "2.1M", tag: "windowseat", posts: "1.2M" },
-  { tile: 5, lines: ["he heard the word", "'walk' from three", "rooms away"], tags: ["dogsoftiktok", "puppylove", "goldenretriever"], views: "3.4M", tag: "puppylove", posts: "2.8M" },
-  { tile: 3, lines: ["the beach day", "that fixed my", "whole week"], tags: ["beachday", "summervibes", "oceanlover"], views: "1.6M", tag: "beachday", posts: "3.1M" },
+  { tile: 5, lines: ["he heard the word", "'walk' from three", "rooms away"], tags: ["dogsoftiktok", "puppylove", "goldenretriever"], views: "3.4M", tag: "puppylove", posts: "2.8M", likes: 48 },
+  { tile: 10, lines: ["POV: she just", "discovered her", "own feet"], tags: ["babiesoftiktok", "babytok", "momlife"], views: "2.7M", tag: "babytok", posts: "1.9M", likes: 61 },
+  { tile: 3, lines: ["the beach day", "that fixed my", "whole week"], tags: ["beachday", "summervibes", "oceanlover"], views: "1.6M", tag: "beachday", posts: "3.1M", likes: 27 },
+  { tile: 1, lines: ["POV: you finally", "booked the trip", "you kept talking about"], tags: ["vacation", "windowseat", "wanderlust"], views: "2.1M", tag: "windowseat", posts: "1.2M", likes: 39 },
 ];
 const photoBg = (i: number, w = 240) => `url(${U(PHOTOS[i][0], w, w)}) center/cover, ${PHOTOS[i][1]}`;
 
@@ -128,7 +129,7 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 .chip small{color:#6b6b76;font-weight:500}
 .c1{top:9%;left:-34%}
 .c2{top:47%;right:-36%;animation-delay:-2s}
-.c3{bottom:20%;right:-30%;animation-delay:-4s}
+.c3{bottom:-9%;left:8%;animation-delay:-4s}
 @keyframes float{50%{transform:translateY(-10px)}}
 
 /* ---- Hero story: camera roll -> one clip is picked -> it becomes a viral-style video -> posted ---- */
@@ -164,7 +165,7 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
   24%,30%{opacity:1;left:calc(var(--pc) * 25.125cqw);top:calc(16cqh + var(--pr) * 25.125cqw);transform:scale(1)}
   27%{opacity:1;transform:scale(1.08)}
   32%,100%{opacity:0;left:calc(var(--pc) * 25.125cqw);top:calc(16cqh + var(--pr) * 25.125cqw)}}
-@keyframes rollUi{0%,30%{opacity:1}38%,92%{opacity:0}100%{opacity:1}}
+@keyframes rollUi{0%,30%{opacity:1}38%,97%{opacity:0}100%{opacity:1}}
 /* the picked tile grows into the full video */
 .clip{--from:inset(calc(16cqh + var(--pr) * 25.125cqw) calc(75.375cqw - var(--pc) * 25.125cqw) calc(84cqh - var(--pr) * 25.125cqw - 24.625cqw) calc(var(--pc) * 25.125cqw));position:absolute;inset:0;display:grid;place-items:center;
   clip-path:var(--from);opacity:0;animation:grow var(--T) infinite}
@@ -173,24 +174,41 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
   31%{opacity:1}
   40%{clip-path:inset(0 0 0 0 round 36px)}
   84%{opacity:1;transform:none;clip-path:inset(0 0 0 0 round 36px)}
-  92%,100%{opacity:0;transform:translateX(130%) rotate(16deg);clip-path:inset(0 0 0 0 round 36px)}}
+  95%{opacity:1;clip-path:inset(0 0 0 0 round 36px)}
+  100%{opacity:0;transform:none;clip-path:inset(0 0 0 0 round 36px)}}
 .clip .emo{font-size:120px;filter:drop-shadow(0 16px 24px rgba(0,0,0,.4));animation:bob 2.4s ease-in-out infinite}
 .ov{position:absolute;top:12%;left:7%;right:7%;display:grid;justify-items:center;text-align:center;color:var(--yellow);font-weight:900;font-size:21px;line-height:1.18;
   -webkit-text-stroke:1.2px #1a1400;paint-order:stroke fill;text-shadow:3px 3px 0 rgba(0,0,0,.35)}
 .ov span{opacity:0;animation:line var(--T) infinite}
 .ov .l1{--a:43%}.ov .l2{animation-name:line2}.ov .l3{animation-name:line3}
-@keyframes line{0%,43%{opacity:0;transform:translateY(8px) scale(.96)}46%,90%{opacity:1;transform:none}92%,100%{opacity:0}}
-@keyframes line2{0%,48%{opacity:0;transform:translateY(8px) scale(.96)}51%,90%{opacity:1;transform:none}92%,100%{opacity:0}}
-@keyframes line3{0%,53%{opacity:0;transform:translateY(8px) scale(.96)}56%,90%{opacity:1;transform:none}92%,100%{opacity:0}}
+@keyframes line{0%,43%{opacity:0;transform:translateY(8px) scale(.96)}46%,95%{opacity:1;transform:none}100%{opacity:0}}
+@keyframes line2{0%,48%{opacity:0;transform:translateY(8px) scale(.96)}51%,95%{opacity:1;transform:none}100%{opacity:0}}
+@keyframes line3{0%,53%{opacity:0;transform:translateY(8px) scale(.96)}56%,95%{opacity:1;transform:none}100%{opacity:0}}
 .tags{position:absolute;bottom:20%;left:6%;right:6%;display:flex;flex-wrap:wrap;justify-content:center;gap:5px;opacity:0;animation:tags var(--T) infinite}
 .tags span{font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,.45);padding:4px 8px;border-radius:999px}
-@keyframes tags{0%,60%{opacity:0;transform:translateY(10px)}64%,88%{opacity:1;transform:none}92%,100%{opacity:0}}
+@keyframes tags{0%,60%{opacity:0;transform:translateY(10px)}64%,78%{opacity:1;transform:none}81%,100%{opacity:0}}
 .clip .ui{opacity:0;animation:uiIn var(--T) infinite}
-@keyframes uiIn{0%,58%{opacity:0}62%,88%{opacity:1}92%,100%{opacity:0}}
+@keyframes uiIn{0%,58%{opacity:0}62%,78%{opacity:1}81%,100%{opacity:0}}
 .clip .ui .y{animation:press var(--T) infinite}
-@keyframes press{0%,72%{transform:none}75%{transform:scale(.86)}78%,100%{transform:none}}
+@keyframes press{0%,70%{transform:none}72%{transform:scale(.86)}74%,100%{transform:none}}
 .clip .stamp.yes{animation:stampPost var(--T) infinite}
-@keyframes stampPost{0%,75%{opacity:0;transform:rotate(-14deg) scale(1.4)}78%,88%{opacity:1;transform:rotate(-14deg) scale(1)}92%,100%{opacity:0}}
+@keyframes stampPost{0%,72%{opacity:0;transform:rotate(-14deg) scale(1.4)}74%,79%{opacity:1;transform:rotate(-14deg) scale(1)}81%,100%{opacity:0}}
+/* the posted video in a neutral social feed: rail of actions, likes counting up, handle + caption */
+@property --likes{syntax:"<integer>";inherits:false;initial-value:0}
+.feed{position:absolute;inset:0;opacity:0;animation:feedIn var(--T) infinite;pointer-events:none;color:#fff;font-family:-apple-system,Inter,system-ui,sans-serif}
+@keyframes feedIn{0%,80%{opacity:0}84%,95%{opacity:1}100%{opacity:0}}
+.feed::before{content:"";position:absolute;inset:0;background:linear-gradient(transparent 55%,rgba(0,0,0,.55))}
+.feed-top{position:absolute;top:5%;left:0;right:0;display:flex;justify-content:center;gap:16px;font-size:13px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.feed-top span{opacity:.65}.feed-top b{border-bottom:2px solid #fff;padding-bottom:3px}
+.rail{position:absolute;right:4%;bottom:16%;display:grid;gap:14px;justify-items:center;font-size:11px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.rail i{font-style:normal;font-size:26px;line-height:1;display:block}
+.rail .h i{color:#fe2c55;animation:heart var(--T) infinite}
+@keyframes heart{0%,84%{transform:scale(.6)}87%{transform:scale(1.35)}90%,100%{transform:scale(1)}}
+.rail .h b{--likes:0;counter-reset:likes var(--likes);animation:likes var(--T) infinite}
+.rail .h b::after{content:counter(likes) "K"}
+@keyframes likes{0%,82%{--likes:0}95%,100%{--likes:var(--max,48)}}
+.who{position:absolute;left:5%;right:22%;bottom:7%;text-align:left;font-size:12px;line-height:1.35;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.who b{display:block;font-size:13px;margin-bottom:2px}
 .cap{position:absolute;left:50%;bottom:16%;z-index:3;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:700;color:#fff;background:rgba(17,17,20,.85);
   padding:7px 12px;border-radius:999px;opacity:0;animation:capIn var(--T) infinite}
 @keyframes capIn{0%,8%{opacity:0}11%,30%{opacity:1}33%,100%{opacity:0}}
@@ -200,14 +218,8 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 .stage .c3{animation:float 6s ease-in-out infinite -4s,chip3 12s infinite}
 @keyframes chip1{0%,45%{opacity:0}49%,90%{opacity:1}94%,100%{opacity:0}}
 @keyframes chip2{0%,61%{opacity:0}65%,90%{opacity:1}94%,100%{opacity:0}}
-@keyframes chip3{0%,77%{opacity:0}80%,96%{opacity:1}99%,100%{opacity:0}}
+@keyframes chip3{0%,73%{opacity:0}76%,96%{opacity:1}99%,100%{opacity:0}}
 .ctas.stack{flex-direction:column;align-items:flex-start;gap:10px}
-
-/* ---- Caption ribbon ---- */
-.ribbon{position:relative;z-index:2;border-block:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);overflow:hidden;padding:18px 0}
-.track{display:flex;gap:14px;width:max-content;animation:marquee 40s linear infinite}
-.track span{white-space:nowrap;font-weight:800;font-size:18px;color:var(--yellow);-webkit-text-stroke:.6px #000;padding:8px 16px;border-radius:12px;background:rgba(255,255,255,.05)}
-@keyframes marquee{to{transform:translateX(-50%)}}
 
 /* ---- Light sections ---- */
 .light{background:var(--paper);color:var(--ink)}
@@ -268,7 +280,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
   .ctas{justify-content:center}
   .ctas.stack{align-items:center}
   .pill{margin-left:auto;margin-right:auto}
-  .c1{left:-14%;top:4%}.c2{right:-14%}.c3{right:auto;left:-12%;bottom:30%}
+  .c1{left:-14%;top:4%}.c2{right:-14%}.c3{left:4%;bottom:-8%}
   .steps,.feats{grid-template-columns:1fr}
   .flow{grid-template-columns:1fr;justify-items:center}
   .arrow{transform:rotate(90deg)}
@@ -294,7 +306,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
       <div>
         <div class="pill r"><b></b>Now in beta</div>
         <h1 class="r d1">Your camera roll, turned into <span class="grad">TikToks.</span></h1>
-        <p class="lead r d2">Ready-to-post videos from your camera roll. You just swipe.</p>
+        <p class="lead r d2">Ready-to-post videos from your camera roll. For when you shoot everything but never know what to post or what to write.</p>
         <div class="ctas stack r d3">${cta()}<span class="note">Invite-only for now.</span></div>
       </div>
       <div class="stage r d2" aria-hidden="true">
@@ -311,19 +323,24 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
             <div class="ov">${first.lines.map((l, i) => `<span class="l${i + 1}">${l}</span>`).join("")}</div>
             <div class="tags">${first.tags.map((t) => `<span>#${t}</span>`).join("")}</div>
             <span class="stamp yes">POST</span>
+            <div class="feed">
+              <div class="feed-top"><span>Following</span><b>For You</b></div>
+              <div class="rail"><span class="h"><i>♥</i><b></b></span><span><i>💬</i>1,204</span><span><i>↗</i>3.9K</span></div>
+              <div class="who"><b>@you · just now</b><span class="feed-cap">${first.lines.join(" ")} ✨</span></div>
+            </div>
             <div class="ui"><span class="n">✕</span><span class="y">✓</span></div>
           </div>
           <div class="cap">Picking the best moment…</div>
         </div></div>
-        <div class="chip c1">🔥 Text from a <span class="v">${first.views}</span>-view TikTok</div>
-        <div class="chip c2"># <span class="t">${first.tag}</span> <small><span class="p">${first.posts}</span> posts</small></div>
-        <div class="chip c3">✓ Caption copied · ready to post</div>
+        <div class="chip c1">🔥 <span>Text from a <span class="v">${first.views}</span>-view TikTok</span></div>
+        <div class="chip c2"><span>#<span class="t">${first.tag}</span></span> <small><span class="p">${first.posts}</span> posts</small></div>
+        <div class="chip c3">✓ Posted · caption and hashtags included</div>
       </div>
     </div>
   </div>
 </header>
 
-<div class="ribbon" aria-hidden="true"><div class="track">${[...captions, ...captions].map((c) => `<span>${c}</span>`).join("")}</div></div>
+
 
 <div class="light">
   <section class="block"><div class="wrap">
@@ -401,6 +418,8 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
       stage.querySelector(".c1 .v").textContent = st.views;
       stage.querySelector(".c2 .t").textContent = st.tag;
       stage.querySelector(".c2 .p").textContent = st.posts;
+      stage.querySelector(".rail .h b").style.setProperty("--max", st.likes);
+      stage.querySelector(".feed-cap").textContent = st.lines.join(" ") + " ✨";
     };
     show(stories[0]);
     clip.addEventListener("animationiteration", (e) => {

@@ -453,3 +453,27 @@ main { padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important; }
 .banner { position: sticky; top: 8px; z-index: 30; }
 .clips-fold > .sub { margin: 4px 0 12px; }
 .clips-fold { margin-bottom: 16px; }
+
+/* ---- Full-screen swipe card: from the top of the page down to the bottom bar ---- */
+main:has(section[data-tab="review"]:not([hidden]) #stack:not([hidden])) {
+  padding-top: 10px !important; padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+}
+.stack { position: relative; margin: 0; gap: 0; }
+.stack-top { position: absolute; top: 10px; left: 10px; z-index: 5; width: auto; }
+.stack-stage, .stack-card { width: min(100%, 520px); }
+.stack-stage { height: calc(100svh - 96px - env(safe-area-inset-bottom)); }
+.stack-card { height: 100%; display: flex; flex-direction: column; padding: 6px; }
+.stack-media { flex: 1; min-height: 0; }
+.stack-media video { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; object-fit: cover; }
+/* Details open: the card grows and the page scrolls to them. */
+.stack-card.open { height: auto; }
+.stack-card.open .stack-media { flex: none; height: calc(100svh - 108px - env(safe-area-inset-bottom)); }
+.stack-media .stack-actions { position: absolute; left: 0; right: 0; bottom: 26px; z-index: 3; margin: 0; }
+.stack-media .round { box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+.stack-media .round span { color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+.stack-media .round span.with-icon { color: #fff; }
+.stack-media::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 170px; pointer-events: none;
+  background: linear-gradient(to top, rgba(0,0,0,.45), transparent); }
+.stack-tap { top: 12px; bottom: auto; left: auto; right: 12px; }
+.stack-sound { top: 44px; bottom: auto; }
+.stack-why { margin-top: 24px; }

@@ -406,15 +406,20 @@ function renderStack() {
   const r = stack.whyFor ? null : queue.find((x) => x.id === stack.shownId) ?? queue[0];
   $(".stack-actions").hidden = !r;
   $("#stack-why").hidden = !stack.whyFor;
+  const actions = $(".stack-actions");
   if (!r) {
     stack.shownId = null;
+    $("#stack").append(actions); // park the buttons outside the card that's going away
     $("#stack-stage").replaceChildren();
     return;
   }
   // Keep the card (and its playing video / open details) across background refreshes.
   if (r.id === stack.shownId && stack.node?.isConnected) return;
   stack.shownId = r.id;
+  $("#stack").append(actions);
   stack.node = stackCard(r);
+  // The Reject / Post buttons float over the bottom of the video.
+  stack.node.querySelector(".stack-media").append(actions);
   prefetchFile(r);
   $("#stack-stage").replaceChildren(stack.node);
 }

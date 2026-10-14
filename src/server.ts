@@ -13,6 +13,7 @@ import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy } from 
 import { forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, retryRender } from "./generate.ts";
 import { addAlbum, forgetItem, setRecentDays, syncAlbum } from "./albums.ts";
+import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { localDate, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { currentTrends, refreshTrends } from "./ai/trends.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
@@ -102,6 +103,7 @@ app.get("/api/status", (_req, res) => {
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     memoryMb,
     tiktokSearch: apifyEnabled(),
+    videosToday: { made: videosMadeToday(), limit: dailyLimit() },
     settings: store.settings(),
     templates: Object.values(TEMPLATES).map(({ id, name, description }) => ({ id, name, description })),
     music: listMusic(),
@@ -109,7 +111,7 @@ app.get("/api/status", (_req, res) => {
 });
 
 app.put("/api/settings", (req, res) => {
-  const { petName, handle, fontId, textStyle, aiMonthlyBudget } = req.body ?? {};
+  const { petName, handle, fontId, textStyle, aiMonthlyBudget, maxVideosPerDay } = req.body ?? {};
   const fontOk = typeof fontId === "string" && listFonts().some((f) => f.id === fontId);
   res.json(
     store.updateSettings({
@@ -120,6 +122,7 @@ app.put("/api/settings", (req, res) => {
       ...(Number.isFinite(Number(aiMonthlyBudget)) && aiMonthlyBudget !== "" && aiMonthlyBudget !== undefined
         ? { aiMonthlyBudget: clamp(Number(aiMonthlyBudget), 0, 1000) }
         : {}),
+      ...(Number(maxVideosPerDay) >= 1 ? { maxVideosPerDay: clamp(Math.round(Number(maxVideosPerDay)), 1, 30) } : {}),
     }),
   );
 });
@@ -490,7 +493,9 @@ function parseRequest(body: any): GenerateRequest {
 app.post(
   "/api/plan",
   h(async (req, res) => {
-    res.json(await plan(parseRequest(req.body)));
+    const r = parseRequest(req.body);
+    r.count = Math.max(1, Math.min(r.count, videosLeftToday()));
+    res.json(await plan(r));
   }),
 );
 
@@ -500,7 +505,9 @@ app.post("/api/render", (req, res) => {
   const options = parseOptions(req.body?.options);
   const valid = plans.filter((p) => Array.isArray(p?.segments) && p.segments.every((s) => store.clip(String(s.clipId))));
   if (!valid.length) return res.status(400).json({ error: "No valid plans to render." });
-  res.json({ renders: valid.map((p) => queueRender(sanitizePlan(p), options)) });
+  const left = videosLeftToday();
+  if (!left) return res.status(429).json({ error: new DailyLimitReached().message });
+  res.json({ renders: valid.slice(0, left).map((p) => queueRender(sanitizePlan(p), options)) });
 });
 
 /** One click: plan and render. */
@@ -508,6 +515,9 @@ app.post(
   "/api/generate",
   h(async (req, res) => {
     const r = parseRequest(req.body);
+    const left = videosLeftToday();
+    if (!left) return res.status(429).json({ error: new DailyLimitReached().message });
+    r.count = Math.min(r.count, left);
     const { plans, warning } = await plan(r);
     // "Make video" on a clip adds it to today's review batch.
     const batch = req.body?.batch === "today" ? localDate(new Date()) : undefined;

@@ -2,6 +2,7 @@ import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { syncAll } from "./albums.ts";
 import { plan, queueRender, isPortrait } from "./generate.ts";
+import { localDate, videosLeftToday } from "./dailyLimit.ts";
 import { refreshTrends, trendsStale } from "./ai/trends.ts";
 import { ingestQueue } from "./queue.ts";
 import { researchScene, researchStale } from "./ai/research.ts";
@@ -17,8 +18,7 @@ import type { RenderOptions } from "./types.ts";
  */
 
 const today = () => localDate(new Date());
-export const localDate = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export { localDate };
 
 let lastSync = 0;
 let paused = false;
@@ -72,6 +72,12 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
   const date = today();
   try {
     if (!opts.force && auto.lastBatchDate === date) return { renders: [], skipped: "already done today" };
+    // Checked before any AI call, so a reached limit costs nothing.
+    const left = videosLeftToday();
+    if (!left) {
+      store.updateAuto({ lastBatchDate: date });
+      return { renders: [], skipped: "daily video limit reached" };
+    }
     // Pick up anything added to the albums since the last check, and let it finish analyzing.
     if (store.albums().length) {
       lastSync = Date.now();
@@ -94,7 +100,7 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     const { plans, warning } = await plan({
       template: auto.template,
       targetSeconds: auto.targetSeconds,
-      count: auto.dailyCount,
+      count: Math.min(auto.dailyCount, left),
       clipIds: pool.map((c) => c.id),
       useAi: true,
       options,

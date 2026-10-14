@@ -60,7 +60,9 @@ async function loadStatus() {
   if (document.activeElement?.form !== form) {
     form.petName.value = s.settings.petName;
     form.handle.value = s.settings.handle;
+    form.maxVideosPerDay.value = String(s.settings.maxVideosPerDay);
   }
+  $("#videos-today").textContent = `${s.videosToday.made} of ${s.videosToday.limit} made today. Nothing more is made once the limit is reached, including by hand.`;
   const btn = $("#btn-google");
   // The picker needs Google Cloud credentials; the album link doesn't, so only show the picker when it's set up.
   btn.hidden = !s.google.configured;
@@ -84,7 +86,7 @@ async function loadStatus() {
 
 $("#settings").addEventListener("change", async (e) => {
   const f = e.currentTarget;
-  await api("/api/settings", { method: "PUT", body: { petName: f.petName.value, handle: f.handle.value } });
+  await api("/api/settings", { method: "PUT", body: { petName: f.petName.value, handle: f.handle.value, maxVideosPerDay: Number(f.maxVideosPerDay.value) } });
 });
 $("#settings").addEventListener("submit", (e) => e.preventDefault());
 

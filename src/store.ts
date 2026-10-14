@@ -29,6 +29,8 @@ export interface Settings {
   scenes: string[];
   /** Monthly cap on estimated AI (Claude API) spend, in USD. */
   aiMonthlyBudget: number;
+  /** Hard cap on new videos made per day, from any source. */
+  maxVideosPerDay: number;
   /** Set once the yellow CapCut look became the default (keeps later manual choices). */
   lookV2?: boolean;
 }
@@ -49,6 +51,7 @@ const DEFAULT_SETTINGS: Settings = {
   textStyle: "yellow",
   scenes: DEFAULT_SCENES,
   aiMonthlyBudget: Number(process.env.AI_MONTHLY_BUDGET) || 20,
+  maxVideosPerDay: 5,
 };
 
 const DEFAULT_AUTO: AutoSettings = {

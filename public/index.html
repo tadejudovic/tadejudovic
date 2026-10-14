@@ -107,6 +107,8 @@
         <form id="settings" class="grid-form">
           <label>Pet's name <input name="petName" placeholder="Lex" maxlength="40" /></label>
           <label>TikTok handle <input name="handle" placeholder="@lex.poodle" maxlength="40" /></label>
+          <label>Daily limit <input type="number" name="maxVideosPerDay" min="1" max="30" /></label>
+          <span class="muted" id="videos-today"></span>
         </form>
         <form id="auto" class="grid-form spaced">
           <label>Videos per day <input type="number" name="dailyCount" min="1" max="10" /></label>

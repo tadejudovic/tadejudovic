@@ -408,6 +408,7 @@ function renderStack() {
   if (r.id === stack.shownId && stack.node?.isConnected) return;
   stack.shownId = r.id;
   stack.node = stackCard(r);
+  prefetchFile(r);
   $("#stack-stage").replaceChildren(stack.node);
 }
 
@@ -494,15 +495,47 @@ function dragToSwipe(card, handle, onSwipe, onTap) {
   };
 }
 
+// Keeping a video saves it right away. On phones that opens the share sheet
+// ("Save Video", or straight to TikTok); elsewhere it downloads the file.
+const files = new Map();
+function fileName(r) {
+  return `${(state.status?.settings.petName || "video")}-${r.createdAt.slice(0, 10)}-${r.id.slice(-4)}.mp4`;
+}
+function prefetchFile(r) {
+  if (files.has(r.id) || !navigator.canShare) return;
+  files.set(r.id, null);
+  fetch(`/media/render/${r.id}.mp4`)
+    .then((res) => res.blob())
+    .then((b) => files.set(r.id, new File([b], fileName(r), { type: "video/mp4" })))
+    .catch(() => files.delete(r.id));
+}
+function saveVideo(r) {
+  const file = files.get(r.id);
+  const markSaved = () => api(`/api/renders/${r.id}`, { method: "PATCH", body: { downloaded: true } }).then(() => (r.downloaded = true)).catch(() => {});
+  const isPhone = matchMedia("(pointer: coarse)").matches;
+  if (isPhone && file && navigator.canShare?.({ files: [file] })) {
+    navigator.share({ files: [file] }).then(markSaved).catch(() => {});
+    return;
+  }
+  const a = h("a", { href: `/media/render/${r.id}.mp4?dl=1`, download: fileName(r) });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  markSaved();
+}
+
 function decide(dir) {
   const r = toReview().find((x) => x.id === stack.shownId);
   if (!r) return;
+  // Must run inside the swipe/tap itself: browsers only open share sheets and downloads from a gesture.
+  if (dir === "right") saveVideo(r);
   if (!stack.node.style.transform) stack.node.flyOut(dir);
   const review = dir === "right" ? "approved" : "rejected";
   stack.history.push(r.id);
   stack.whyFor = review === "rejected" ? r.id : null;
   $("#stack-why").hidden = review !== "rejected";
   r.review = review;
+  if (review === "approved") banner("Kept and saved. It's under “Kept” if you need it again.", "ok");
   api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } }).catch((err) => banner(err.message));
   setTimeout(() => { stack.shownId = null; renderStack(); renderBatch(); }, 230);
 }

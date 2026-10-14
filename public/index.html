@@ -59,8 +59,14 @@
           <button data-reason="edit">The cut</button>
         </div>
         <div class="stack-actions">
-          <button id="stack-no" class="round no" aria-label="Reject (swipe left)">✕</button>
-          <button id="stack-yes" class="round yes" aria-label="Keep (swipe right)">✓</button>
+          <button id="stack-no" class="round no" aria-label="Reject (swipe left)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            <span>Reject</span>
+          </button>
+          <button id="stack-yes" class="round yes" aria-label="Keep and save (swipe right)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>
+            <span>Keep</span>
+          </button>
         </div>
       </div>
 

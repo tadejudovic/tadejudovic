@@ -93,26 +93,57 @@
 
     <!-- SETTINGS ------------------------------------------------------------ -->
     <section data-tab="settings" hidden>
-      <div class="page-head"><h1>Settings</h1></div>
+      <h1 class="settings-title">Settings</h1>
 
-      <div class="card">
-        <h2 class="card-title">Google Photos album</h2>
+      <p class="group-label">Footage</p>
+      <div class="group">
+        <button class="srow" data-open="sp-album"><span class="row-title">Google Photos album</span><span class="row-value" id="sum-album"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" data-open="sp-clips"><span class="row-title">Your clips</span><span class="row-value" id="sum-clips"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+
+      <p class="group-label">Making videos</p>
+      <div class="group">
+        <button class="srow" data-open="sp-videos"><span class="row-title">Schedule &amp; limits</span><span class="row-value" id="sum-videos"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" data-open="sp-look"><span class="row-title">Text on video</span><span class="row-value" id="sum-look"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+
+      <p class="group-label">Captions</p>
+      <div class="group">
+        <button class="srow" data-open="sp-scenes"><span class="row-title">Situations &amp; TikTok captions</span><span class="row-value" id="sum-scenes"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" data-open="sp-examples"><span class="row-title">Videos that worked</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+
+      <p class="group-label">Account</p>
+      <div class="group">
+        <button class="srow" data-open="sp-profile"><span class="row-title">Profile</span><span class="row-value" id="sum-profile"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" data-open="sp-spend"><span class="row-title">Spending</span><span class="row-value" id="sum-spend"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" data-open="sp-manual"><span class="row-title">Make videos by hand</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" id="btn-diag"><span class="row-title">Copy diagnostics</span><span class="row-value">for support</span></button>
+        <a class="srow danger" id="logout" href="/logout" hidden><span class="row-title">Sign out</span></a>
+      </div>
+
+      <div class="subpage" id="sp-album" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Google Photos album</h2></header>
+        <div class="sp-body">
+        <p class="sp-intro">Put the videos you want to use in a shared Google Photos album and paste its link here. New videos are picked up every few hours.</p>
         <form id="album-form" class="inline-form">
           <input name="url" type="url" placeholder="Paste a shared-album link (photos.google.com/share/… works best)" required />
           <button class="btn" type="submit">Add</button>
         </form>
         <ul id="albums" class="albums"></ul>
-        <p class="hint">Tip: in Google Photos, make the album add Lex automatically (album ⋮ → Options → Automatically add → People &amp; pets → Lex). New albums import videos from the last 30 days, up to 15 per check.</p>
+        <p class="hint">Tip: make the album add Lex by itself: in Google Photos open the album, ⋮ → Options → Automatically add → People &amp; pets → Lex. New albums use videos from the last 30 days. Clips are imported only as they're needed for the next round, so nothing is spent on footage before you've reviewed what's there.</p>
         <p class="hint">
           <span id="google-hint"></span>
           <label class="link">Or upload videos<input id="file-input" type="file" accept="video/*,image/*" multiple hidden /></label>
           <button id="btn-google" class="link-btn" hidden>Pick from Google Photos</button>
         </p>
+        </div>
       </div>
 
-      <details class="fold clips-fold" id="clips-fold">
-        <summary>Your clips</summary>
-        <p class="sub">The videos from your album that new TikToks are made from. Tap one to play it.</p>
+      <div class="subpage" id="sp-clips" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Your clips</h2></header>
+        <div class="sp-body">
+        <p class="sp-intro">The videos from your album that new TikToks are made from. Tap one to play it.</p>
       <h2 class="section-title first">Up next</h2>
       <p class="sub">The clips the next videos will be made from.</p>
       <div id="suggestions" class="suggestions"></div>
@@ -124,17 +155,14 @@
         <p id="clips-empty" class="muted">No clips yet. Add videos to your Google Photos album above.</p>
       </div>
       <p class="hint" id="selection-hint" hidden></p>
-      </details>
 
-      <div class="card">
-        <h2 class="card-title">Videos</h2>
-        <form id="settings" class="grid-form">
-          <label>Pet's name <input name="petName" placeholder="Lex" maxlength="40" /></label>
-          <label>TikTok handle <input name="handle" placeholder="@lex.poodle" maxlength="40" /></label>
-          <label>Daily limit <input type="number" name="maxVideosPerDay" min="1" max="30" /></label>
-          <span class="muted" id="videos-today"></span>
-        </form>
-        <form id="auto" class="grid-form spaced">
+        </div>
+      </div>
+
+      <div class="subpage" id="sp-videos" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Schedule &amp; limits</h2></header>
+        <div class="sp-body">
+                <form id="auto" class="grid-form spaced">
           <label>Videos per round <input type="number" name="dailyCount" min="1" max="10" /></label>
           <label>Ready by <input type="time" name="dailyTime" /></label>
           <label>Length
@@ -144,20 +172,16 @@
           <select name="template" id="auto-template" hidden></select>
           <select name="syncEveryHours" hidden><option value="1">1h</option><option value="3">3h</option><option value="6">6h</option><option value="12">12h</option><option value="24">24h</option></select>
         </form>
-      </div>
-
-      <div class="card">
-        <h2 class="card-title">AI spending</h2>
-        <p class="spend"><b id="spend-used">$0.00</b> of <b id="spend-limit">$20</b> used this month <span id="spend-calls" class="muted"></span></p>
-        <div class="meter"><i id="spend-bar"></i></div>
-        <form id="budget-form" class="grid-form spaced">
-          <label>Monthly limit (USD) <input type="number" name="aiMonthlyBudget" min="0" max="1000" step="1" /></label>
+        <form id="limits" class="grid-form">
+          <label>Daily limit <input type="number" name="maxVideosPerDay" min="1" max="30" /></label>
+          <span class="muted" id="videos-today"></span>
         </form>
-        <p class="hint">Covers both Claude (AI) and Apify (TikTok search). Claude's cost comes from the usage it reports after every call; Apify's is estimated on the high side per search result. The meter updates after every call. When the limit is reached, the app stops calling both until next month. For a hard cap, also set limits in the Anthropic Console and in Apify.</p>
+        </div>
       </div>
 
-      <div class="card">
-        <h2 class="card-title">Text on video</h2>
+      <div class="subpage" id="sp-look" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Text on video</h2></header>
+        <div class="sp-body">
         <div class="look">
           <div id="look-preview" class="look-preview"><span id="look-sample">POV: the energy shift when we pull into the airport</span></div>
           <div class="look-controls">
@@ -168,16 +192,22 @@
               <label><input type="radio" name="textStyle" value="box" />Box</label>
               <label><input type="radio" name="textStyle" value="plain" />Plain</label>
             </div>
+            <label class="field">Size</label>
+            <div class="seg" id="text-size">
+              <label><input type="radio" name="textSize" value="small" />Small</label>
+              <label><input type="radio" name="textSize" value="medium" />Medium</label>
+              <label><input type="radio" name="textSize" value="large" />Large</label>
+            </div>
             <label class="link">Upload your own font<input id="font-input" type="file" accept=".ttf,.otf" hidden /></label>
           </div>
         </div>
+        <p class="hint">Best practice: keep the text to 2–3 short lines, readable at a glance, and clear of TikTok's buttons (right side) and caption (bottom). Medium fits most videos; use Large for very short lines and Small for long ones.</p>
+        </div>
       </div>
 
-      <details class="fold advanced">
-        <summary>Advanced</summary>
-
-        <div class="card">
-          <h2 class="card-title">Situations &amp; proven captions</h2>
+      <div class="subpage" id="sp-scenes" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Situations &amp; TikTok captions</h2></header>
+        <div class="sp-body">
           <p class="hint top">Clips are sorted into these situations. For each one, captions that did well on TikTok are researched automatically and adapted to your clips. You can add captions you found yourself.</p>
           <p class="hint top" id="research-source"></p>
           <div id="scenes" class="scenes"></div>
@@ -186,9 +216,11 @@
             <button class="btn" type="submit">Add</button>
           </form>
         </div>
+      </div>
 
-        <div class="card">
-          <h2 class="card-title">Videos that worked</h2>
+      <div class="subpage" id="sp-examples" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Videos that worked</h2></header>
+        <div class="sp-body">
           <p class="hint top">Past videos that performed well. Their tone and text style guide new captions.</p>
           <form id="example-form" class="example-form">
             <label class="btn small">Choose video<input name="file" type="file" accept="video/*" hidden /></label>
@@ -200,9 +232,33 @@
           </form>
           <div id="examples" class="examples"></div>
         </div>
+      </div>
 
-        <div class="card">
-          <h2 class="card-title">Make videos manually</h2>
+      <div class="subpage" id="sp-profile" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Profile</h2></header>
+        <div class="sp-body">
+        <form id="settings" class="grid-form">
+          <label>Pet's name <input name="petName" placeholder="Lex" maxlength="40" /></label>
+          <label>TikTok handle <input name="handle" placeholder="@lex.poodle" maxlength="40" /></label>
+        </form>
+        </div>
+      </div>
+
+      <div class="subpage" id="sp-spend" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Spending</h2></header>
+        <div class="sp-body">
+        <p class="spend"><b id="spend-used">$0.00</b> of <b id="spend-limit">$20</b> used this month <span id="spend-calls" class="muted"></span></p>
+        <div class="meter"><i id="spend-bar"></i></div>
+        <form id="budget-form" class="grid-form spaced">
+          <label>Monthly limit (USD) <input type="number" name="aiMonthlyBudget" min="0" max="1000" step="1" /></label>
+        </form>
+        <p class="hint">Covers both Claude (AI) and Apify (TikTok search). Claude's cost comes from the usage it reports after every call; Apify's is estimated on the high side per search result. The meter updates after every call. When the limit is reached, the app stops calling both until next month. For a hard cap, also set limits in the Anthropic Console and in Apify.</p>
+        </div>
+      </div>
+
+      <div class="subpage" id="sp-manual" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Make videos by hand</h2></header>
+        <div class="sp-body">
           <form id="create" class="create">
             <div class="field">
               <span class="label">Approach</span>
@@ -241,22 +297,13 @@
             </div>
           </form>
           <div id="plans" class="plans" hidden></div>
-        </div>
-
-        <div class="card">
-          <h2 class="card-title">Status</h2>
-          <div class="chips">
+          <div class="chips spaced">
             <span id="chip-ai" class="chip">AI</span>
             <span id="chip-google" class="chip">Google Photos picker</span>
           </div>
         </div>
-      </details>
+      </div>
 
-      <p class="signout">
-        <button id="btn-diag" class="btn small">Copy diagnostics</button>
-        <span class="muted">Something not working? Paste this to whoever is helping you.</span>
-      </p>
-      <p class="signout"><a id="logout" class="link" href="/logout" hidden>Sign out</a></p>
     </section>
   </main>
 

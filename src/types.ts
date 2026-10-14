@@ -176,10 +176,13 @@ export interface RenderOptions {
   keepOriginalAudio: boolean;
   musicFile?: string;
   textStyle: TextStyle;
+  /** Size of the text on the video; older videos without it render at "medium". */
+  textSize?: TextSize;
   fontId: string;
 }
 
 export type TextStyle = "yellow" | "classic" | "box" | "plain";
+export type TextSize = "small" | "medium" | "large";
 
 export interface GenerateRequest {
   template: TemplateId;

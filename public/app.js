@@ -63,8 +63,9 @@ async function loadStatus() {
   if (document.activeElement?.form !== form) {
     form.petName.value = s.settings.petName;
     form.handle.value = s.settings.handle;
-    form.maxVideosPerDay.value = String(s.settings.maxVideosPerDay);
   }
+  if (document.activeElement?.form !== $("#limits")) $("#limits").maxVideosPerDay.value = String(s.settings.maxVideosPerDay);
+  renderSummaries();
   $("#videos-today").textContent = `${s.videosToday.made} of ${s.videosToday.limit} made today. Nothing more is made once the limit is reached, including by hand.`;
   const btn = $("#btn-google");
   // The picker needs Google Cloud credentials; the album link doesn't, so only show the picker when it's set up.
@@ -89,9 +90,54 @@ async function loadStatus() {
 
 $("#settings").addEventListener("change", async (e) => {
   const f = e.currentTarget;
-  await api("/api/settings", { method: "PUT", body: { petName: f.petName.value, handle: f.handle.value, maxVideosPerDay: Number(f.maxVideosPerDay.value) } });
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { petName: f.petName.value, handle: f.handle.value } });
+  renderSummaries();
 });
 $("#settings").addEventListener("submit", (e) => e.preventDefault());
+$("#limits").addEventListener("change", async (e) => {
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { maxVideosPerDay: Number(e.currentTarget.maxVideosPerDay.value) } });
+  renderSummaries();
+});
+$("#limits").addEventListener("submit", (e) => e.preventDefault());
+
+// ---- Settings: grouped rows that open sub-pages ---------------------------------
+
+function openSubpage(id) {
+  const page = document.getElementById(id);
+  if (!page) return;
+  page.hidden = false;
+  page.scrollTop = 0;
+  document.body.classList.add("no-scroll");
+}
+function closeSubpages() {
+  for (const p of document.querySelectorAll(".subpage")) p.hidden = true;
+  document.body.classList.remove("no-scroll");
+  renderSummaries();
+}
+document.addEventListener("click", (e) => {
+  const open = e.target.closest("[data-open]");
+  if (open) return openSubpage(open.dataset.open);
+  if (e.target.closest(".sp-back")) closeSubpages();
+});
+
+/** The short value shown on the right of each settings row. */
+function renderSummaries() {
+  const s = state.status;
+  if (!s) return;
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  const n = state.albumCount ?? 0;
+  set("sum-album", n ? `${n} album${n === 1 ? "" : "s"}` : "Not connected");
+  const ready = state.clips.filter((c) => c.status === "ready").length;
+  set("sum-clips", `${ready} clip${ready === 1 ? "" : "s"}`);
+  const a = state.auto;
+  set("sum-videos", a ? `${a.enabled ? `${a.dailyCount} per round` : "Off"} · max ${s.settings.maxVideosPerDay}/day` : "");
+  const size = { small: "Small", medium: "Medium", large: "Large" }[s.settings.textSize] ?? "Medium";
+  const style = { yellow: "Yellow", classic: "Outline", box: "Box", plain: "Plain" }[s.settings.textStyle] ?? "";
+  set("sum-look", `${style} · ${size}`);
+  set("sum-scenes", s.tiktokSearch ? `${s.settings.scenes.length} situations` : "Apify not connected");
+  set("sum-profile", s.settings.handle || s.settings.petName || "");
+  set("sum-spend", `$${s.spend.usd.toFixed(2)} of $${s.spend.limit.toFixed(0)}`);
+}
 
 // ---- Google Photos picker ---------------------------------------------------
 
@@ -172,6 +218,7 @@ $("#music-input").addEventListener("change", async (e) => {
 
 async function refreshClips() {
   state.clips = await api("/api/clips");
+  renderSummaries();
   for (const id of state.selected) if (!state.clips.some((c) => c.id === id)) state.selected.delete(id);
   renderClips();
 }
@@ -537,13 +584,6 @@ function detailsBody(r) {
       headline,
       h("button", { class: "d-link", onclick: () => { editText.hidden = !editText.hidden; if (!editText.hidden) textInput.focus(); } }, "Edit text"),
       editText,
-      b ? h("div", { class: "d-proof" },
-        h("span", { class: "d-proof-icon" }, "🔥"),
-        h("span", {},
-          b.views ? h("b", {}, `Based on a ${fmtViews(b.views)}-view TikTok`) : h("b", {}, "Based on a popular TikTok"),
-          h("span", { class: "muted" }, ` “${b.text}”`),
-          b.url ? [" ", h("a", { href: b.url, target: "_blank", rel: "noopener noreferrer" }, "Watch")] : null),
-      ) : null,
     ),
     h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, editCaptionBtn, copyBtn)),
@@ -561,6 +601,16 @@ function detailsBody(r) {
           h("b", {}, plan.scene || clip?.scene || "Your clip"),
           h("span", { class: "muted" }, `${mmss(seg.start)}–${mmss(seg.end)} of the original`)),
         h("span", { class: "d-play" }, "Play ›"),
+      ),
+    ) : null,
+    b ? h("section", { class: "d-sec" },
+      h("div", { class: "d-sec-head" }, h("span", {}, "Inspired by")),
+      h("div", { class: "d-proof" },
+        h("span", { class: "d-proof-icon" }, "🔥"),
+        h("span", {},
+          h("b", {}, b.views ? `${fmtViews(b.views)} views on TikTok` : "A popular TikTok"),
+          h("span", { class: "d-proof-text" }, `“${b.text}”`),
+          b.url ? h("a", { href: b.url, target: "_blank", rel: "noopener noreferrer" }, "Watch on TikTok ›") : null),
       ),
     ) : null,
   );
@@ -794,6 +844,7 @@ document.addEventListener("keydown", (e) => e.key === "Escape" && !$("#sheet").h
 async function refreshAlbums() {
   const albums = await api("/api/albums");
   state.albumCount = albums.length;
+  renderSummaries();
   $("#albums").replaceChildren(
     ...albums.map((a) =>
       h("li", {},
@@ -816,7 +867,7 @@ async function refreshAlbums() {
               h("option", { value: v, selected: (a.recentDays ?? 0) === v }, t))),
           ),
           a.tooOld || a.waiting ? h("div", { class: "muted" },
-            [a.tooOld ? `${a.tooOld} older item(s) left out` : "", a.waiting ? `${a.waiting} more will import at the next checks` : ""].filter(Boolean).join(" · ")) : null,
+            [a.tooOld ? `${a.tooOld} older item(s) left out` : "", a.waiting ? `${a.waiting} more waiting; imported as new rounds need them` : ""].filter(Boolean).join(" · ")) : null,
           a.lastError ? h("div", { class: "err" }, a.lastError) : null,
           a.skipped && Object.keys(a.skipped).length
             ? h("div", { class: "muted", title: "What Google returned for items that weren't recognized as videos" },
@@ -861,6 +912,7 @@ $("#album-form").addEventListener("submit", (e) => {
 
 async function loadAuto() {
   const a = (state.auto = await api("/api/auto"));
+  renderSummaries();
   const f = $("#auto");
   f.enabled.checked = a.enabled;
   f.dailyTime.value = a.dailyTime;
@@ -873,7 +925,7 @@ async function loadAuto() {
 
 $("#auto").addEventListener("change", async (e) => {
   const f = e.currentTarget;
-  await api("/api/auto", {
+  state.auto = await api("/api/auto", {
     method: "PUT",
     body: {
       enabled: f.enabled.checked,
@@ -884,6 +936,7 @@ $("#auto").addEventListener("change", async (e) => {
       syncEveryHours: Number(f.syncEveryHours.value),
     },
   });
+  renderSummaries();
 });
 
 $("#btn-batch-empty").addEventListener("click", () => $("#btn-batch").click());
@@ -1218,12 +1271,14 @@ function fontFamily(f) {
 
 async function loadFonts() {
   const fonts = await api("/api/fonts");
-  const { fontId, textStyle, petName } = state.status.settings;
+  const { fontId, textStyle, textSize = "medium", petName } = state.status.settings;
   $("#look-sample").textContent = `POV: the energy shift when ${petName || "Lex"} realizes we're at the airport`;
   const current = fonts.find((f) => f.id === fontId) ?? fonts.find((f) => f.id === "tiktok-sans");
   $("#look-sample").style.fontFamily = `"${fontFamily(current)}"`;
-  $("#look-preview").className = `look-preview ${textStyle}`;
+  $("#look-preview").className = `look-preview ${textStyle} size-${textSize}`;
   for (const r of document.querySelectorAll("#text-style input")) r.checked = r.value === textStyle;
+  for (const r of document.querySelectorAll("#text-size input")) r.checked = r.value === textSize;
+  renderSummaries();
   // Font names in the dropdown are shown in their own typeface where the browser supports it.
   $("#font-select").replaceChildren(
     ...fonts.map((f) =>
@@ -1234,6 +1289,11 @@ async function loadFonts() {
 
 $("#font-select").addEventListener("change", async (e) => {
   state.status.settings = await api("/api/settings", { method: "PUT", body: { fontId: e.target.value } });
+  loadFonts();
+});
+
+$("#text-size").addEventListener("change", async (e) => {
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { textSize: e.target.value } });
   loadFonts();
 });
 
@@ -1427,8 +1487,8 @@ $("#onboard-form").addEventListener("submit", (e) => {
 const TABS = ["review", "ready", "settings"];
 function showTab(name) {
   if (["captions", "style", "clips"].includes(name)) {
-    if (name === "clips") $("#clips-fold").open = true;
     name = "settings";
+    if (location.hash === "#clips") setTimeout(() => openSubpage("sp-clips"));
   }
   if (!TABS.includes(name)) name = "review";
   for (const sec of document.querySelectorAll("main > section[data-tab]")) sec.hidden = sec.dataset.tab !== name;

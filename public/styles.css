@@ -541,3 +541,54 @@ html, body { overflow-x: clip; max-width: 100%; }
 .details-body .d { padding-bottom: 8px; }
 .sheet-card .d { padding: 4px 10px 4px; }
 .d-chips .chip::before { display: none; }
+
+/* ---- Overall polish ---- */
+body { font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif; letter-spacing: -0.005em; }
+input:not([type=checkbox]):not([type=radio]), select, textarea { border-radius: 12px !important; min-height: 44px; }
+.btn { border-radius: 12px; min-height: 40px; font-weight: 600; }
+.btn.small { min-height: 32px; border-radius: 10px; }
+
+/* ---- Settings: grouped rows, iOS style ---- */
+section[data-tab="settings"] { max-width: 640px; margin: 0 auto; }
+.settings-title { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin: 4px 4px 18px; }
+.group-label { margin: 22px 16px 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.group { background: #fff; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+.srow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 54px; padding: 12px 14px 12px 16px; border: 0; background: none;
+  font: inherit; font-size: 16px; color: var(--ink); text-align: left; text-decoration: none; cursor: pointer; }
+.srow + .srow { border-top: 1px solid var(--line); }
+.srow:active { background: var(--soft); }
+.row-title { flex: 1; font-weight: 500; }
+.row-value { color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
+.srow .chev { width: 18px; height: 18px; flex: none; fill: none; stroke: #b4b4bb; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.srow.danger .row-title { color: var(--err); }
+
+/* Sub-pages slide over the settings list */
+.subpage { position: fixed; inset: 0; z-index: 50; background: var(--bg); overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: calc(40px + env(safe-area-inset-bottom)); animation: sp-in .22s ease-out; }
+@keyframes sp-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sp-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 8px 10px;
+  background: rgba(247,247,248,.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.sp-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.sp-back { width: 40px; height: 40px; border: 0; background: none; border-radius: 999px; display: grid; place-items: center; cursor: pointer; color: var(--ink); }
+.sp-back:active { background: var(--soft); }
+.sp-back svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.sp-body { max-width: 640px; margin: 0 auto; padding: 18px 16px; display: grid; gap: 16px; }
+.sp-body > * { min-width: 0; margin: 0; }
+.sp-intro { color: var(--muted); font-size: 14px; }
+.sp-body .grid-form { grid-template-columns: 1fr; gap: 14px; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+.sp-body .grid-form label { font-size: 13px; }
+.sp-body .grid-form label.check { font-size: 15px; font-weight: 500; }
+.sp-body .look { grid-template-columns: 120px minmax(0, 1fr); background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+.sp-body .hint { font-size: 13px; color: var(--muted); }
+.look-preview.size-small span { font-size: 0.85em; }
+.look-preview.size-large span { font-size: 1.13em; }
+#btn-diag .row-value { max-width: none; }
+.sp-body .look { grid-template-columns: 1fr; justify-items: stretch; }
+.sp-body .look-preview { width: 150px; justify-self: center; }
+.sp-body .look-controls, .sp-body .look-controls .field { min-width: 0; max-width: 100%; }
+.sp-body .look-controls select { width: 100%; }
+.sp-body .seg { display: flex; flex-wrap: wrap; max-width: 100%; }
+.sp-body .seg label { flex: 1; text-align: center; }
+.d-proof > span:last-child { display: grid; gap: 4px; }
+.d-proof-text { color: var(--ink); }
+.d-proof a { justify-self: start; text-decoration: none; }

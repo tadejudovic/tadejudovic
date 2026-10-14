@@ -10,6 +10,15 @@ const { width: W, height: H, fps: FPS } = config.output;
 // TikTok's UI covers the top bar, the right-hand action rail and the bottom
 // caption area. Keep text inside the safe zone.
 const HOOK_Y = 0.17;
+/**
+ * On-screen text size (px on a 1080x1920 frame). TikTok-style overlays read best at roughly
+ * 55-70px: big enough to read at a glance, small enough to stay 2-3 lines and leave the
+ * dog visible. Medium is the default.
+ */
+export const TEXT_PX = { small: 54, medium: 62, large: 70 } as const;
+const textPx = (o: RenderOptions) => TEXT_PX[o.textSize ?? "medium"] ?? TEXT_PX.medium;
+/** Smaller text fits more words per line. */
+const charsFor = (px: number, at70: number) => Math.round((at70 * 70) / px);
 const CAPTION_Y = 0.64;
 
 /** Drawtext can't render color emoji; strip them from on-screen text. */
@@ -184,7 +193,7 @@ async function renderSegment(
   // Portrait only: fill the 9:16 frame.
   const base = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1[v0]`;
   const text = caption
-    ? textFilters(caption, { yFrac: CAPTION_Y, size: 66, maxChars: 22, style: options.textStyle, font, tmp, key }).filters
+    ? textFilters(caption, { yFrac: CAPTION_Y, size: Math.round(textPx(options) * 0.95), maxChars: charsFor(textPx(options), 22), style: options.textStyle, font, tmp, key }).filters
     : [];
   const video = [`setpts=(PTS-STARTPTS)/${speed}`, `fps=${FPS}`, ...text, "format=yuv420p"].join(",");
   const useAudio = clip.hasAudio && options.keepOriginalAudio;
@@ -244,8 +253,8 @@ async function finalize(
     const { filters: f, height } = textFilters(o.text, {
       yFrac: HOOK_Y,
       yTop: Math.round(H * HOOK_Y) + offset,
-      size: 70,
-      maxChars: 24,
+      size: textPx(options),
+      maxChars: charsFor(textPx(options), 24),
       style: options.textStyle,
       font,
       enable: `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`,

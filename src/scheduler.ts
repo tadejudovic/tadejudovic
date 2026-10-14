@@ -118,8 +118,8 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     const unused = ready.filter((c) => c.uses === 0);
     const pool = unused.length >= Math.min(auto.dailyCount, 3) ? unused : ready;
 
-    const { fontId, textStyle } = store.settings();
-    const options: RenderOptions = { keepOriginalAudio: true, textStyle, fontId };
+    const { fontId, textStyle, textSize } = store.settings();
+    const options: RenderOptions = { keepOriginalAudio: true, textStyle, textSize, fontId };
     const { plans, warning } = await plan({
       template: auto.template,
       targetSeconds: auto.targetSeconds,

@@ -113,7 +113,7 @@ app.get("/api/status", (_req, res) => {
 });
 
 app.put("/api/settings", (req, res) => {
-  const { petName, handle, fontId, textStyle, aiMonthlyBudget, maxVideosPerDay } = req.body ?? {};
+  const { petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay } = req.body ?? {};
   const fontOk = typeof fontId === "string" && listFonts().some((f) => f.id === fontId);
   res.json(
     store.updateSettings({
@@ -121,6 +121,7 @@ app.put("/api/settings", (req, res) => {
       ...(typeof handle === "string" ? { handle: handle.trim().slice(0, 40) } : {}),
       ...(fontOk ? { fontId } : {}),
       ...(["yellow", "classic", "box", "plain"].includes(textStyle) ? { textStyle } : {}),
+      ...(["small", "medium", "large"].includes(textSize) ? { textSize } : {}),
       ...(Number.isFinite(Number(aiMonthlyBudget)) && aiMonthlyBudget !== "" && aiMonthlyBudget !== undefined
         ? { aiMonthlyBudget: clamp(Number(aiMonthlyBudget), 0, 1000) }
         : {}),
@@ -463,6 +464,7 @@ function parseOptions(body: any): RenderOptions {
   return {
     keepOriginalAudio: body?.keepOriginalAudio !== false,
     textStyle: ["yellow", "classic", "box", "plain"].includes(body?.textStyle) ? body.textStyle : settings.textStyle,
+    textSize: ["small", "medium", "large"].includes(body?.textSize) ? body.textSize : settings.textSize,
     fontId,
     musicFile,
   };

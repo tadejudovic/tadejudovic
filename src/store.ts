@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextStyle, Trends } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -26,6 +26,7 @@ export interface Settings {
   handle: string;
   fontId: string;
   textStyle: TextStyle;
+  textSize: TextSize;
   /** Situations that work for this account; clips are sorted into these and captions researched per situation. */
   scenes: string[];
   /** Monthly cap on estimated AI (Claude API) spend, in USD. */
@@ -50,6 +51,7 @@ const DEFAULT_SETTINGS: Settings = {
   handle: "",
   fontId: "montserrat",
   textStyle: "yellow",
+  textSize: "medium",
   scenes: DEFAULT_SCENES,
   aiMonthlyBudget: Number(process.env.AI_MONTHLY_BUDGET) || 20,
   maxVideosPerDay: 5,

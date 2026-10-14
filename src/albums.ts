@@ -5,8 +5,17 @@ import type { AlbumSource } from "./types.ts";
 
 /** New albums only import recent videos: a live album that auto-adds every video of the pet can hold years of them. */
 export const DEFAULT_RECENT_DAYS = 30;
-/** At most this many new videos per check, so a big album doesn't eat the AI budget or disk in one go. */
-const MAX_NEW_PER_SYNC = 15;
+/**
+ * Clips are imported only as they're needed: enough unused footage for the next round plus a
+ * couple spare. Importing costs AI analysis per clip, so the rest of the album waits until
+ * reviews use these up. (Items left waiting aren't marked seen, so later checks pick them up.)
+ */
+const SPARE_CLIPS = 2;
+export function importBudget(): number {
+  const unused = store.clips().filter((c) => c.status === "ready" && c.uses === 0 && !c.disliked && c.height >= c.width).length;
+  const inFlight = store.clips().filter((c) => c.status === "importing" || c.status === "analyzing").length;
+  return Math.max(0, store.auto().dailyCount + SPARE_CLIPS - unused - inFlight);
+}
 
 export function addAlbum(url: string, recentDays = DEFAULT_RECENT_DAYS): AlbumSource {
   url = url.trim();
@@ -64,7 +73,7 @@ export async function syncAlbum(id: string): Promise<{ newItems: number }> {
     const cutoff = days > 0 ? Date.now() - days * 86400_000 : 0;
     const recent = unseen.filter((it) => !it.takenAt || it.takenAt >= cutoff);
     const newestFirst = recent.sort((a, b) => (b.takenAt ?? 0) - (a.takenAt ?? 0));
-    const fresh = newestFirst.slice(0, MAX_NEW_PER_SYNC);
+    const fresh = newestFirst.slice(0, importBudget());
     store.updateAlbum(id, { tooOld: unseen.length - recent.length, waiting: recent.length - fresh.length });
     for (const item of fresh) {
       enqueueClip({

@@ -23,6 +23,11 @@ export class Queue {
     return this.waiting.length + this.running;
   }
 
+  /** Drop everything still waiting (the job already running finishes). */
+  clear() {
+    this.waiting = [];
+  }
+
   private next() {
     while (this.running < this.concurrency && this.waiting.length) {
       const task = this.waiting.shift()!;
@@ -104,6 +109,9 @@ function tracked(task: () => Promise<void>, job?: Job) {
     }
   };
 }
+
+/** Drop all waiting imports and renders (used when starting over). */
+export const clearWaitingWork = () => heavy.clear();
 
 export const ingestQueue = {
   push: (task: () => Promise<void>, job?: Job) => heavy.push(tracked(task, job)),

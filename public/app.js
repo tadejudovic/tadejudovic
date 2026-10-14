@@ -1384,6 +1384,20 @@ $("#example-form").addEventListener("submit", (e) => {
 
 // ---- Diagnostics --------------------------------------------------------------
 
+$("#btn-reset").addEventListener("click", async () => {
+  const ok = confirm(
+    "Start over?\n\nThis permanently removes all your albums, every imported clip and every video (to review and ready to post). " +
+    "Your settings, situations, TikTok caption research and spending history are kept.\n\nYou can then add your albums again.",
+  );
+  if (!ok) return;
+  try {
+    await api("/api/reset", { method: "POST", body: { confirm: "start over" } });
+  } catch (err) {
+    return banner(err.message);
+  }
+  location.reload();
+});
+
 $("#btn-diag").addEventListener("click", (e) =>
   withBusy(e.currentTarget, "Copying…", async () => {
     const d = await api("/api/diagnostics");

@@ -10,7 +10,7 @@ import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, aiTag, deleteClip, ensureProxy } from "./library.ts";
-import { forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
+import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses } from "./generate.ts";
 import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
@@ -278,6 +278,25 @@ app.patch("/api/albums/:id", (req, res) => {
   if (!store.album(String(req.params.id))) return res.status(404).json({ error: "Unknown album" });
   if (Number.isFinite(days)) setRecentDays(String(req.params.id), days);
   res.json(store.album(String(req.params.id)));
+});
+
+/**
+ * Start over: remove every album, clip and video (files included). Settings, situations, caption
+ * research, examples and spending are kept.
+ */
+app.post("/api/reset", (req, res) => {
+  if (req.body?.confirm !== "start over") return res.status(400).json({ error: "Confirmation missing." });
+  clearWaitingWork();
+  for (const a of [...store.albums()]) store.removeAlbum(a.id);
+  for (const r of [...store.renders()]) deleteRender(r.id);
+  for (const c of [...store.clips()]) deleteClip(c.id);
+  // Anything left behind (half-finished downloads, old previews).
+  for (const dir of [config.mediaDir, config.thumbsDir, config.rendersDir, config.tmpDir]) {
+    for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
+  }
+  store.updateAuto({ lastBatchDate: undefined });
+  console.log("[reset] removed all albums, clips and videos");
+  res.json({ ok: true });
 });
 
 app.delete("/api/albums/:id", (req, res) => {

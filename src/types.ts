@@ -49,6 +49,8 @@ export interface Clip {
   disliked?: boolean;
   /** Already an edited video (text, captions or stickers on it): never picked automatically. */
   edited?: boolean;
+  /** Why the AI look at this clip failed (it's retried on the next start). */
+  tagError?: string;
   /** The same video was already imported (e.g. it's in two albums) as this clip: never picked automatically. */
   duplicateOf?: string;
 }

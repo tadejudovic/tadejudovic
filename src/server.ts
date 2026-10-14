@@ -84,6 +84,9 @@ app.get("/api/diagnostics", (_req, res) => {
       byScene: count(clips.filter((c) => c.status === "ready"), (c) => c.scene ?? "unsorted"),
       landscape: clips.filter((c) => c.status === "ready" && c.width > c.height).length,
       errors: [...new Set(clips.filter((c) => c.error).map((c) => c.error!))].slice(0, 10),
+      tagErrors: [...new Set(clips.filter((c) => c.tagError).map((c) => c.tagError!))].slice(0, 5),
+      edited: clips.filter((c) => c.edited).length,
+      duplicates: clips.filter((c) => c.duplicateOf).length,
     },
     renders: {
       byStatus: count(renders, (r) => r.status),
@@ -767,10 +770,12 @@ function recoverWork() {
       ingestQueue.push(() => ensureProxy(c.id).catch((err) => console.warn(`[proxy] ${c.filename}:`, err.message)), { kind: "clip", id: c.id });
     }
   }
-  // Unused clips scanned before edited videos were spotted: check them once (a tenth of a cent each).
+  // Unused clips whose AI look is missing (it failed, or ran before situations or edited-video
+  // checks existed): look again (a tenth of a cent each).
   if (config.claude.enabled) {
     for (const c of store.clips()) {
-      if (c.status === "ready" && c.kind === "video" && c.ai && c.edited === undefined && c.uses === 0 && !c.disliked && !crashedIds.has(c.id)) {
+      const incomplete = !c.ai || c.edited === undefined || (!c.scene && c.sceneSetBy !== "creator");
+      if (c.status === "ready" && c.kind === "video" && incomplete && c.uses === 0 && !c.disliked && !crashedIds.has(c.id)) {
         ingestQueue.push(() => aiTag(c.id), { kind: "clip", id: c.id });
       }
     }

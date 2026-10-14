@@ -132,10 +132,13 @@ export async function aiTag(id: string) {
     const { scene, alreadyEdited, ...ai } = await tagClip(current, store.settings().petName, store.settings().scenes);
     // Never overwrite a situation the creator picked by hand.
     const keepScene = current.sceneSetBy === "creator";
-    store.updateClip(id, { ai, edited: alreadyEdited, ...(keepScene ? {} : { scene, sceneSetBy: "ai" as const }) });
+    store.updateClip(id, { ai, edited: alreadyEdited, tagError: undefined, ...(keepScene ? {} : { scene, sceneSetBy: "ai" as const }) });
   } catch (err) {
-    // AI tagging is an enhancement; the heuristic moments still work.
-    console.warn(`[ai] tagging ${current.filename} failed:`, (err as Error).message);
+    // The heuristic moments still work, but without a situation the clip can't be used in strict
+    // mode, so keep the reason (shown in diagnostics) and try again on the next start.
+    const message = (err as Error).message;
+    console.warn(`[ai] tagging ${current.filename} failed:`, message);
+    store.updateClip(id, { tagError: message.slice(0, 300) });
   }
 }
 

@@ -104,6 +104,14 @@ export async function syncAlbum(id: string): Promise<{ newItems: number }> {
       }
     }
     const seen = new Set(store.album(id)!.seen);
+    // Videos already in the library (from an earlier copy of this album, or another album) count
+    // as this album's, so it doesn't read "0 videos" when everything in it is already here.
+    const alreadyHere = page.items.filter((it) => !seen.has(it.id) && store.hasSource(it.id)).map((it) => it.id);
+    if (alreadyHere.length) {
+      const a = store.album(id)!;
+      store.updateAlbum(id, { seen: [...new Set([...a.seen, ...alreadyHere])], videoCount: a.videoCount + alreadyHere.length });
+      for (const s of alreadyHere) seen.add(s);
+    }
     // The same video in two albums has a different id in each, but the same capture time to the millisecond.
     const have = capturedKeys();
     const unseen = page.items.filter((it) => {

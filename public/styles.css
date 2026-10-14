@@ -665,3 +665,6 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 
 .app-version { text-align: center; font-size: 12px; margin: 18px 0 0; }
 .edited-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+.not-used { grid-column: 1 / -1; margin-top: 8px; }
+.not-used summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 8px 0; }
+.not-used summary .muted { font-weight: 400; font-size: 12px; }

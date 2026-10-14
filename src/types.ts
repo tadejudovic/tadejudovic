@@ -1,5 +1,6 @@
 export type ClipSource = "google_photos" | "shared_album" | "upload";
-export type ClipStatus = "importing" | "analyzing" | "ready" | "error";
+/** "archived": an unusable clip whose files were deleted; the record stays so it's never imported again. */
+export type ClipStatus = "importing" | "analyzing" | "ready" | "error" | "archived";
 
 /** A short window inside a clip that is worth using in a video. */
 export interface Moment {
@@ -51,6 +52,8 @@ export interface Clip {
   edited?: boolean;
   /** The creator marked (or unmarked) the clip as already edited: the AI doesn't change it. */
   editedSetBy?: "creator";
+  /** When its files were deleted (see ClipStatus "archived"). */
+  archivedAt?: string;
   /** Why the AI look at this clip failed (it's retried on the next start). */
   tagError?: string;
   /** The same video was already imported (e.g. it's in two albums) as this clip: never picked automatically. */

@@ -215,14 +215,44 @@ export async function ensureProxy(id: string) {
   console.log(`[proxy] converted ${clip.filename} to a 1080p working copy`);
 }
 
-export function deleteClip(id: string) {
-  const clip = store.clip(id);
-  if (!clip) return;
-  for (const f of new Set([clip.file, clip.thumb, path.join(config.mediaDir, `${id}.mp4`)])) {
+function removeClipFiles(clip: Clip) {
+  for (const f of new Set([clip.file, clip.thumb, path.join(config.mediaDir, `${clip.id}.mp4`)])) {
     if (f) fs.rmSync(f, { force: true });
   }
   for (const f of fs.readdirSync(config.mediaDir)) {
-    if (f.startsWith(`${id}.`)) fs.rmSync(path.join(config.mediaDir, f), { force: true });
+    if (f.startsWith(`${clip.id}.`)) fs.rmSync(path.join(config.mediaDir, f), { force: true });
   }
+}
+
+export function deleteClip(id: string) {
+  const clip = store.clip(id);
+  if (!clip) return;
+  removeClipFiles(clip);
   store.removeClip(id);
+}
+
+/** Clips that are never used automatically are kept this long (to fix a wrong situation by hand), then their files go. */
+export const ARCHIVE_AFTER_DAYS = 7;
+
+/**
+ * Delete the files of clips that will never be used automatically (not from the creator's
+ * situations, already edited, duplicates, landscape) once they're a week old. The record stays,
+ * so the same video is never imported (or paid for) again. Clips the creator gave a situation by
+ * hand, and clips used in a video, are kept.
+ */
+export function archiveUnusable(now = Date.now()): number {
+  const { onlySituations, scenes } = store.settings();
+  const strict = onlySituations && config.claude.enabled;
+  const usedInVideo = new Set(store.renders().flatMap((r) => r.plan.segments.map((s) => s.clipId)));
+  let archived = 0;
+  for (const c of store.clips()) {
+    if (c.status !== "ready" || c.uses > 0 || usedInVideo.has(c.id) || c.sceneSetBy === "creator") continue;
+    if (now - Date.parse(c.importedAt) < ARCHIVE_AFTER_DAYS * 86400_000) continue;
+    const offTopic = strict && !!c.scene && !scenes.includes(c.scene);
+    if (!(c.edited || c.duplicateOf || c.width > c.height || offTopic)) continue;
+    removeClipFiles(c);
+    store.updateClip(c.id, { status: "archived", archivedAt: new Date(now).toISOString() });
+    archived++;
+  }
+  return archived;
 }

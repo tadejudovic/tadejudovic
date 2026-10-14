@@ -253,8 +253,16 @@ function renderClips() {
   if (document.activeElement?.classList.contains("note")) return;
   const el = $("#clips");
   $("#clips-empty").hidden = state.clips.length > 0;
-  el.replaceChildren(
-    ...state.clips.map((c) => {
+  // Clips that are never used automatically (off-topic, already edited, duplicates, landscape) fold
+  // away at the bottom; their files are removed after 7 days.
+  const st = state.status?.settings;
+  const strict = st?.onlySituations && state.status?.claude?.enabled;
+  const notUsed = (c) =>
+    c.status === "ready" && !c.uses &&
+    (c.width > c.height || c.edited || c.duplicateOf || (strict && c.scene && !st.scenes.includes(c.scene)));
+  const main = state.clips.filter((c) => !notUsed(c));
+  const parked = state.clips.filter(notUsed);
+  const card = (c) => {
       const tags = c.ai?.tags?.slice(0, 3) ?? [];
       const landscape = c.status === "ready" && c.width > c.height;
       const badge =
@@ -348,7 +356,15 @@ function renderClips() {
           }),
         ),
       );
-    }),
+  };
+  el.replaceChildren(
+    ...main.map(card),
+    parked.length
+      ? h("details", { class: "not-used", open: state.notUsedOpen, ontoggle: (e) => (state.notUsedOpen = e.currentTarget.open) },
+          h("summary", {}, `Not used (${parked.length})`,
+            h("span", { class: "muted" }, " · not from your situations, already edited, duplicates or landscape. Their files are deleted after 7 days; set a situation to keep one.")),
+          h("div", { class: "clips" }, ...parked.map(card)))
+      : null,
   );
   const n = state.selected.size;
   $("#selection-hint").textContent = state.clips.length

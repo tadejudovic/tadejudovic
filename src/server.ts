@@ -402,7 +402,7 @@ app.delete("/api/scenes/:scene/captions/:id", (req, res) => {
 // ---- Library --------------------------------------------------------------
 
 app.get("/api/clips", (_req, res) => {
-  res.json(store.clips().map(({ energy, file, thumb, ...c }) => ({ ...c, energy })));
+  res.json(store.clips().filter((c) => c.status !== "archived").map(({ energy, file, thumb, ...c }) => ({ ...c, energy })));
 });
 
 app.post(

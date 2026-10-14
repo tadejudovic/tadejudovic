@@ -17,6 +17,7 @@ export function afterReview() {
   if (awaitingReview() === 0) runDue({ afterReview: true }).catch((err) => console.error("[scheduler]", err));
 }
 import { ingestQueue } from "./queue.ts";
+import { archiveUnusable, ARCHIVE_AFTER_DAYS } from "./library.ts";
 import { researchScene, researchStale } from "./ai/research.ts";
 import type { RenderOptions } from "./types.ts";
 
@@ -40,6 +41,7 @@ export function setPaused(value: boolean) {
 }
 let lastAttempt = 0;
 let lastTopUp = 0;
+let lastArchive = 0;
 const TOP_UP_EVERY_MS = 2 * 60_000;
 /** Why the last automatic round couldn't be made (shown in the app instead of an endless spinner). */
 export let lastRoundError: { message: string; at: string } | null = null;
@@ -54,6 +56,12 @@ export function startScheduler() {
 }
 
 async function runDue({ afterReview = false } = {}) {
+  // Once an hour: delete the files of week-old clips that will never be used (records stay).
+  if (Date.now() - lastArchive > 3600_000) {
+    lastArchive = Date.now();
+    const n = archiveUnusable();
+    if (n) console.log(`[library] deleted the files of ${n} unused clip(s) older than ${ARCHIVE_AFTER_DAYS} days`);
+  }
   const auto = store.auto();
   if (!auto.enabled || paused) return;
   if (store.albums().length && Date.now() - lastSync > auto.syncEveryHours * 3600_000) {

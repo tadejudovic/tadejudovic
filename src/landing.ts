@@ -310,7 +310,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
       <div>
         <div class="pill r"><b></b>Now in beta</div>
         <h1 class="r d1">Your camera roll, turned into <span class="rot" aria-live="polite"><span class="grad word">TikToks.</span></span></h1>
-        <p class="lead r d2">Ready-to-post videos from your camera roll. For everyone who films everything and posts nothing.</p>
+        <p class="lead r d2">For everyone who films everything and posts nothing, but wants to.</p>
         <div class="ctas stack r d3">${cta()}<span class="note">Invite-only for now.</span></div>
       </div>
       <div class="stage r d2" aria-hidden="true">

@@ -3,7 +3,7 @@ import { config } from "../config.ts";
 import { assertBudget, BudgetExceeded, recordUsage } from "./budget.ts";
 import { store, newId } from "../store.ts";
 import { apifyEnabled, researchSceneOnTikTok } from "./tiktokSearch.ts";
-import type { ProvenCaption, SceneResearch } from "../types.ts";
+import type { PickedHashtag, ProvenCaption, SceneResearch } from "../types.ts";
 
 /**
  * Caption research, the automated version of what the creator does by hand:
@@ -180,7 +180,7 @@ export function removeCaption(scene: string, id: string) {
   if (r) store.setResearch({ ...r, captions: r.captions.filter((c) => c.id !== id) });
 }
 
-/** The three researched hashtags for a situation, if there are any. */
-export function researchedHashtags(scene: string | undefined): string[] {
-  return scene ? (store.research(scene)?.hashtags ?? []).map((h) => h.tag) : [];
+/** The three researched hashtags for a situation (with post counts), if there are any. */
+export function researchedHashtags(scene: string | undefined): PickedHashtag[] {
+  return scene ? store.research(scene)?.hashtags ?? [] : [];
 }

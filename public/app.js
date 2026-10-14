@@ -378,163 +378,164 @@ async function refreshRenders() {
   renderRenders();
   renderBatch();
   renderHomeState();
-  renderReviewCta();
+  renderStack();
 }
 
 // ---- Swipe review -------------------------------------------------------------
-// Dating-app style: swipe right (or →, or ✓) keeps a video, left (←, ✕) rejects it.
-// Every decision is fed back to the AI director so later videos fit the creator's taste.
+// The Videos page is a stack, dating-app style: swipe right (or →, ✓) keeps a video,
+// left (←, ✕) rejects it. At first you only see the video; tap it for the details
+// (text, caption, hashtags, source). Every decision is fed back to the AI director.
 
 const REASON_LABEL = { text: "the text", clip: "the clip", edit: "the cut", other: "" };
-const deck = { queue: [], index: 0, history: [], kept: 0 };
+const stack = { shownId: null, node: null, history: [], whyFor: null };
 
 function toReview() {
   return state.renders.filter((r) => r.status === "done" && r.review === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-function renderReviewCta() {
-  const n = toReview().length;
-  $("#review-cta").hidden = n === 0 || !$("#deck").hidden;
-  $("#review-count").textContent = String(n);
-}
-
-function openDeck() {
-  deck.queue = toReview();
-  deck.index = 0;
-  deck.history = [];
-  deck.kept = 0;
-  $("#deck").hidden = false;
-  document.body.classList.add("no-scroll");
-  showDeckCard();
-}
-
-async function closeDeck() {
-  $("#deck").hidden = true;
-  $("#deck-why").hidden = true;
-  document.body.classList.remove("no-scroll");
-  $("#deck-stage").replaceChildren();
-  await refreshRenders();
-}
-
-function showDeckCard() {
-  const stage = $("#deck-stage");
-  const r = deck.queue[deck.index];
-  $("#deck-undo").hidden = !deck.history.length;
-  $("#deck-actions").hidden = !r;
+function renderStack() {
+  const queue = toReview();
+  $("#stack").hidden = !queue.length && !stack.whyFor;
+  $("#stack-undo").hidden = !stack.history.length;
+  const r = queue.find((x) => x.id === stack.shownId) ?? queue[0];
+  $(".stack-actions").hidden = !r;
   if (!r) {
-    $("#deck-progress").textContent = "";
-    stage.replaceChildren(
-      h("div", { class: "deck-done" },
-        h("b", {}, "All reviewed"),
-        h("p", { class: "muted" }, `${deck.kept} kept. They're on the Videos page, ready to download.`),
-        h("button", { class: "btn primary", onclick: closeDeck }, "See kept videos"),
-      ),
-    );
+    stack.shownId = null;
+    $("#stack-stage").replaceChildren();
     return;
   }
-  $("#deck-progress").textContent = `${deck.index + 1} of ${deck.queue.length}`;
-  const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, autoplay: true, muted: true, loop: true, playsinline: true });
-  video.muted = true;
-  const sound = h("button", { class: "deck-sound", onclick: (e) => { e.stopPropagation(); video.muted = !video.muted; sound.textContent = video.muted ? "🔇" : "🔊"; } }, "🔇");
-  const card = h("div", { class: "deck-card" },
-    h("div", { class: "deck-media" }, video, sound,
-      h("span", { class: "stamp keep" }, "KEEP"),
-      h("span", { class: "stamp nope" }, "NOPE"),
-    ),
-    h("div", { class: "deck-info" },
-      sourceLine(r.plan),
-      h("div", { class: "deck-caption" }, [r.plan.postCaption, r.plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("  ")),
-      basedOnLine(r.plan),
-    ),
-  );
-  stage.replaceChildren(card);
-  dragToSwipe(card, (dir) => decide(dir));
+  // Keep the card (and its playing video / open details) across background refreshes.
+  if (r.id === stack.shownId && stack.node?.isConnected) return;
+  stack.shownId = r.id;
+  stack.node = stackCard(r);
+  $("#stack-stage").replaceChildren(stack.node);
 }
 
-function dragToSwipe(card, onSwipe) {
-  let startX = 0, startY = 0, dx = 0, dragging = false, id = null;
+function stackCard(r) {
+  const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, autoplay: true, muted: true, loop: true, playsinline: true });
+  video.muted = true;
+  const sound = h("button", { class: "stack-sound", "aria-label": "Sound", onclick: (e) => { video.muted = !video.muted; e.currentTarget.textContent = video.muted ? "🔇" : "🔊"; } }, "🔇");
+  const details = h("div", { class: "stack-details", hidden: true }, detailsBody(r));
+  const card = h("div", { class: "stack-card" },
+    h("div", { class: "stack-media" }, video, sound,
+      h("span", { class: "stamp keep" }, "KEEP"),
+      h("span", { class: "stamp nope" }, "NOPE"),
+      h("span", { class: "stack-tap" }, "Tap for details"),
+    ),
+    details,
+  );
+  dragToSwipe(card, card.querySelector(".stack-media"), decide, () => {
+    details.hidden = !details.hidden;
+    card.classList.toggle("open", !details.hidden);
+  });
+  return card;
+}
+
+/** Everything about a video except the player: made from, text on video, caption, hashtags. */
+function detailsBody(r) {
+  const body = reviewCard(r).querySelector(".body");
+  body.querySelector(".card-actions")?.remove();
+  const info = r.plan.hashtagInfo ?? [];
+  if (info.length) {
+    body.append(
+      h("span", { class: "field-label" }, "Hashtags"),
+      h("div", { class: "tag-info" },
+        info.map((t) => h("span", {}, h("b", {}, `#${t.tag}`), ` ${fmtViews(t.posts)} posts`))),
+    );
+  }
+  body.append(h("a", { class: "btn small", href: `/media/render/${r.id}.mp4?dl=1` }, "Download"));
+  return body;
+}
+
+function dragToSwipe(card, handle, onSwipe, onTap) {
+  let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false, id = null;
   const keep = card.querySelector(".stamp.keep"), nope = card.querySelector(".stamp.nope");
   const paint = () => {
-    card.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+    card.style.transform = dx ? `translateX(${dx}px) rotate(${dx / 18}deg)` : "";
     keep.style.opacity = String(Math.max(0, Math.min(1, dx / 90)));
     nope.style.opacity = String(Math.max(0, Math.min(1, -dx / 90)));
   };
-  card.addEventListener("pointerdown", (e) => {
+  handle.addEventListener("pointerdown", (e) => {
     if (e.target.closest("button, a")) return;
-    dragging = true; id = e.pointerId; startX = e.clientX; startY = e.clientY; dx = 0;
-    card.setPointerCapture(id);
+    dragging = true; id = e.pointerId; startX = e.clientX; startY = e.clientY; dx = 0; dy = 0;
+    handle.setPointerCapture(id);
     card.style.transition = "none";
   });
-  card.addEventListener("pointermove", (e) => {
+  handle.addEventListener("pointermove", (e) => {
     if (!dragging || e.pointerId !== id) return;
     dx = e.clientX - startX;
-    // Mostly-vertical moves are scrolls of the info text, not swipes.
-    if (Math.abs(e.clientY - startY) > Math.abs(dx) * 1.5 && Math.abs(dx) < 20) return;
+    dy = e.clientY - startY;
+    // Mostly-vertical moves scroll the page, not swipe.
+    if (Math.abs(dy) > Math.abs(dx) * 1.5 && Math.abs(dx) < 20) { dx = 0; return; }
     paint();
   });
   const end = () => {
     if (!dragging) return;
     dragging = false;
     card.style.transition = "";
-    if (Math.abs(dx) > Math.min(110, window.innerWidth * 0.25)) onSwipe(dx > 0 ? "right" : "left");
-    else { dx = 0; paint(); }
+    if (Math.abs(dx) > Math.min(110, window.innerWidth * 0.25)) {
+      card.style.transition = "transform .25s ease-out";
+      const dir = dx > 0 ? "right" : "left";
+      dx = dir === "right" ? window.innerWidth : -window.innerWidth;
+      paint();
+      onSwipe(dir);
+    } else {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) onTap();
+      dx = 0;
+      paint();
+    }
   };
-  card.addEventListener("pointerup", end);
-  card.addEventListener("pointercancel", end);
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
   card.flyOut = (dir) => {
+    card.style.transition = "transform .25s ease-out";
     dx = dir === "right" ? window.innerWidth : -window.innerWidth;
-    card.style.transition = "transform .28s ease-out";
     paint();
   };
 }
 
-let whyFor = null;
-async function decide(dir) {
-  const r = deck.queue[deck.index];
+function decide(dir) {
+  const r = toReview().find((x) => x.id === stack.shownId);
   if (!r) return;
-  const card = $("#deck-stage .deck-card");
-  card?.flyOut?.(dir);
+  if (!stack.node.style.transform) stack.node.flyOut(dir);
   const review = dir === "right" ? "approved" : "rejected";
-  deck.history.push(r.id);
-  if (review === "approved") deck.kept++;
-  // Ask why only for rejections; one tap, optional.
-  whyFor = review === "rejected" ? r.id : null;
-  $("#deck-why").hidden = review !== "rejected";
-  api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } }).catch((err) => banner(err.message));
+  stack.history.push(r.id);
+  stack.whyFor = review === "rejected" ? r.id : null;
+  $("#stack-why").hidden = review !== "rejected";
   r.review = review;
-  setTimeout(() => { deck.index++; showDeckCard(); }, 220);
+  api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } }).catch((err) => banner(err.message));
+  setTimeout(() => { stack.shownId = null; renderStack(); renderBatch(); }, 230);
 }
 
-$("#deck-why").addEventListener("click", (e) => {
+$("#stack-why").addEventListener("click", (e) => {
   const reason = e.target.dataset?.reason;
-  if (!reason || !whyFor) return;
-  api(`/api/renders/${whyFor}`, { method: "PATCH", body: { rejectReason: reason } }).catch((err) => banner(err.message));
-  $("#deck-why").hidden = true;
-  whyFor = null;
+  if (!reason || !stack.whyFor) return;
+  api(`/api/renders/${stack.whyFor}`, { method: "PATCH", body: { rejectReason: reason } }).catch((err) => banner(err.message));
+  $("#stack-why").hidden = true;
+  stack.whyFor = null;
+  renderStack();
 });
 
-$("#deck-undo").addEventListener("click", async () => {
-  const id = deck.history.pop();
+$("#stack-undo").addEventListener("click", async () => {
+  const id = stack.history.pop();
   if (!id) return;
-  const r = deck.queue.find((x) => x.id === id);
-  if (r?.review === "approved") deck.kept--;
   await api(`/api/renders/${id}`, { method: "PATCH", body: { review: "pending" } });
+  const r = state.renders.find((x) => x.id === id);
   if (r) r.review = "pending";
-  $("#deck-why").hidden = true;
-  whyFor = null;
-  deck.index = Math.max(0, deck.queue.indexOf(r));
-  showDeckCard();
+  $("#stack-why").hidden = true;
+  stack.whyFor = null;
+  stack.shownId = id;
+  stack.node = null;
+  renderStack();
+  renderBatch();
 });
 
-$("#review-cta").addEventListener("click", openDeck);
-$("#deck-close").addEventListener("click", closeDeck);
-$("#deck-yes").addEventListener("click", () => decide("right"));
-$("#deck-no").addEventListener("click", () => decide("left"));
+$("#stack-yes").addEventListener("click", () => decide("right"));
+$("#stack-no").addEventListener("click", () => decide("left"));
 document.addEventListener("keydown", (e) => {
-  if ($("#deck").hidden) return;
+  if ($("#stack").hidden || e.target.closest?.("input, textarea, select")) return;
   if (e.key === "ArrowRight") decide("right");
   else if (e.key === "ArrowLeft") decide("left");
-  else if (e.key === "Escape") closeDeck();
 });
 
 const renderEls = new Map();
@@ -542,10 +543,12 @@ function renderRenders() {
   const el = $("#renders");
   // Everything except the batch shown at the top of Review.
   const latest = latestBatch();
-  const earlier = state.renders.filter((r) => !latest || r.batch !== latest);
+  // Everything not shown above: older batches and rejected videos, minus what's waiting in the swipe stack.
+  const inStack = new Set(toReview().map((r) => r.id));
+  const earlier = state.renders.filter((r) => !inStack.has(r.id) && (!latest || r.batch !== latest || r.review === "rejected"));
   $("#renders-empty").hidden = earlier.length > 0;
   const nodes = earlier.map((r) => {
-    const key = `${r.id}:${r.status}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
+    const key = `${r.id}:${r.status}:${r.review}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;
     const cached = renderEls.get(r.id);
     if (cached?.key === key) return cached.node;
     const node = renderCard(r);
@@ -725,15 +728,20 @@ function latestBatch() {
 
 function renderBatch() {
   const latest = latestBatch();
-  const items = state.renders.filter((r) => r.batch && r.batch === latest);
-  $("#batch-empty").hidden = items.length > 0;
-  const approved = items.filter((r) => r.review === "approved").length;
+  const all = state.renders.filter((r) => r.batch && r.batch === latest);
+  const inStack = new Set(toReview().map((r) => r.id));
+  // Kept videos first; rejected ones are under "Earlier videos".
+  const items = all.filter((r) => !inStack.has(r.id) && r.review !== "rejected")
+    .sort((a, b) => (b.review === "approved") - (a.review === "approved"));
+  $("#batch-empty").hidden = all.length > 0;
+  $("#kept-title").hidden = !items.some((r) => r.review === "approved");
+  const approved = all.filter((r) => r.review === "approved").length;
   const when = latest
     ? new Date(`${latest}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
     : "";
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   $("#batch-date").textContent = latest
-    ? `${when} · ${approved} of ${items.length} downloaded`
+    ? `${when} · ${approved} kept · ${inStack.size} to review`
     : today;
   $("#batch").replaceChildren(
     ...items.map((r) => {

@@ -9,6 +9,13 @@ import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
 import type { Clip, GenerateRequest, Render, ReviewFeedback, VideoPlan } from "./types.ts";
 
+function applyHashtags(p: VideoPlan, scene: string | undefined) {
+  const info = researchedHashtags(scene);
+  if (!info.length) return;
+  p.hashtags = withResearchedTags(info.map((h) => h.tag), p.hashtags);
+  p.hashtagInfo = info;
+}
+
 /** Exactly three hashtags: the researched ones (big, mid, small), topped up from the AI's if fewer were found. */
 export function withResearchedTags(researched: string[], fallback: string[]): string[] {
   const out = [...researched];
@@ -120,8 +127,7 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
       if (aiOn) {
         try {
           const p = await directClip(clip, { ...ctx, proven: provenCaptions(clip.scene) });
-          const tags = researchedHashtags(clip.scene);
-          if (tags.length) p.hashtags = withResearchedTags(tags, p.hashtags);
+          applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);
           return p;
         } catch (err) {
@@ -139,8 +145,7 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
       } else if (overlays.length) p.hook = p.title = overlays[i % overlays.length].example.replaceAll("{pet}", petName);
       p.scene = clip.scene;
       p.postCaption = `${p.hook} 🐾`;
-      const tags = researchedHashtags(clip.scene);
-      if (tags.length) p.hashtags = withResearchedTags(tags, p.hashtags);
+      applyHashtags(p, clip.scene);
       return p;
     });
     if (failures.length) warning = `AI director failed on ${failures.length} clip(s) (${failures[0]}); used heuristics for those.`;

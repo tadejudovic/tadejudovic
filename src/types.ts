@@ -141,6 +141,8 @@ export interface VideoPlan {
   /** The proven caption this overlay was adapted from. */
   basedOn?: { text: string; views?: number; url?: string };
   scene?: string;
+  /** Post counts of the researched hashtags this video uses. */
+  hashtagInfo?: PickedHashtag[];
 }
 
 export type RenderStatus = "queued" | "rendering" | "done" | "error";

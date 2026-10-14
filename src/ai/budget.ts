@@ -50,13 +50,16 @@ export function recordUsage(msg: Pick<Anthropic.Beta.BetaMessage, "usage" | "mod
     (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) * 1.25 + (u.cache_read_input_tokens ?? 0) * 0.1;
   const searches = u.server_tool_use?.web_search_requests ?? 0;
   const usd = (input * inPrice + (u.output_tokens ?? 0) * outPrice) / 1e6 + searches * WEB_SEARCH_USD;
-  const current = spendThisMonth();
-  store.setSpend({ month: current.month, usd: current.usd + usd, calls: current.calls + 1 });
+  add(usd, "ai");
   return usd;
+}
+
+function add(usd: number, kind: "ai" | "tiktok") {
+  const c = spendThisMonth();
+  store.setSpend({ ...c, usd: c.usd + usd, calls: c.calls + 1, [kind]: (c[kind] ?? 0) + usd });
 }
 
 /** Add a non-Claude cost (e.g. an Apify TikTok search) to this month's total. */
 export function recordCost(usd: number) {
-  const current = spendThisMonth();
-  store.setSpend({ month: current.month, usd: current.usd + usd, calls: current.calls + 1 });
+  add(usd, "tiktok");
 }

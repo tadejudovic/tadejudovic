@@ -24,13 +24,9 @@
   <main>
     <!-- HOME: today's videos ------------------------------------------------ -->
     <section data-tab="review">
-      <div class="page-head">
-        <div>
-          <h1>Review</h1>
-          <p class="sub" id="batch-date"></p>
-        </div>
-        <button id="btn-batch" class="btn primary">Make videos</button>
-      </div>
+      <!-- Kept out of sight: the "Make the next round" button below triggers it. -->
+      <button id="btn-batch" class="btn primary" hidden>Make videos</button>
+      <p id="batch-date" hidden></p>
 
       <div id="onboard" class="empty-card big" hidden>
         <b>Connect your Google Photos album</b>
@@ -68,9 +64,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
             <span>Reject</span>
           </button>
-          <button id="stack-yes" class="round yes" aria-label="Keep and save (swipe right)">
+          <button id="stack-yes" class="round yes" aria-label="Post: saves the video (swipe right)">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>
-            <span>Keep</span>
+            <i class="dl-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v11m-5-5l5 5 5-5M5 20h14"/></svg></i>
+            <span class="with-icon">Post <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5l5 5 5-5M5 20h14"/></svg></span>
           </button>
         </div>
       </div>
@@ -95,11 +92,11 @@
       <div class="page-head">
         <div>
           <h1>Ready to post</h1>
-          <p class="sub">Videos you kept. Tap one to save it and copy its caption.</p>
+          <p class="sub">Videos you chose to post. Tap one to save it again and copy its caption.</p>
         </div>
       </div>
       <div id="batch" class="tiles"></div>
-      <p id="ready-empty" class="muted" hidden>Nothing here yet. Videos you keep (swipe right in Review) land here.</p>
+      <p id="ready-empty" class="muted" hidden>Nothing here yet. Videos you post (swipe right in Review) land here.</p>
 
       <details class="fold earlier">
         <summary>Rejected &amp; failed</summary>
@@ -176,7 +173,7 @@
         <form id="budget-form" class="grid-form spaced">
           <label>Monthly limit (USD) <input type="number" name="aiMonthlyBudget" min="0" max="1000" step="1" /></label>
         </form>
-        <p class="hint">An estimate from Claude's reported usage. When the limit is reached, the app stops calling Claude and uses its free method until next month. For a hard cap, also set a spend limit in the Anthropic Console.</p>
+        <p class="hint">Covers both Claude (AI) and Apify (TikTok search). Claude's cost comes from the usage it reports after every call; Apify's is estimated on the high side per search result. The meter updates after every call. When the limit is reached, the app stops calling both until next month. For a hard cap, also set limits in the Anthropic Console and in Apify.</p>
       </div>
 
       <div class="card">

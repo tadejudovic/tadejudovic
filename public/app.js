@@ -48,7 +48,10 @@ async function loadStatus() {
   const sp = s.spend;
   $("#spend-used").textContent = `$${sp.usd.toFixed(2)}`;
   $("#spend-limit").textContent = `$${sp.limit.toFixed(0)}`;
-  $("#spend-calls").textContent = sp.calls ? `· ${sp.calls} AI calls` : "";
+  // Older months were recorded before the split; count anything unlabelled as AI.
+  const tiktok = sp.tiktok ?? 0;
+  const ai = sp.ai ?? sp.usd - tiktok;
+  $("#spend-calls").textContent = `· Claude AI $${ai.toFixed(2)} · Apify TikTok search $${tiktok.toFixed(2)}`;
   const pct = sp.limit > 0 ? Math.min(100, (sp.usd / sp.limit) * 100) : 100;
   $("#spend-bar").style.width = `${pct}%`;
   $("#spend-bar").className = pct >= 100 ? "full" : pct >= 75 ? "high" : "";
@@ -423,7 +426,7 @@ function stackCard(r) {
   const details = h("div", { class: "stack-details", hidden: true }, detailsBody(r));
   const card = h("div", { class: "stack-card" },
     h("div", { class: "stack-media" }, video, sound,
-      h("span", { class: "stamp keep" }, "KEEP"),
+      h("span", { class: "stamp keep" }, "POST"),
       h("span", { class: "stamp nope" }, "NOPE"),
       h("span", { class: "stack-tap" }, "Tap for details"),
     ),
@@ -542,7 +545,7 @@ function decide(dir) {
     state.nextRoundUntil = Date.now() + 6 * 60_000;
     state.roundStartedAt = new Date().toISOString();
   }
-  if (review === "approved") banner("Kept and saved. It's in Ready if you need it again.", "ok");
+  if (review === "approved") banner("Saved to your phone. It's also in Ready.", "ok");
   api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } }).catch((err) => banner(err.message));
   setTimeout(() => { stack.shownId = null; renderStack(); renderBatch(); renderRenders(); renderHomeState(); }, 230);
 }
@@ -605,7 +608,7 @@ function tile(r) {
     : r.status !== "done" ? h("span", { class: "badge" }, r.status === "queued" ? "Waiting…" : `Making… ${Math.round(r.progress * 100)}%`)
     : r.review === "rejected" ? h("span", { class: "badge no" }, `Rejected${r.rejectReason && r.rejectReason !== "other" ? ` · ${REASON_LABEL[r.rejectReason]}` : ""}`)
     : r.downloaded ? h("span", { class: "badge yes" }, "Saved ✓")
-    : r.review === "approved" ? h("span", { class: "badge yes" }, "Kept")
+    : r.review === "approved" ? h("span", { class: "badge yes" }, "To post")
     : null;
   return h("div", { class: `tile ${r.status === "done" ? "openable" : ""}`, onclick: () => r.status === "done" && openSheet(r) },
     h("div", { class: "tile-media" },
@@ -1265,7 +1268,7 @@ function renderHomeState() {
   const caughtUp = vt?.made > 0;
   $("#batch-empty-title").textContent = caughtUp ? "All caught up" : n ? `${n} clip${n === 1 ? "" : "s"} ready to turn into videos` : "No videos yet";
   $("#batch-empty-text").textContent = atLimit
-    ? `That's today's ${vt.limit} videos. The next round comes tomorrow at ${time}.${keptCount ? " Your kept videos are in Ready." : ""}`
+    ? `That's today's ${vt.limit} videos. The next round comes tomorrow at ${time}.${keptCount ? " Your videos to post are in Ready." : ""}`
     : n
       ? `${caughtUp ? "" : `Videos are made every morning at ${time}. `}Want ${caughtUp ? "more" : "them now"}? Make the next round.`
       : importing

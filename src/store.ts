@@ -17,7 +17,8 @@ interface DB {
   trends?: Trends;
   auto: AutoSettings;
   research: Record<string, SceneResearch>;
-  spend: { month: string; usd: number; calls: number };
+  /** This month's estimated spend: total, plus Claude ("ai") and Apify TikTok search ("tiktok") separately. */
+  spend: { month: string; usd: number; calls: number; ai?: number; tiktok?: number };
 }
 
 export interface Settings {

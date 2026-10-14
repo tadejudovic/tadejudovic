@@ -17,7 +17,7 @@ Rollcut replicates a creator's manual routine:
 |---|---|
 | Pick a clip from Google Photos | **Connectors**: a public Google Photos album is watched; new videos are imported automatically |
 | Choose a situation that has worked before (check-in desk, security, boarding gate, plane…) | Every clip is sorted into a **situation** (editable list); batches rotate situations and use unused clips first |
-| Search TikTok for captions in that situation with lots of views | **Captions**: per situation, Claude searches TikTok (web search + fetch) for captions with view counts and source links, refreshed weekly. Captions you find yourself can be added |
+| Search TikTok for captions in that situation with lots of views | **Captions**: per situation, Claude searches TikTok (web search + fetch) for captions with view counts and source links, refreshed every two weeks. Captions you find yourself can be added |
 | Put that (or a similar) caption on the video | The director adapts the best-matching proven caption to the clip; the review card shows which one and its views |
 | Download and upload to TikTok | **Create**: review, edit, approve and download; the post caption is ready to copy |
 
@@ -104,7 +104,7 @@ Picked items are downloaded right away, because Google's download links expire a
 ### Turn on the AI director (optional)
 
 Set `ANTHROPIC_API_KEY` in `.env`. Claude then:
-- watches up to 16 sampled frames per clip once, on import, and writes a summary, tags and its best moments, which are cached;
+- watches 4 sampled frames per clip once (on the fast, cheap model), on import, and writes a summary, tags and its best moments, which are cached;
 - plans each batch of videos from that text catalog. It picks moments, orders the cuts and writes the hook, per-cut captions, post caption and hashtags. You can steer it with a free-text direction, e.g. *"Lex being dramatic about bath time"*.
 
 Because the frames are only analyzed once, planning a day's worth of videos is a single cheap text-only call. Requests use server-side refusal fallbacks (`fallbacks: "default"`). If the API is unavailable, the app falls back to the heuristic planner. Use **Preview plans** to edit hooks and captions before rendering.

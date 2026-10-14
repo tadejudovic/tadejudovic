@@ -23,11 +23,14 @@ export async function structured<T>(params: {
   content: Anthropic.Beta.BetaContentBlockParam[];
   schema: Record<string, unknown>;
   effort: "low" | "medium" | "high";
+  /** Defaults to the main model. Haiku has no server-side fallback, so it's sent without one. */
+  model?: string;
 }): Promise<T> {
   assertBudget();
+  const model = params.model ?? config.claude.model;
   const stream = anthropic().beta.messages.stream({
-    ...FALLBACK,
-    model: config.claude.model,
+    ...(model.startsWith("claude-haiku") ? {} : FALLBACK),
+    model,
     max_tokens: 32000,
     thinking: { type: "adaptive" },
     output_config: { effort: params.effort, format: { type: "json_schema", schema: params.schema } },
@@ -74,7 +77,8 @@ export async function tagClip(
   petName: string,
   scenes: string[],
 ): Promise<NonNullable<Clip["ai"]> & { scene: string }> {
-  const frames = Math.max(2, Math.min(10, Math.ceil(clip.duration / 2)));
+  // Four frames on the small, fast model: enough to tell the situation and the best moments, for a tenth of a cent.
+  const frames = Math.max(2, Math.min(4, Math.ceil(clip.duration / 2)));
   const times = Array.from({ length: frames }, (_, i) =>
     Math.round(((clip.duration * (i + 0.5)) / frames) * 10) / 10,
   );
@@ -113,6 +117,7 @@ export async function tagClip(
     content,
     schema,
     effort: "low",
+    model: config.claude.fastModel,
   });
   result.moments = result.moments
     .map((m) => clampMoment(m, clip.duration))
@@ -360,7 +365,7 @@ function examplesText(examples: Example[]): string {
 
 /** Watch one clip and write the edit that suits it best: which part to use, the overlay and the post caption. */
 export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoPlan> {
-  const frames = Math.max(4, Math.min(20, Math.ceil(clip.duration)));
+  const frames = Math.max(4, Math.min(8, Math.ceil(clip.duration / 2)));
   const content: Anthropic.Beta.BetaContentBlockParam[] = [];
   for (let i = 0; i < frames; i++) {
     const t = Math.round(((clip.duration * (i + 0.5)) / frames) * 10) / 10;

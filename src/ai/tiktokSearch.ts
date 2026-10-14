@@ -177,6 +177,7 @@ export async function researchSceneOnTikTok(scene: string, petName: string): Pro
     content,
     schema: READ_SCHEMA,
     effort: "low",
+    model: config.claude.fastModel,
   });
 
   const now = new Date().toISOString();

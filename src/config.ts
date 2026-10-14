@@ -36,6 +36,8 @@ export const config = {
   claude: {
     enabled: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
     model: process.env.CLAUDE_MODEL ?? "claude-opus-5-5",
+    /** Cheap model for the bulk jobs: scanning every imported clip and reading TikTok covers. */
+    fastModel: process.env.CLAUDE_FAST_MODEL ?? "claude-haiku-5-5",
   },
   /** Apify (apify.com) token: lets caption research search TikTok itself, with real view counts. */
   apify: {

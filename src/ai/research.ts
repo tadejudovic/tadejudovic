@@ -13,7 +13,7 @@ import type { PickedHashtag, ProvenCaption, SceneResearch } from "../types.ts";
  * captions are always kept alongside.
  */
 
-export const RESEARCH_MAX_AGE_MS = 7 * 86400_000;
+export const RESEARCH_MAX_AGE_MS = 14 * 86400_000;
 
 export function researchStale(scene: string): boolean {
   const r = store.research(scene);
@@ -56,7 +56,7 @@ async function doResearch(scene: string): Promise<SceneResearch> {
         source: "tiktok",
         updatedAt: new Date().toISOString(),
         captions: [...creatorCaptions, ...found.captions],
-        // Keep last week's hashtags if this time the post counts couldn't be read.
+        // Keep the previous hashtags if this time the post counts couldn't be read.
         hashtags: found.hashtags.length ? found.hashtags : previous?.hashtags,
         hashtagNote: found.hashtagNote,
       });

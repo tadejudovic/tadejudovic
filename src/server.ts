@@ -19,7 +19,6 @@ import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
-import { landingImage } from "./landing.ts";
 import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, login, loginPage, logout, requireAuth, signedInAs } from "./auth.ts";
 import { monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
@@ -39,13 +38,6 @@ app.get("/login", loginPage);
 app.post("/login", login);
 app.get("/logout", logout);
 app.get("/landing", (_req, res) => sendLanding(res)); // preview the public page while signed in
-app.get("/landing/:kind/:id.jpg", async (req, res) => {
-  const img = await landingImage(String(req.params.kind), String(req.params.id)).catch(() => null);
-  if (!img) return res.sendStatus(404);
-  res.setHeader("Cache-Control", "public, max-age=3600");
-  if (img.buf) return res.type("jpg").send(img.buf);
-  res.sendFile(img.file!);
-});
 app.get("/login/google", googleStart);
 app.get("/login/google/callback", (req, res, next) => { googleCallback(req, res).catch(next); });
 app.use(requireAuth);

@@ -1,71 +1,54 @@
 /**
- * The public landing page: what signed-out visitors see at "/". It shows the product doing
- * its thing (a phone that swipes through finished videos on its own), how it works, and how
- * to get in (it's invite-only). Pure HTML/CSS plus a few lines of JS for scroll reveals.
+ * The public landing page: what signed-out visitors see at "/". The hero phone tells the story:
+ * a camera roll (styled like the iPhone Photos app), one clip gets picked, it grows into a
+ * viral-style video, and it's posted. Photos are free Unsplash images loaded by the visitor's
+ * browser; each sits on a soft color so a missing image never shows as broken.
  */
-import fs from "node:fs";
-import { store } from "./store.ts";
-import { screenText, wrap } from "./media/render.ts";
-import { frameBuffer } from "./media/ffmpeg.ts";
 
-/**
- * Real examples for the landing page: only videos the creator chose to post (swiped right),
- * never unreviewed footage. Their source clips fill the "camera roll" and the hero.
- */
-export function showcase() {
-  return store
-    .renders()
-    .filter((r) => r.status === "done" && r.review === "approved" && r.thumb && fs.existsSync(r.thumb))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .map((r) => ({ r, clip: store.clip(r.plan.segments[0]?.clipId ?? "") }))
-    .filter((x) => x.clip?.thumb && fs.existsSync(x.clip.thumb) && fs.existsSync(x.clip.file))
-    .slice(0, 15);
-}
-
-/** Public images for the landing page, limited to showcase videos. */
-const frames = new Map<string, Buffer>();
-export async function landingImage(kind: string, id: string): Promise<{ file?: string; buf?: Buffer } | null> {
-  const item = showcase().find((x) => (kind === "video" ? x.r.id : x.clip!.id) === id);
-  if (!item) return null;
-  if (kind === "thumb") return { file: item.clip!.thumb };
-  if (kind === "video") return { file: item.r.thumb };
-  if (kind === "frame") {
-    // A sharper frame for the full-screen hero, taken from the moment the video used.
-    if (!frames.has(id)) frames.set(id, await frameBuffer(item.clip!.file, item.r.plan.segments[0]?.start ?? 1, 720));
-    return { buf: frames.get(id) };
-  }
-  return null;
-}
-
-const short = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
-const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+const U = (id: string, w: number, h: number) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&h=${h}&q=60`;
+/** Unsplash photos for a believable camera roll: people, travel, food, dogs. [id, fallback color] */
+const PHOTOS: [string, string][] = [
+  ["1494790108377-be9c29b29330", "#e8c9b5"], // portrait, smiling
+  ["1436491865332-7a61a109cc05", "#9fc4e8"], // plane wing above clouds
+  ["1495474472287-4d71bcdd2085", "#c8a888"], // coffee
+  ["1507525428034-b723cf961d3e", "#8fd0e0"], // beach
+  ["1529156069898-49953e39b3ac", "#d8c0a0"], // friends
+  ["1587300003388-59208cc962cb", "#e6c79a"], // puppy (the clip that gets picked)
+  ["1504674900247-0877df9cc836", "#d9a77f"], // food
+  ["1501785888041-af3ef285b470", "#8fb3a8"], // lake and mountains
+  ["1500648767791-00dcc994a43e", "#c9b19b"], // portrait
+  ["1517849845537-4d257902454a", "#d6c1a6"], // dog
+  ["1488646953014-85cb44e25828", "#d8c8a8"], // travel planning
+  ["1469474968028-56623f02e42e", "#9bb88a"], // landscape
+  ["1438761681033-6461ffad8d80", "#d9b8a8"], // portrait
+  ["1543466835-00a7907e9de1", "#c7b7a0"], // dog
+  ["1476514525535-07fb3b4ae5f1", "#8fb8c8"], // lake trip
+  ["1517248135467-4c7edcad34c4", "#b89880"], // restaurant
+  ["1544005313-94ddf0286df2", "#d4b4a4"], // portrait
+  ["1530281700549-e82e7bf110d6", "#c9b49a"], // dog
+  ["1583337130417-3346a1be7dee", "#d2bfa4"], // dog
+  ["1507525428034-b723cf961d3e", "#8fd0e0"],
+  ["1495474472287-4d71bcdd2085", "#c8a888"],
+  ["1436491865332-7a61a109cc05", "#9fc4e8"],
+  ["1529156069898-49953e39b3ac", "#d8c0a0"],
+  ["1501785888041-af3ef285b470", "#8fb3a8"],
+];
+/** The picked clip: row 2, column 2 of the 4-column grid. */
+const PICK = 5;
+const PICK_PHOTO = PHOTOS[PICK][0];
+const photoBg = (i: number, w = 240) => `url(${U(PHOTOS[i][0], w, w)}) center/cover, ${PHOTOS[i][1]}`;
 
 export function landingHtml(opts: { signInUrl: string; google: boolean }): string {
-  const items = showcase();
-  const hero = items[0];
-  const heroText = hero ? screenText(hero.r.plan.overlays?.[0]?.text ?? hero.r.plan.hook ?? "") : "";
-  const heroLines = hero && heroText ? wrap(heroText, 20).slice(0, 3) : ["POV: the energy shift", "when we pull into", "the airport"];
-  const heroViews = hero?.r.plan.basedOn?.views;
-  const heroTags = hero ? hero.r.plan.hashtags.slice(0, 3) : ["travelwithdog", "flyingwithdog", "dogatairport"];
-  const tagInfo = hero?.r.plan.hashtagInfo?.[0];
+  const heroLines = ["POV: the energy shift", "when we pull into", "the airport"];
+  const heroTags = ["travelwithdog", "flyingwithdog", "dogatairport"];
   const g = `<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
   const cta = (cls = "") =>
     `<a class="btn ${cls}" href="${opts.signInUrl}">${opts.google ? `${g}Sign in with Google` : "Sign in"}</a>`;
 
-  // Camera-roll tiles for the hero animation: 3 columns, positions in % of the screen.
-  const emo = ["🌅", "🐕", "🧳", "☕", "🐩", "🛂", "🌆", "✈️", "🍕", "🏖️", "🐾", "🎒", "🚇", "🌧️", "🛫"];
-  const hues = ["#ffd3b0", "#c7d8ff", "#ffe8a3", "#d9f2c9", "#ffb37a", "#d9d2ff", "#ffcfc9", "#bfe9f2", "#f4c9e8", "#ffe08a", "#c9f2d4", "#ffd6a5", "#cfd8dc", "#b0c4de", "#fcd5ce"];
-  // Tile 4 (middle of row 2) is the one that gets picked: it shows the hero clip.
-  const order = items.length ? [1, 2, 3, 4, 0, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((k) => items[k % items.length]) : [];
-  const tiles = emo.map((e, i) => ({
-    e: order.length ? "" : e,
-    x: 3 + (i % 3) * 31.67,
-    y: 13 + Math.floor(i / 3) * 15.4,
-    bg: order.length
-      ? `url(/landing/thumb/${order[i].clip!.id}.jpg) center/cover`
-      : i === 4 ? "linear-gradient(160deg,#ffb37a,#e2604e 60%,#3b1e2a)" : hues[i],
-    d: i % 4 === 1 ? "0:1" + (i % 6) : i === 4 ? "0:17" : "",
-  }));
+  // 24 tiles, 4 per row; some are videos (duration badge), some favorites (heart).
+  const durations: Record<number, string> = { 1: "0:24", 5: "0:17", 7: "1:02", 10: "0:09", 14: "0:31", 17: "0:12", 20: "0:45" };
+  const favorites = new Set([3, 12, 22]);
+  const tiles = PHOTOS.map((_, i) => ({ i, r: Math.floor(i / 4), c: i % 4, d: durations[i], fav: favorites.has(i) }));
   const captions = [
     "POV: the energy shift at the gate",
     "nobody: / my dog at 6am:",
@@ -142,30 +125,43 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 @keyframes float{50%{transform:translateY(-10px)}}
 
 /* ---- Hero story: camera roll -> one clip is picked -> it becomes a viral-style video -> posted ---- */
-.story{--T:12s;background:#fff}
-.roll-ui{position:absolute;inset:0;background:#fff;animation:rollUi var(--T) infinite}
-.roll-head{position:absolute;top:4.5%;left:5%;right:5%;display:flex;justify-content:space-between;align-items:baseline;color:#111;font-size:15px}
-.roll-head b{font-size:19px;font-weight:800}
-.roll-head span{color:#2f7cf6;font-weight:600;font-size:13px}
-.tile{position:absolute;left:var(--x);top:var(--y);width:30.67%;height:14.6%;border-radius:6px;display:grid;place-items:center;overflow:hidden}
-.tile span{font-size:26px}
-.tile em{position:absolute;right:5px;bottom:3px;font-style:normal;font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
-.ring{position:absolute;width:30.67%;height:14.6%;border-radius:8px;border:3px solid var(--accent);box-shadow:0 0 0 4px rgba(254,44,85,.25);
-  left:3%;top:13%;animation:scan var(--T) infinite}
+.story{--T:12s;background:#fff;container-type:size}
+.roll-ui{position:absolute;inset:0;background:#fff;animation:rollUi var(--T) infinite;font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif}
+/* iPhone Photos look: status bar, big "Recents", edge-to-edge square grid with hairline gaps */
+.ios-status{position:absolute;top:0;left:0;right:0;height:7cqh;display:flex;justify-content:space-between;align-items:center;padding:0 9cqw 0 11cqw;color:#000;font-size:4.6cqw}
+.ios-icons{display:flex;align-items:flex-end;gap:1.2cqw}
+.ios-icons i{width:1cqw;background:#000;border-radius:.4cqw}
+.ios-icons i:nth-child(1){height:1.6cqw}.ios-icons i:nth-child(2){height:2.4cqw}.ios-icons i:nth-child(3){height:3.2cqw}
+.ios-icons em{width:7cqw;height:3.4cqw;border:.5cqw solid #000;border-radius:1cqw;margin-left:1.5cqw;background:linear-gradient(90deg,#000 70%,transparent 70%) content-box;padding:.4cqw}
+.roll-head{position:absolute;top:7.5cqh;left:4cqw;right:4cqw;display:flex;justify-content:space-between;align-items:center;color:#000}
+.roll-head b{font-size:9cqw;font-weight:800;letter-spacing:-.03em}
+.roll-head span{font-size:4.2cqw;font-weight:600;color:#000;background:rgba(0,0,0,.07);padding:1.2cqw 3.6cqw;border-radius:99px}
+.tile{position:absolute;width:24.625cqw;height:24.625cqw;left:calc(var(--c) * 25.125cqw);top:calc(16cqh + var(--r) * 25.125cqw)}
+.tile em{position:absolute;right:1.6cqw;bottom:1cqw;font-style:normal;font-size:3.3cqw;font-weight:600;color:#fff;text-shadow:0 0 3px rgba(0,0,0,.6)}
+.tile u{position:absolute;left:1.6cqw;bottom:.8cqw;text-decoration:none;font-size:3.6cqw;color:#fff;text-shadow:0 0 3px rgba(0,0,0,.6)}
+.roll-count{position:absolute;left:0;right:0;bottom:12.5cqh;text-align:center;font-size:3.6cqw;font-weight:600;color:#8e8e93;background:linear-gradient(transparent,#fff 45%);padding-top:6cqh}
+.ios-tabs{position:absolute;left:0;right:0;bottom:0;height:11cqh;display:flex;justify-content:space-around;align-items:flex-start;padding-top:2cqh;
+  background:rgba(249,249,249,.94);border-top:.3cqw solid rgba(0,0,0,.12);color:#8e8e93;font-size:5.4cqw}
+.ios-tabs span{display:grid;justify-items:center;gap:.4cqh;line-height:1}
+.ios-tabs small{font-size:2.6cqw;font-weight:600}
+.ios-tabs .on{color:#007aff}
+/* the AI's highlight scanning the roll, then locking onto the picked clip */
+.ring{position:absolute;width:24.625cqw;height:24.625cqw;border:1.2cqw solid var(--accent);box-shadow:0 0 0 1.4cqw rgba(254,44,85,.25);z-index:2;
+  left:0;top:16cqh;animation:scan var(--T) infinite}
 @keyframes scan{
-  0%,4%{opacity:0;left:3%;top:13%}
-  6%{opacity:1;left:3%;top:13%}
-  12%{opacity:1;left:66.34%;top:13%}
-  18%{opacity:1;left:3%;top:28.4%}
-  24%,30%{opacity:1;left:34.67%;top:28.4%;transform:scale(1)}
-  27%{opacity:1;transform:scale(1.1)}
-  32%,100%{opacity:0;left:34.67%;top:28.4%}}
+  0%,4%{opacity:0;left:0;top:16cqh}
+  6%{opacity:1;left:0;top:16cqh}
+  12%{opacity:1;left:75.375cqw;top:16cqh}
+  18%{opacity:1;left:50.25cqw;top:calc(16cqh + 50.25cqw)}
+  24%,30%{opacity:1;left:25.125cqw;top:calc(16cqh + 25.125cqw);transform:scale(1)}
+  27%{opacity:1;transform:scale(1.08)}
+  32%,100%{opacity:0;left:25.125cqw;top:calc(16cqh + 25.125cqw)}}
 @keyframes rollUi{0%,30%{opacity:1}38%,92%{opacity:0}100%{opacity:1}}
 /* the picked tile grows into the full video */
-.clip{position:absolute;inset:0;background:linear-gradient(160deg,#ffb37a,#e2604e 60%,#3b1e2a);display:grid;place-items:center;
-  clip-path:inset(28.4% 34.66% 57% 34.67% round 6px);opacity:0;animation:grow var(--T) infinite}
+.clip{--from:inset(calc(16cqh + 25.125cqw) 50.25cqw calc(84cqh - 49.75cqw) 25.125cqw);position:absolute;inset:0;display:grid;place-items:center;
+  clip-path:var(--from);opacity:0;animation:grow var(--T) infinite}
 @keyframes grow{
-  0%,30%{opacity:0;clip-path:inset(28.4% 34.66% 57% 34.67% round 6px);transform:none}
+  0%,30%{opacity:0;clip-path:var(--from);transform:none}
   31%{opacity:1}
   40%{clip-path:inset(0 0 0 0 round 36px)}
   84%{opacity:1;transform:none;clip-path:inset(0 0 0 0 round 36px)}
@@ -187,7 +183,7 @@ h1{font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.05em;margin
 @keyframes press{0%,72%{transform:none}75%{transform:scale(.86)}78%,100%{transform:none}}
 .clip .stamp.yes{animation:stampPost var(--T) infinite}
 @keyframes stampPost{0%,75%{opacity:0;transform:rotate(-14deg) scale(1.4)}78%,88%{opacity:1;transform:rotate(-14deg) scale(1)}92%,100%{opacity:0}}
-.cap{position:absolute;left:50%;bottom:6%;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:700;color:#fff;background:rgba(17,17,20,.85);
+.cap{position:absolute;left:50%;bottom:16%;z-index:3;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:700;color:#fff;background:rgba(17,17,20,.85);
   padding:7px 12px;border-radius:999px;opacity:0;animation:capIn var(--T) infinite}
 @keyframes capIn{0%,8%{opacity:0}11%,30%{opacity:1}33%,100%{opacity:0}}
 /* the floating proof chips appear when their moment happens */
@@ -296,20 +292,23 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
       <div class="stage r d2" aria-hidden="true">
         <div class="phone"><div class="screen story">
           <div class="roll-ui">
+            <div class="ios-status"><b>9:41</b><span class="ios-icons"><i></i><i></i><i></i><em></em></span></div>
             <div class="roll-head"><b>Recents</b><span>Select</span></div>
-            ${tiles.map((t, i) => `<i class="tile" style="--x:${t.x}%;--y:${t.y}%;background:${t.bg}"><span>${t.e}</span>${t.d ? `<em>${t.d}</em>` : ""}</i>`).join("")}
+            ${tiles.map((t) => `<i class="tile" style="--r:${t.r};--c:${t.c};background:${photoBg(t.i)}">${t.d ? `<em>${t.d}</em>` : ""}${t.fav ? `<u>♥</u>` : ""}</i>`).join("")}
             <i class="ring"></i>
+            <div class="roll-count">1,284 Photos, 312 Videos</div>
+            <div class="ios-tabs"><span class="on">▦<small>Library</small></span><span>❤︎<small>For You</small></span><span>▢<small>Albums</small></span><span>⌕<small>Search</small></span></div>
           </div>
-          <div class="clip"${hero ? ` style="background:url(/landing/frame/${hero.clip!.id}.jpg) center/cover"` : ""}>${hero ? "" : `<div class="emo">🐩</div>`}
-            <div class="ov">${heroLines.map((l, i) => `<span class="l${i + 1}">${esc(l)}</span>`).join("")}</div>
-            <div class="tags">${heroTags.map((t) => `<span>#${esc(t)}</span>`).join("")}</div>
+          <div class="clip" style="background:url(${U(PICK_PHOTO, 720, 1520)}) center/cover, ${PHOTOS[PICK][1]}">
+            <div class="ov">${heroLines.map((l, i) => `<span class="l${i + 1}">${l}</span>`).join("")}</div>
+            <div class="tags">${heroTags.map((t) => `<span>#${t}</span>`).join("")}</div>
             <span class="stamp yes">POST</span>
             <div class="ui"><span class="n">✕</span><span class="y">✓</span></div>
           </div>
           <div class="cap">Picking the best moment…</div>
         </div></div>
-        <div class="chip c1">🔥 ${heroViews ? `Text from a ${short(heroViews)}-view TikTok` : "Text from a viral TikTok"}</div>
-        <div class="chip c2"># ${esc(tagInfo?.tag ?? heroTags[0] ?? "travelwithdog")} ${tagInfo ? `<small>${short(tagInfo.posts)} posts</small>` : ""}</div>
+        <div class="chip c1">🔥 Text from a 2.1M-view TikTok</div>
+        <div class="chip c2"># travelwithdog <small>2.4M posts</small></div>
         <div class="chip c3">✓ Caption copied · ready to post</div>
       </div>
     </div>
@@ -335,20 +334,14 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
     <h2 class="r d1">Thousands of clips in. Only the good ones out.</h2>
     <div class="flow">
       <div class="r">
-        <div class="roll">${Array.from({ length: 16 }, (_, i) => {
-          const hues = ["#ffd3b0", "#c7d8ff", "#ffe8a3", "#c9f2d4", "#f4c9e8", "#d9d2ff", "#ffcfc9", "#bfe9f2"];
-          const it = items.length ? items[i % items.length] : null;
-          const bg = it ? `url(/landing/thumb/${it.clip!.id}.jpg) center/cover` : hues[i % hues.length];
-          return `<i style="--c:${bg}" class="${[2, 7, 13].includes(i) ? "pick" : ""}"></i>`;
-        }).join("")}</div>
+        <div class="roll">${Array.from({ length: 16 }, (_, i) => `<i style="--c:${photoBg(i, 160)}" class="${[2, 5, 13].includes(i) ? "pick" : ""}"></i>`).join("")}</div>
         <div class="flowcap"><span>Your camera roll</span><span>3 picked</span></div>
       </div>
       <div class="arrow r d1">→</div>
       <div class="r d2">
         <div class="posts">
-          ${(items.length ? items.slice(0, 3) : [null, null, null]).map((it, i) => it
-            ? `<div class="post" style="--c:url(/landing/video/${it.r.id}.jpg) center/cover"><span>Posted</span></div>`
-            : `<div class="post" style="--c:${["linear-gradient(160deg,#ffb37a,#e2604e 60%,#3b1e2a)", "linear-gradient(160deg,#9ad0ff,#4f6bd8 60%,#1d1b3a)", "linear-gradient(160deg,#ffe08a,#f29c38 60%,#4a2412)"][i]}"><b>${["POV: the energy shift at the gate", "me: quick flight / him:", "first class behavior, economy ticket"][i]}</b><span>Posted</span></div>`).join("")}
+          ${[[2, "POV: the energy shift at the gate"], [5, "me: quick flight / him:"], [13, "first class behavior, economy ticket"]]
+            .map(([i, t]) => `<div class="post" style="--c:url(${U(PHOTOS[i as number][0], 300, 534)}) center/cover, ${PHOTOS[i as number][1]}"><b>${t}</b><span>Posted</span></div>`).join("")}
         </div>
         <div class="flowcap"><span>Ready to post</span><span>with captions + hashtags</span></div>
       </div>

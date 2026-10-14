@@ -33,3 +33,11 @@ test("imports are capped per day", () => {
   for (let i = 0; i < 28; i++) store.addClip({ ...base, id: `t${i}`, scene: "other", importedAt: today });
   assert.equal(importBudget(), 2); // 30 per day, 28 already imported today
 });
+
+test("videos that are already edits (text on them) are never used automatically", () => {
+  const edit = store.addClip({ ...base, id: "edited", scene: "airport terminal", edited: true });
+  assert.equal(onTopic(edit), false);
+  store.updateSettings({ onlySituations: false });
+  assert.equal(onTopic(edit), false);
+  store.updateSettings({ onlySituations: true });
+});

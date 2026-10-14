@@ -9,7 +9,7 @@ import { store, newId } from "./store.ts";
 import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
-import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy } from "./library.ts";
+import { enqueueClip, importPicked, analyzeClip, aiTag, deleteClip, ensureProxy } from "./library.ts";
 import { forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses } from "./generate.ts";
 import { addAlbum, forgetItem, setRecentDays, syncAlbum } from "./albums.ts";
@@ -739,6 +739,14 @@ function recoverWork() {
   for (const c of store.clips()) {
     if (c.status === "ready" && c.kind === "video" && !crashedIds.has(c.id)) {
       ingestQueue.push(() => ensureProxy(c.id).catch((err) => console.warn(`[proxy] ${c.filename}:`, err.message)), { kind: "clip", id: c.id });
+    }
+  }
+  // Unused clips scanned before edited videos were spotted: check them once (a tenth of a cent each).
+  if (config.claude.enabled) {
+    for (const c of store.clips()) {
+      if (c.status === "ready" && c.kind === "video" && c.ai && c.edited === undefined && c.uses === 0 && !c.disliked && !crashedIds.has(c.id)) {
+        ingestQueue.push(() => aiTag(c.id), { kind: "clip", id: c.id });
+      }
     }
   }
   // ...then finish interrupted videos.

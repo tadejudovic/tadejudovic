@@ -47,6 +47,8 @@ export interface Clip {
   sceneSetBy?: "ai" | "creator";
   /** The creator rejected a video because of this footage: it's no longer picked automatically. */
   disliked?: boolean;
+  /** Already an edited video (text, captions or stickers on it): never picked automatically. */
+  edited?: boolean;
 }
 
 /** A caption/overlay that is known to have done well on TikTok for a situation. */

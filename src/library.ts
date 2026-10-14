@@ -121,17 +121,21 @@ export async function analyzeClip(id: string) {
     status: "ready",
   });
 
-  if (config.claude.enabled) {
-    try {
-      const current = store.clip(id)!;
-      const { scene, ...ai } = await tagClip(current, store.settings().petName, store.settings().scenes);
-      // Never overwrite a situation the creator picked by hand.
-      const keepScene = current.sceneSetBy === "creator";
-      store.updateClip(id, { ai, ...(keepScene ? {} : { scene, sceneSetBy: "ai" as const }) });
-    } catch (err) {
-      // AI tagging is an enhancement; the heuristic moments still work.
-      console.warn(`[ai] tagging ${clip.filename} failed:`, (err as Error).message);
-    }
+  if (config.claude.enabled) await aiTag(id);
+}
+
+/** Claude's look at a clip: its situation, best moments, and whether it's already an edited video. */
+export async function aiTag(id: string) {
+  const current = store.clip(id);
+  if (!current) return;
+  try {
+    const { scene, alreadyEdited, ...ai } = await tagClip(current, store.settings().petName, store.settings().scenes);
+    // Never overwrite a situation the creator picked by hand.
+    const keepScene = current.sceneSetBy === "creator";
+    store.updateClip(id, { ai, edited: alreadyEdited, ...(keepScene ? {} : { scene, sceneSetBy: "ai" as const }) });
+  } catch (err) {
+    // AI tagging is an enhancement; the heuristic moments still work.
+    console.warn(`[ai] tagging ${current.filename} failed:`, (err as Error).message);
   }
 }
 

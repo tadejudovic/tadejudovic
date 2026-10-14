@@ -76,7 +76,7 @@ export async function tagClip(
   clip: Clip,
   petName: string,
   scenes: string[],
-): Promise<NonNullable<Clip["ai"]> & { scene: string }> {
+): Promise<NonNullable<Clip["ai"]> & { scene: string; alreadyEdited: boolean }> {
   // Four frames on the small, fast model: enough to tell the situation and the best moments, for a tenth of a cent.
   const frames = Math.max(2, Math.min(4, Math.ceil(clip.duration / 2)));
   const times = Array.from({ length: frames }, (_, i) =>
@@ -102,14 +102,21 @@ export async function tagClip(
       `audio peaks (barks, reactions). Tags should be short and reusable across clips (e.g. zoomies, sleepy, ` +
       `side-eye, tricks, outdoors, bath, food, toy, cuddle, dramatic, puppy).\n\n` +
       `Also classify which situation the clip shows. Choose exactly one of: ${scenes.map((x) => `"${x}"`).join(", ")}, ` +
-      `or "other" if none fits.`,
+      `or "other" if none fits.\n\n` +
+      `Finally, say whether this is already an edited video: text overlays, captions, titles or stickers added on top ` +
+      `of the footage (e.g. a finished TikTok saved back to the phone). Text that's part of the scene itself ` +
+      `(signs, screens, labels, a boarding pass) doesn't count.`,
   });
   const schema = {
     ...TAG_SCHEMA,
-    required: [...TAG_SCHEMA.required, "scene"],
-    properties: { ...TAG_SCHEMA.properties, scene: { type: "string", enum: [...scenes, "other"] } },
+    required: [...TAG_SCHEMA.required, "scene", "alreadyEdited"],
+    properties: {
+      ...TAG_SCHEMA.properties,
+      scene: { type: "string", enum: [...scenes, "other"] },
+      alreadyEdited: { type: "boolean", description: "Text, captions or stickers were added on top of the footage" },
+    },
   };
-  const result = await structured<NonNullable<Clip["ai"]> & { scene: string }>({
+  const result = await structured<NonNullable<Clip["ai"]> & { scene: string; alreadyEdited: boolean }>({
     system:
       "You are a short-form video editor who specializes in viral pet content on TikTok, Reels and Shorts. " +
       "You judge footage by whether it stops the scroll in the first second: surprise, comedic timing, " +

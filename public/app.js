@@ -428,20 +428,52 @@ function stackCard(r) {
   const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, autoplay: true, muted: true, loop: true, playsinline: true });
   video.muted = true;
   const sound = h("button", { class: "stack-sound", "aria-label": "Sound", onclick: (e) => { video.muted = !video.muted; e.currentTarget.textContent = video.muted ? "🔇" : "🔊"; } }, "🔇");
-  const details = h("div", { class: "stack-details", hidden: true }, detailsBody(r));
   const card = h("div", { class: "stack-card" },
     h("div", { class: "stack-media" }, video, sound,
       h("span", { class: "stamp keep" }, "POST"),
       h("span", { class: "stamp nope" }, "NOPE"),
       h("span", { class: "stack-tap" }, "Tap for details"),
     ),
-    details,
   );
-  dragToSwipe(card, card.querySelector(".stack-media"), decide, () => {
-    details.hidden = !details.hidden;
-    card.classList.toggle("open", !details.hidden);
-  });
+  // Tap opens the details full screen (like a Tinder profile); swiping still decides.
+  dragToSwipe(card, card.querySelector(".stack-media"), decide, () => openDetails(r, video.muted));
   return card;
+}
+
+/** Full-screen details for the video under review: player on top, everything else scrolls below, decide at the bottom. */
+function openDetails(r, muted = true) {
+  const sheet = $("#sheet");
+  const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, autoplay: true, loop: true, playsinline: true, controls: true });
+  video.muted = muted;
+  stack.node?.querySelector("video")?.pause();
+  const close = () => {
+    closeSheet();
+    stack.node?.querySelector("video")?.play().catch(() => {});
+  };
+  const choose = (dir) => {
+    closeSheet();
+    decide(dir);
+  };
+  const iconButton = (cls, label, path, onclick) => {
+    const b = h("button", { class: cls, "aria-label": label, onclick });
+    b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
+    return b;
+  };
+  sheet.replaceChildren(
+    h("div", { class: "details-view" },
+      iconButton("details-close", "Back to swiping", "M6 9l6 6 6-6", close),
+      h("div", { class: "details-media" }, video),
+      h("div", { class: "details-body" }, detailsBody(r)),
+      h("div", { class: "details-actions" },
+        iconButton("round no", "Reject", "M6 6l12 12M18 6L6 18", () => choose("left")),
+        iconButton("round yes", "Post", "M4.5 12.5l5 5L19.5 7", () => choose("right")),
+      ),
+    ),
+  );
+  sheet.classList.add("full");
+  sheet.hidden = false;
+  sheet.scrollTop = 0;
+  document.body.classList.add("no-scroll");
 }
 
 /** Everything about a video except the player: made from, text on video, caption, hashtags. */
@@ -676,6 +708,7 @@ function openSheet(r) {
 function closeSheet() {
   const sheet = $("#sheet");
   sheet.querySelector("video")?.pause();
+  sheet.classList.remove("full");
   sheet.hidden = true;
   sheet.replaceChildren();
   document.body.classList.remove("no-scroll");

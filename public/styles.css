@@ -476,7 +476,11 @@ main:has(section[data-tab="review"]:not([hidden]) #stack:not([hidden])) {
   background: linear-gradient(to top, rgba(0,0,0,.45), transparent); }
 .stack-tap { top: 12px; bottom: auto; left: auto; right: 12px; }
 .stack-sound { top: 44px; bottom: auto; }
-.stack-why { margin-top: 24px; }
+/* "What was wrong?" pops up in the middle of the screen, wherever the page is scrolled. */
+.stack-why { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 70; width: min(calc(100% - 32px), 400px);
+  box-shadow: 0 0 0 100vmax rgba(15,15,20,.45), 0 12px 32px rgba(0,0,0,.2); animation: why-in .18s ease-out; }
+@keyframes why-in { from { opacity: 0; transform: translate(-50%, -46%); } }
+.stack:has(#stack-why:not([hidden])) .stack-top { z-index: 71; }
 
 /* ---- Full-screen details for the video under review (Tinder-profile style) ---- */
 .sheet.full { background: #fff; padding: 0; display: block; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }

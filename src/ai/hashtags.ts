@@ -4,14 +4,14 @@ import type { PickedHashtag } from "../types.ts";
  * Hashtags, the way the creator picks them: look at the hashtags on the
  * most-viewed videos for the situation, check how many posts each has on
  * TikTok, and use exactly three:
- *   - one big tag (1M–7M posts; not the huge ones like #dog where a video drowns),
- *   - one mid tag (100K–300K posts),
+ *   - one big tag (1M–5M posts; not the huge ones like #dog where a video drowns),
+ *   - one mid tag (50K–100K posts),
  *   - one small tag (around 10K posts).
  */
 export const TIERS: { tier: PickedHashtag["tier"]; min: number; max: number; wideMin: number; wideMax: number }[] = [
-  { tier: "big", min: 1_000_000, max: 7_000_000, wideMin: 500_000, wideMax: 10_000_000 },
-  { tier: "mid", min: 100_000, max: 300_000, wideMin: 50_000, wideMax: 500_000 },
-  { tier: "small", min: 5_000, max: 20_000, wideMin: 2_000, wideMax: 50_000 },
+  { tier: "big", min: 1_000_000, max: 5_000_000, wideMin: 700_000, wideMax: 7_000_000 },
+  { tier: "mid", min: 50_000, max: 100_000, wideMin: 30_000, wideMax: 200_000 },
+  { tier: "small", min: 5_000, max: 20_000, wideMin: 2_000, wideMax: 30_000 },
 ];
 
 export interface TagCandidate {

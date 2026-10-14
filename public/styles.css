@@ -669,3 +669,5 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .not-used summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 8px 0; }
 .not-used summary .muted { font-weight: 400; font-size: 12px; }
 #caption-audience label { white-space: nowrap; }
+#settings .wide { grid-column: 1 / -1; }
+#settings textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid #d4d4d8; border-radius: 10px; resize: vertical; }

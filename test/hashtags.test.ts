@@ -16,12 +16,12 @@ test("candidates are ranked by the views of the videos that used them", () => {
   assert.deepEqual(c.map((x) => x.tag), ["b", "a", "c"]);
 });
 
-test("pickThree picks one big (1–7M), one mid (100–300K), one small (~10K) and skips huge tags", () => {
+test("pickThree picks one big (1–5M), one mid (50–100K), one small (~10K) and skips huge tags", () => {
   const picked = pickThree([
     { tag: "dog", score: 9, posts: 400_000_000 },
     { tag: "dogsoftiktok", score: 8, posts: 90_000_000 },
     { tag: "travelwithdog", score: 7, posts: 2_400_000 },
-    { tag: "flyingwithdog", score: 6, posts: 240_000 },
+    { tag: "flyingwithdog", score: 6, posts: 80_000 },
     { tag: "poodlesoftiktok", score: 5, posts: 3_100_000 },
     { tag: "dogatairport", score: 4, posts: 11_000 },
   ]);
@@ -35,7 +35,7 @@ test("parseVideoCount reads TikTok's challenge stats", () => {
 });
 
 test("chooseHashtags looks up counts and reports when none could be read", async () => {
-  const counts: Record<string, number> = { a: 2_000_000, b: 150_000, c: 9_000 };
+  const counts: Record<string, number> = { a: 2_000_000, b: 75_000, c: 9_000 };
   const r = await chooseHashtags([{ tag: "a", score: 3 }, { tag: "b", score: 2 }, { tag: "c", score: 1 }], async (t) => counts[t]);
   assert.deepEqual(r.picked.map((p) => p.tag), ["a", "b", "c"]);
   const none = await chooseHashtags([{ tag: "a", score: 1 }], async () => undefined);

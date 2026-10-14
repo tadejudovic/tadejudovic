@@ -142,6 +142,7 @@ export async function plan(
       recentOverlays,
       proven: [],
       feedback: reviewFeedback(),
+      story: store.settings().story,
     };
     const overlays: { example: string }[] = [];
     const failures: string[] = [];

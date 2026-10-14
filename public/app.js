@@ -76,6 +76,7 @@ async function loadStatus() {
   if (document.activeElement?.form !== form) {
     form.petName.value = s.settings.petName;
     form.handle.value = s.settings.handle;
+    if (document.activeElement !== form.story) form.story.value = s.settings.story ?? "";
   }
   if (document.activeElement?.form !== $("#limits")) $("#limits").maxVideosPerDay.value = String(s.settings.maxVideosPerDay);
   $("#limits").onlySituations.checked = s.settings.onlySituations !== false;
@@ -104,7 +105,7 @@ async function loadStatus() {
 
 $("#settings").addEventListener("change", async (e) => {
   const f = e.currentTarget;
-  state.status.settings = await api("/api/settings", { method: "PUT", body: { petName: f.petName.value, handle: f.handle.value } });
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { petName: f.petName.value, handle: f.handle.value, story: f.story.value } });
   renderSummaries();
 });
 $("#settings").addEventListener("submit", (e) => e.preventDefault());

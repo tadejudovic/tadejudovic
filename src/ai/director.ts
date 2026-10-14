@@ -292,8 +292,18 @@ const DIRECT_SCHEMA = {
         properties: { text: { type: "string" }, start: { type: "number" }, end: { type: "number" } },
       },
     },
-    postCaption: { type: "string", description: "TikTok caption to post with. Short, in the creator's voice. Emoji ok." },
-    hashtags: { type: "array", items: { type: "string" }, description: "3–6 hashtags without #" },
+    postCaption: {
+      type: "string",
+      description:
+        "The post description under the video: 4–7 sentences (about 400–900 characters) in the creator's voice. " +
+        "Hook in the first line, what happens in this clip, woven into the account's ongoing story, ending with a " +
+        "question that invites comments. Emoji ok, no hashtags.",
+    },
+    hashtags: {
+      type: "array",
+      items: { type: "string" },
+      description: "Exactly 3 hashtags without #: one big (1M–5M posts), one mid (50K–100K), one small (~10K)",
+    },
   },
 };
 
@@ -313,6 +323,8 @@ export interface DirectContext {
   feedback?: ReviewFeedback;
   /** Who this video's text speaks to: dog lovers, or everyone (the shared human moment). */
   audience?: "pets" | "everyone";
+  /** The account's story, woven into the post description. */
+  story?: string;
 }
 
 const REASON_TEXT: Record<string, string> = {
@@ -423,6 +435,10 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       audienceText(ctx.audience, ctx.petName) +
+      (ctx.story
+        ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
+          `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`
+        : "") +
       provenText(ctx.proven, clip.scene, ctx.audience) +
       examplesText(ctx.examples) +
       feedbackText(ctx.feedback) +
@@ -477,7 +493,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     })(),
     segments,
     postCaption: r.postCaption,
-    hashtags: r.hashtags.map((h) => h.replace(/^#/, "")).slice(0, 8),
+    hashtags: r.hashtags.map((h) => h.replace(/^#/, "")).slice(0, 3),
     plannedBy: "claude",
   };
 }

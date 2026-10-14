@@ -7,13 +7,29 @@ import { currentTrends } from "./ai/trends.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
-import type { Clip, GenerateRequest, Render, VideoPlan } from "./types.ts";
+import type { Clip, GenerateRequest, Render, ReviewFeedback, VideoPlan } from "./types.ts";
 
 /** Exactly three hashtags: the researched ones (big, mid, small), topped up from the AI's if fewer were found. */
 export function withResearchedTags(researched: string[], fallback: string[]): string[] {
   const out = [...researched];
   for (const t of fallback) if (out.length < 3 && !out.includes(t.toLowerCase())) out.push(t.toLowerCase());
   return out.slice(0, 3);
+}
+
+/**
+ * What the creator kept and swiped away recently, so the director learns their taste:
+ * overlay text, situation and (for rejections) what was wrong.
+ */
+export function reviewFeedback(limit = 15): ReviewFeedback {
+  const reviewed = store
+    .renders()
+    .filter((r) => r.review !== "pending" && r.status === "done" && r.plan.hook)
+    .sort((a, b) => Date.parse(b.reviewedAt ?? b.createdAt) - Date.parse(a.reviewedAt ?? a.createdAt));
+  const item = (r: Render) => ({ text: r.plan.overlays?.map((o) => o.text).join(" / ") || r.plan.hook, scene: r.plan.scene, basedOn: r.plan.basedOn?.text });
+  return {
+    kept: reviewed.filter((r) => r.review === "approved").slice(0, limit).map(item),
+    rejected: reviewed.filter((r) => r.review === "rejected").slice(0, limit).map((r) => ({ ...item(r), reason: r.rejectReason })),
+  };
 }
 
 /** Portrait footage only: landscape clips are kept in the library but never used. */
@@ -64,7 +80,8 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
 
 export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; warning?: string }> {
   const all = store.clips().filter((c) => c.status === "ready" && isPortrait(c));
-  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all;
+  // Footage the creator rejected is only used when they pick it themselves.
+  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => !c.disliked);
   if (!clips.length) throw new Error("No analyzed portrait clips available. Import some vertical footage first.");
   const { petName, handle } = store.settings();
   const aiOn = req.useAi && config.claude.enabled;
@@ -95,6 +112,7 @@ export async function plan(req: GenerateRequest): Promise<{ plans: VideoPlan[]; 
       brief: req.brief,
       recentOverlays,
       proven: [],
+      feedback: reviewFeedback(),
     };
     const overlays = [...currentTrends().formats].sort(() => Math.random() - 0.5);
     const failures: string[] = [];

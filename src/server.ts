@@ -22,7 +22,7 @@ import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import { gateEnabled, login, loginPage, logout, requireAuth } from "./auth.ts";
 import { monthlyLimit, spendThisMonth } from "./ai/budget.ts";
-import type { Clip, GenerateRequest, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
+import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -317,7 +317,7 @@ app.get("/api/suggestions", (_req, res) => {
   const pending = new Set(
     store.renders().filter((r) => r.status === "queued" || r.status === "rendering").flatMap((r) => r.plan.segments.map((s) => s.clipId)),
   );
-  const fresh = store.clips().filter((c) => c.status === "ready" && isPortrait(c) && c.uses === 0 && !pending.has(c.id));
+  const fresh = store.clips().filter((c) => c.status === "ready" && isPortrait(c) && c.uses === 0 && !c.disliked && !pending.has(c.id));
   res.json(
     pickBySituation(fresh, 6).map((c) => {
       const top = provenCaptions(c.scene, 1)[0];
@@ -537,10 +537,19 @@ app.patch("/api/renders/:id", (req, res) => {
   const planPatch: Partial<VideoPlan> = {};
   if (typeof b.postCaption === "string") planPatch.postCaption = b.postCaption.slice(0, 2200);
   if (Array.isArray(b.hashtags)) planPatch.hashtags = b.hashtags.map((t: unknown) => String(t).replace(/^#/, "").slice(0, 40)).filter(Boolean).slice(0, 15);
+  const review = ["pending", "approved", "rejected"].includes(b.review) ? (b.review as Render["review"]) : undefined;
+  const reason = ["text", "clip", "edit", "other"].includes(b.rejectReason) ? (b.rejectReason as RejectReason) : undefined;
   store.updateRender(r.id, {
-    ...(["pending", "approved", "rejected"].includes(b.review) ? { review: b.review } : {}),
+    ...(review ? { review, reviewedAt: new Date().toISOString(), rejectReason: review === "rejected" ? reason ?? r.rejectReason : undefined } : {}),
+    ...(review === undefined && reason && r.review === "rejected" ? { rejectReason: reason } : {}),
+    ...(b.downloaded === true ? { downloaded: true } : {}),
     plan: { ...r.plan, ...planPatch },
   });
+  // "Bad clip": stop picking that footage automatically. Undoing the rejection brings it back.
+  const now = store.render(r.id)!;
+  const clipIds = [...new Set(r.plan.segments.map((s) => s.clipId))];
+  if (now.review === "rejected" && now.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: true });
+  else if (r.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: false });
   res.json(store.render(r.id));
 });
 

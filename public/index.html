@@ -31,6 +31,11 @@
         <button id="btn-batch" class="btn primary">Make videos</button>
       </div>
 
+      <button id="review-cta" class="review-cta" hidden>
+        <span><b id="review-count">0</b> new videos to review</span>
+        <span class="muted">Swipe right to keep, left to reject →</span>
+      </button>
+
       <div id="onboard" class="empty-card big" hidden>
         <b>Connect your Google Photos album</b>
         <p>Put the videos you want to use in a shared album, turn on link sharing, and paste the link here. Lex Studio makes new videos from it every morning.</p>
@@ -241,6 +246,26 @@
       <p class="signout"><a id="logout" class="link" href="/logout" hidden>Sign out</a></p>
     </section>
   </main>
+
+  <!-- Swipe review: right = keep, left = reject -->
+  <div id="deck" class="deck" hidden>
+    <div class="deck-top">
+      <button id="deck-undo" class="btn small" hidden>↶ Undo</button>
+      <span id="deck-progress" class="muted"></span>
+      <button id="deck-close" class="btn small" aria-label="Close">Done</button>
+    </div>
+    <div id="deck-stage" class="deck-stage"></div>
+    <div id="deck-why" class="deck-why" hidden>
+      <span>What was wrong?</span>
+      <button data-reason="text">The text</button>
+      <button data-reason="clip">The clip</button>
+      <button data-reason="edit">The cut</button>
+    </div>
+    <div id="deck-actions" class="deck-actions">
+      <button id="deck-no" class="round no" aria-label="Reject (left)">✕</button>
+      <button id="deck-yes" class="round yes" aria-label="Keep (right)">✓</button>
+    </div>
+  </div>
 
   <script src="/app.js" type="module"></script>
 </body>

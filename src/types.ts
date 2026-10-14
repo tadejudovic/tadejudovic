@@ -45,6 +45,8 @@ export interface Clip {
   /** The situation the clip shows (e.g. "security check"), from the AI or set by the creator. */
   scene?: string;
   sceneSetBy?: "ai" | "creator";
+  /** The creator rejected a video because of this footage: it's no longer picked automatically. */
+  disliked?: boolean;
 }
 
 /** A caption/overlay that is known to have done well on TikTok for a situation. */
@@ -143,6 +145,8 @@ export interface VideoPlan {
 
 export type RenderStatus = "queued" | "rendering" | "done" | "error";
 export type ReviewStatus = "pending" | "approved" | "rejected";
+/** Why the creator swiped a video away: what to change next time. */
+export type RejectReason = "text" | "clip" | "edit" | "other";
 
 export interface Render {
   id: string;
@@ -158,6 +162,10 @@ export interface Render {
   /** Daily batch this render belongs to (YYYY-MM-DD), if it was made automatically. */
   batch?: string;
   review: ReviewStatus;
+  rejectReason?: RejectReason;
+  reviewedAt?: string;
+  /** The video file was downloaded. */
+  downloaded?: boolean;
   /** Whether finishing this render should count as a use of its clips (false for re-renders). */
   countUse?: boolean;
 }
@@ -236,4 +244,10 @@ export interface AutoSettings {
   /** How often to check shared albums for new videos. */
   syncEveryHours: number;
   lastBatchDate?: string;
+}
+
+/** The creator's recent swipe decisions, fed to the AI director. */
+export interface ReviewFeedback {
+  kept: { text: string; scene?: string; basedOn?: string }[];
+  rejected: { text: string; scene?: string; basedOn?: string; reason?: RejectReason }[];
 }

@@ -3,7 +3,7 @@ import { config } from "../config.ts";
 import { assertBudget, recordUsage } from "./budget.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { TEMPLATES } from "../templates.ts";
-import type { Clip, Example, Moment, Overlay, ProvenCaption, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
+import type { Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
 
 /**
  * The "AI director": Claude watches sampled frames of each clip once (cached on
@@ -292,6 +292,29 @@ export interface DirectContext {
   recentOverlays: string[];
   /** Captions that got lots of views on TikTok for this clip's situation. */
   proven: ProvenCaption[];
+  /** What the creator kept and rejected recently. */
+  feedback?: ReviewFeedback;
+}
+
+const REASON_TEXT: Record<string, string> = {
+  text: "the text was off",
+  clip: "the footage wasn't good enough",
+  edit: "the cut/timing was off",
+  other: "no reason given",
+};
+
+export function feedbackText(f: ReviewFeedback | undefined): string {
+  if (!f || (!f.kept.length && !f.rejected.length)) return "";
+  const line = (x: { text: string; scene?: string; basedOn?: string }) =>
+    `- "${x.text}"${x.scene ? ` (${x.scene})` : ""}${x.basedOn ? ` [adapted from "${x.basedOn}"]` : ""}`;
+  return (
+    `\n\nThe creator reviews every video: swipe right to keep it, left to reject it. Learn their taste from this ` +
+    `and write more like what they kept and less like what they rejected (don't copy the kept lines).` +
+    (f.kept.length ? `\nKept:\n${f.kept.map(line).join("\n")}` : "") +
+    (f.rejected.length
+      ? `\nRejected:\n${f.rejected.map((x) => `${line(x)}: ${REASON_TEXT[x.reason ?? "other"]}`).join("\n")}`
+      : "")
+  );
 }
 
 function provenText(proven: ProvenCaption[], scene?: string): string {
@@ -367,6 +390,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
         : "") +
       provenText(ctx.proven, clip.scene) +
       examplesText(ctx.examples) +
+      feedbackText(ctx.feedback) +
       (ctx.recentOverlays.length
         ? `\n\nOverlays already posted recently (don't reuse these or their structure back-to-back):\n` +
           ctx.recentOverlays.map((o) => `- ${o}`).join("\n")

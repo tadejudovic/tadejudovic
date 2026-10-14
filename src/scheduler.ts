@@ -89,7 +89,7 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
         console.warn("[scheduler] trend refresh failed, using known formats:", (err as Error).message),
       );
     }
-    const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c));
+    const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked);
     if (!ready.length) throw new Error("No analyzed vertical videos yet. Add a shared album or upload some clips.");
     // Prefer footage that hasn't been used; fall back to everything when there isn't enough new material.
     const unused = ready.filter((c) => c.uses === 0);

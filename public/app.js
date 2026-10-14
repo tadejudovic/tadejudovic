@@ -378,7 +378,164 @@ async function refreshRenders() {
   renderRenders();
   renderBatch();
   renderHomeState();
+  renderReviewCta();
 }
+
+// ---- Swipe review -------------------------------------------------------------
+// Dating-app style: swipe right (or →, or ✓) keeps a video, left (←, ✕) rejects it.
+// Every decision is fed back to the AI director so later videos fit the creator's taste.
+
+const REASON_LABEL = { text: "the text", clip: "the clip", edit: "the cut", other: "" };
+const deck = { queue: [], index: 0, history: [], kept: 0 };
+
+function toReview() {
+  return state.renders.filter((r) => r.status === "done" && r.review === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function renderReviewCta() {
+  const n = toReview().length;
+  $("#review-cta").hidden = n === 0 || !$("#deck").hidden;
+  $("#review-count").textContent = String(n);
+}
+
+function openDeck() {
+  deck.queue = toReview();
+  deck.index = 0;
+  deck.history = [];
+  deck.kept = 0;
+  $("#deck").hidden = false;
+  document.body.classList.add("no-scroll");
+  showDeckCard();
+}
+
+async function closeDeck() {
+  $("#deck").hidden = true;
+  $("#deck-why").hidden = true;
+  document.body.classList.remove("no-scroll");
+  $("#deck-stage").replaceChildren();
+  await refreshRenders();
+}
+
+function showDeckCard() {
+  const stage = $("#deck-stage");
+  const r = deck.queue[deck.index];
+  $("#deck-undo").hidden = !deck.history.length;
+  $("#deck-actions").hidden = !r;
+  if (!r) {
+    $("#deck-progress").textContent = "";
+    stage.replaceChildren(
+      h("div", { class: "deck-done" },
+        h("b", {}, "All reviewed"),
+        h("p", { class: "muted" }, `${deck.kept} kept. They're on the Videos page, ready to download.`),
+        h("button", { class: "btn primary", onclick: closeDeck }, "See kept videos"),
+      ),
+    );
+    return;
+  }
+  $("#deck-progress").textContent = `${deck.index + 1} of ${deck.queue.length}`;
+  const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, autoplay: true, muted: true, loop: true, playsinline: true });
+  video.muted = true;
+  const sound = h("button", { class: "deck-sound", onclick: (e) => { e.stopPropagation(); video.muted = !video.muted; sound.textContent = video.muted ? "🔇" : "🔊"; } }, "🔇");
+  const card = h("div", { class: "deck-card" },
+    h("div", { class: "deck-media" }, video, sound,
+      h("span", { class: "stamp keep" }, "KEEP"),
+      h("span", { class: "stamp nope" }, "NOPE"),
+    ),
+    h("div", { class: "deck-info" },
+      sourceLine(r.plan),
+      h("div", { class: "deck-caption" }, [r.plan.postCaption, r.plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("  ")),
+      basedOnLine(r.plan),
+    ),
+  );
+  stage.replaceChildren(card);
+  dragToSwipe(card, (dir) => decide(dir));
+}
+
+function dragToSwipe(card, onSwipe) {
+  let startX = 0, startY = 0, dx = 0, dragging = false, id = null;
+  const keep = card.querySelector(".stamp.keep"), nope = card.querySelector(".stamp.nope");
+  const paint = () => {
+    card.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+    keep.style.opacity = String(Math.max(0, Math.min(1, dx / 90)));
+    nope.style.opacity = String(Math.max(0, Math.min(1, -dx / 90)));
+  };
+  card.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button, a")) return;
+    dragging = true; id = e.pointerId; startX = e.clientX; startY = e.clientY; dx = 0;
+    card.setPointerCapture(id);
+    card.style.transition = "none";
+  });
+  card.addEventListener("pointermove", (e) => {
+    if (!dragging || e.pointerId !== id) return;
+    dx = e.clientX - startX;
+    // Mostly-vertical moves are scrolls of the info text, not swipes.
+    if (Math.abs(e.clientY - startY) > Math.abs(dx) * 1.5 && Math.abs(dx) < 20) return;
+    paint();
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    card.style.transition = "";
+    if (Math.abs(dx) > Math.min(110, window.innerWidth * 0.25)) onSwipe(dx > 0 ? "right" : "left");
+    else { dx = 0; paint(); }
+  };
+  card.addEventListener("pointerup", end);
+  card.addEventListener("pointercancel", end);
+  card.flyOut = (dir) => {
+    dx = dir === "right" ? window.innerWidth : -window.innerWidth;
+    card.style.transition = "transform .28s ease-out";
+    paint();
+  };
+}
+
+let whyFor = null;
+async function decide(dir) {
+  const r = deck.queue[deck.index];
+  if (!r) return;
+  const card = $("#deck-stage .deck-card");
+  card?.flyOut?.(dir);
+  const review = dir === "right" ? "approved" : "rejected";
+  deck.history.push(r.id);
+  if (review === "approved") deck.kept++;
+  // Ask why only for rejections; one tap, optional.
+  whyFor = review === "rejected" ? r.id : null;
+  $("#deck-why").hidden = review !== "rejected";
+  api(`/api/renders/${r.id}`, { method: "PATCH", body: { review } }).catch((err) => banner(err.message));
+  r.review = review;
+  setTimeout(() => { deck.index++; showDeckCard(); }, 220);
+}
+
+$("#deck-why").addEventListener("click", (e) => {
+  const reason = e.target.dataset?.reason;
+  if (!reason || !whyFor) return;
+  api(`/api/renders/${whyFor}`, { method: "PATCH", body: { rejectReason: reason } }).catch((err) => banner(err.message));
+  $("#deck-why").hidden = true;
+  whyFor = null;
+});
+
+$("#deck-undo").addEventListener("click", async () => {
+  const id = deck.history.pop();
+  if (!id) return;
+  const r = deck.queue.find((x) => x.id === id);
+  if (r?.review === "approved") deck.kept--;
+  await api(`/api/renders/${id}`, { method: "PATCH", body: { review: "pending" } });
+  if (r) r.review = "pending";
+  $("#deck-why").hidden = true;
+  whyFor = null;
+  deck.index = Math.max(0, deck.queue.indexOf(r));
+  showDeckCard();
+});
+
+$("#review-cta").addEventListener("click", openDeck);
+$("#deck-close").addEventListener("click", closeDeck);
+$("#deck-yes").addEventListener("click", () => decide("right"));
+$("#deck-no").addEventListener("click", () => decide("left"));
+document.addEventListener("keydown", (e) => {
+  if ($("#deck").hidden) return;
+  if (e.key === "ArrowRight") decide("right");
+  else if (e.key === "ArrowLeft") decide("left");
+  else if (e.key === "Escape") closeDeck();
+});
 
 const renderEls = new Map();
 function renderRenders() {
@@ -661,13 +818,19 @@ function reviewCard(r) {
       basedOnLine(r.plan),
       h("div", { class: "card-actions" },
         r.review === "rejected"
-          ? h("button", { class: "btn small", onclick: () => setReview("pending") }, "Undo skip")
+          ? [
+              h("span", { class: "muted grow" }, `Rejected${r.rejectReason && r.rejectReason !== "other" ? ` · ${REASON_LABEL[r.rejectReason]}` : ""}`),
+              h("button", { class: "btn small", onclick: () => setReview("pending") }, "Undo"),
+            ]
           : [
               done
-                ? h("a", { class: `btn primary grow ${r.review === "approved" ? "done" : ""}`, href: `/media/render/${r.id}.mp4?dl=1`, onclick: () => r.review !== "approved" && setReview("approved") },
-                    r.review === "approved" ? "Downloaded ✓" : "Download")
+                ? h("a", {
+                    class: `btn primary grow ${r.downloaded ? "done" : ""}`,
+                    href: `/media/render/${r.id}.mp4?dl=1`,
+                    onclick: () => api(`/api/renders/${r.id}`, { method: "PATCH", body: { downloaded: true, ...(r.review === "pending" ? { review: "approved" } : {}) } }).then(refreshRenders),
+                  }, r.downloaded ? "Downloaded ✓" : r.review === "approved" ? "Kept · Download" : "Download")
                 : null,
-              h("button", { class: "btn quiet-btn", title: "Don't post this one", onclick: () => setReview("rejected") }, "Skip"),
+              h("button", { class: "btn quiet-btn", title: "Don't post this one", onclick: () => setReview("rejected") }, "Reject"),
             ],
       ),
     ),

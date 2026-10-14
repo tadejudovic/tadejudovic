@@ -598,13 +598,34 @@ function detailsBody(r) {
       h("button", { class: "btn small primary", onclick: (e) => withBusy(e.currentTarget, "Making…", async () => {
         await api(`/api/renders/${r.id}/rerender`, {
           method: "POST",
-          body: { overlays: textInput.value.split("\n").map((t) => t.trim()).filter(Boolean), options: { fontId: state.status.settings.fontId, textStyle: state.status.settings.textStyle } },
+          body: { overlays: textInput.value.split("\n").map((t) => t.trim()).filter(Boolean) },
         });
         closeSheet();
         await refreshRenders();
         banner("Re-making the video with the new text. It comes back to Review when it's done.", "ok");
       }) }, "Re-make video"),
     ),
+  );
+
+  // Text style for this video only: size, look and font; re-makes the video, same text.
+  const opts = r.options ?? {};
+  const look = { textSize: opts.textSize ?? state.status.settings.textSize ?? "medium", textStyle: opts.textStyle ?? state.status.settings.textStyle, fontId: opts.fontId ?? state.status.settings.fontId };
+  const segControl = (name, choices) =>
+    h("div", { class: "seg" }, choices.map(([value, label]) =>
+      h("label", {}, h("input", { type: "radio", name: `${name}-${r.id}`, value, checked: look[name] === value, onchange: () => { look[name] = value; applyLook.hidden = false; } }), label)));
+  const fontSelect = h("select", { onchange: (e) => { look.fontId = e.target.value; applyLook.hidden = false; } });
+  api("/api/fonts").then((fonts) => fontSelect.replaceChildren(...fonts.map((f) => h("option", { value: f.id, selected: f.id === look.fontId }, f.name)))).catch(() => {});
+  const applyLook = h("button", { class: "btn small primary", hidden: true, onclick: (e) => withBusy(e.currentTarget, "Making…", async () => {
+    await api(`/api/renders/${r.id}/rerender`, { method: "POST", body: { options: { ...look } } });
+    closeSheet();
+    await refreshRenders();
+    banner("Re-making the video with the new text style. It's back in a minute or two.", "ok");
+  }) }, "Apply to this video");
+  const styleEdit = h("div", { class: "d-style", hidden: true },
+    h("span", { class: "d-label" }, "Size"), segControl("textSize", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]]),
+    h("span", { class: "d-label" }, "Look"), segControl("textStyle", [["yellow", "Yellow"], ["classic", "White"], ["box", "Box"], ["plain", "Plain"]]),
+    h("span", { class: "d-label" }, "Font"), fontSelect,
+    applyLook,
   );
 
   // Caption: readable text first; edit only when needed.
@@ -636,8 +657,12 @@ function detailsBody(r) {
   return h("div", { class: "d" },
     h("section", { class: "d-head" },
       headline,
-      h("button", { class: "d-link", onclick: () => { editText.hidden = !editText.hidden; if (!editText.hidden) textInput.focus(); } }, "Edit text"),
+      h("span", { class: "d-actions" },
+        h("button", { class: "d-link", onclick: () => { editText.hidden = !editText.hidden; if (!editText.hidden) textInput.focus(); } }, "Edit text"),
+        h("button", { class: "d-link", onclick: () => (styleEdit.hidden = !styleEdit.hidden) }, "Text style"),
+      ),
       editText,
+      styleEdit,
     ),
     h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, editCaptionBtn, copyBtn)),
@@ -1077,7 +1102,7 @@ function reviewCard(r) {
     withBusy(e.currentTarget, "…", async () => {
       await api(`/api/renders/${r.id}/rerender`, {
         method: "POST",
-        body: { overlays: overlayInputs.map((i) => i.value), options: { fontId: state.status.settings.fontId, textStyle: state.status.settings.textStyle } },
+        body: { overlays: overlayInputs.map((i) => i.value) },
       });
       await refreshRenders();
     }),

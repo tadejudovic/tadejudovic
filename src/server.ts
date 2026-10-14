@@ -615,7 +615,12 @@ app.post("/api/renders/:id/rerender", (req, res) => {
     store.updateRender(r.id, { review: "pending" });
     syncClipUses(r.id);
   }
-  const fresh = queueRender(next, { ...r.options, ...parseOptions({ ...r.options, ...(b.options ?? {}) }) }, r.batch, { countUse: false });
+  const options = { ...r.options, ...parseOptions({ ...r.options, ...(b.options ?? {}) }) };
+  // Keep the video's music unless a different track was picked.
+  if (!b.options?.musicId) options.musicFile = r.options.musicFile;
+  const fresh = queueRender(next, options, r.batch, { countUse: false });
+  // A video already in Ready stays there; one under review comes back to Review.
+  if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
   deleteRender(r.id);
   res.json(fresh);
 });

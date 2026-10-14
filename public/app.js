@@ -925,14 +925,20 @@ function playClip(card, clipId) {
 }
 
 /** Jump to a clip on the Clips tab and play it. */
+/** Play a source clip on top of the current page. */
 function openClip(clipId) {
-  showTab("clips");
-  const card = document.querySelector(`.clip[data-clip="${clipId}"]`);
-  if (!card) return banner("That clip is no longer in your library.");
-  for (const el of document.querySelectorAll(".clip.highlight")) el.classList.remove("highlight");
-  card.classList.add("highlight");
-  card.scrollIntoView({ behavior: "smooth", block: "center" });
-  playClip(card, clipId);
+  const clip = state.clips.find((c) => c.id === clipId);
+  if (!clip) return banner("That clip is no longer in your library.");
+  const sheet = $("#sheet");
+  sheet.replaceChildren(
+    h("div", { class: "sheet-card" },
+      h("button", { class: "sheet-close", "aria-label": "Close", onclick: closeSheet }, "✕"),
+      h("div", { class: "sheet-media" }, h("video", { src: `/media/clip/${clipId}`, controls: true, autoplay: true, playsinline: true })),
+      h("div", { class: "body" }, h("b", {}, "Original clip"), h("span", { class: "muted" }, [clip.scene, clip.capturedAt?.slice(0, 10)].filter(Boolean).join(" · "))),
+    ),
+  );
+  sheet.hidden = false;
+  document.body.classList.add("no-scroll");
 }
 
 const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
@@ -1299,9 +1305,12 @@ $("#onboard-form").addEventListener("submit", (e) => {
 
 // ---- Tabs -------------------------------------------------------------------
 
-const TABS = ["review", "ready", "clips", "settings"];
+const TABS = ["review", "ready", "settings"];
 function showTab(name) {
-  if (["captions", "style"].includes(name)) name = "settings";
+  if (["captions", "style", "clips"].includes(name)) {
+    if (name === "clips") $("#clips-fold").open = true;
+    name = "settings";
+  }
   if (!TABS.includes(name)) name = "review";
   for (const sec of document.querySelectorAll("main > section[data-tab]")) sec.hidden = sec.dataset.tab !== name;
   for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("on", b.dataset.tab === name);

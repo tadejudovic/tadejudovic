@@ -9,15 +9,6 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✈️</text></svg>" />
 </head>
 <body>
-  <header class="top">
-    <a class="brand" href="#review">Lex Studio</a>
-    <nav class="tabs" id="tabs">
-      <button data-tab="review" class="on">Review</button>
-      <button data-tab="ready">Ready <span id="ready-count" class="tab-count" hidden></span></button>
-      <button data-tab="clips">Clips</button>
-      <button data-tab="settings">Settings</button>
-    </nav>
-  </header>
 
   <div id="banner" class="banner" hidden></div>
 
@@ -105,27 +96,6 @@
       </details>
     </section>
 
-    <!-- CLIPS: the footage ---------------------------------------------------- -->
-    <section data-tab="clips" hidden>
-      <div class="page-head">
-        <div>
-          <h1>Clips</h1>
-          <p class="sub">The videos from your album that new TikToks are made from. Tap one to play it.</p>
-        </div>
-      </div>
-
-      <h2 class="section-title first">Up next</h2>
-      <p class="sub">The clips the next videos will be made from.</p>
-      <div id="suggestions" class="suggestions"></div>
-      <p id="suggestions-empty" class="muted" hidden>Every clip has been used. Add more videos to your album.</p>
-
-      <h2 class="section-title">All clips</h2>
-      <div id="drop" class="drop">
-        <div id="clips" class="clips"></div>
-        <p id="clips-empty" class="muted">No clips yet. Add videos to your Google Photos album (Settings).</p>
-      </div>
-      <p class="hint" id="selection-hint" hidden></p>
-    </section>
 
     <!-- SETTINGS ------------------------------------------------------------ -->
     <section data-tab="settings" hidden>
@@ -145,6 +115,22 @@
           <button id="btn-google" class="link-btn" hidden>Pick from Google Photos</button>
         </p>
       </div>
+
+      <details class="fold clips-fold" id="clips-fold">
+        <summary>Your clips</summary>
+        <p class="sub">The videos from your album that new TikToks are made from. Tap one to play it.</p>
+      <h2 class="section-title first">Up next</h2>
+      <p class="sub">The clips the next videos will be made from.</p>
+      <div id="suggestions" class="suggestions"></div>
+      <p id="suggestions-empty" class="muted" hidden>Every clip has been used. Add more videos to your album.</p>
+
+      <h2 class="section-title">All clips</h2>
+      <div id="drop" class="drop">
+        <div id="clips" class="clips"></div>
+        <p id="clips-empty" class="muted">No clips yet. Add videos to your Google Photos album above.</p>
+      </div>
+      <p class="hint" id="selection-hint" hidden></p>
+      </details>
 
       <div class="card">
         <h2 class="card-title">Videos</h2>
@@ -288,6 +274,13 @@
 
   <!-- One video opened from the Kept / Earlier lists -->
   <div id="sheet" class="sheet" hidden></div>
+
+  <!-- Bottom navigation: three pages. -->
+  <nav class="bottom-nav" id="tabs">
+    <button data-tab="review" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M3 6v12M21 6v12"/></svg><span>Review</span></button>
+    <button data-tab="ready"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5l5 5 5-5M5 20h14"/></svg><span>Ready</span><i id="ready-count" class="tab-count" hidden></i></button>
+    <button data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
+  </nav>
 
   <script src="/app.js" type="module"></script>
 </body>

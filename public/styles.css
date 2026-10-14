@@ -439,3 +439,17 @@ main { max-width: 980px; }
 .round .dl-badge svg { width: 14px; height: 14px; stroke-width: 3; }
 .round span.with-icon { display: inline-flex; align-items: center; gap: 3px; color: #15803d; white-space: nowrap; }
 .round span.with-icon svg { width: 13px; height: 13px; stroke-width: 2.6; }
+
+/* ---- Bottom navigation (three pages) ---- */
+.bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; justify-content: center;
+  background: rgba(255,255,255,.94); backdrop-filter: saturate(1.4) blur(10px); border-top: 1px solid var(--line);
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
+.bottom-nav button { position: relative; flex: 1; max-width: 160px; display: grid; justify-items: center; gap: 2px; padding: 6px 4px;
+  border: 0; background: none; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 12px; }
+.bottom-nav button svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.bottom-nav button.on { color: var(--accent); }
+.bottom-nav .tab-count { position: absolute; top: 2px; left: calc(50% + 6px); font-style: normal; }
+main { padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important; }
+.banner { position: sticky; top: 8px; z-index: 30; }
+.clips-fold > .sub { margin: 4px 0 12px; }
+.clips-fold { margin-bottom: 16px; }

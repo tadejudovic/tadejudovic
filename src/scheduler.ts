@@ -3,6 +3,7 @@ import { store } from "./store.ts";
 import { importBudget, syncAll } from "./albums.ts";
 import { plan, queueRender, isPortrait, onTopic, postsDueForStats, refreshPostStats } from "./generate.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
+import { syncProfiles } from "./postMatch.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
 
 /**
@@ -63,7 +64,10 @@ export function startScheduler() {
 }
 
 async function runDue({ afterReview = false } = {}) {
-  // Posted videos: refresh their stats once a day for two weeks (a few per tick, half a cent each).
+  // Find posted videos on the creator's profiles and refresh recent posts' numbers in one read.
+  // In the background: a profile read can take a few minutes and mustn't hold up rounds.
+  void syncProfiles().catch((err) => console.warn("[profiles]", (err as Error).message));
+  // Posts the profile read didn't cover (links pasted by hand): refresh them one by one.
   if (apifyEnabled() && Date.now() - lastStats > 10 * 60_000) {
     lastStats = Date.now();
     for (const { render, platform } of postsDueForStats().slice(0, 3)) {

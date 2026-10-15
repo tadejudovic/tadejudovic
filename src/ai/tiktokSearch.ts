@@ -188,6 +188,48 @@ async function fetchInstagramStats(url: string): Promise<{ stats: PostStats; pos
   };
 }
 
+export interface ProfilePost {
+  url: string;
+  text: string;
+  postedAt?: string;
+  stats: PostStats;
+}
+
+/** The latest posts on the creator's own profile, with their public numbers (one Apify run). */
+export async function fetchProfilePosts(platform: Platform, handle: string, limit = 20): Promise<ProfilePost[]> {
+  assertBudget();
+  const name = handle.trim().replace(/^@/, "");
+  const actor = platform === "instagram" ? config.apify.instagramActor : config.apify.actor;
+  const input =
+    platform === "instagram"
+      ? { directUrls: [`https://www.instagram.com/${name}/`], resultsType: "posts", resultsLimit: limit, addParentData: false }
+      : { profiles: [name], resultsPerPage: limit, profileScrapeSections: ["videos"], profileSorting: "latest", shouldDownloadVideos: false, shouldDownloadCovers: false, shouldDownloadSubtitles: false, shouldDownloadSlideshowImages: false };
+  const res = await fetch(
+    `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${encodeURIComponent(config.apify.token)}&timeout=240&memory=1024`,
+    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input), signal: AbortSignal.timeout(280_000) },
+  );
+  if (!res.ok) throw new Error(`Apify couldn't read the ${platform} profile (${res.status}): ${(await res.text()).slice(0, 160)}`);
+  const items = ((await res.json()) as any[]).filter((x) => x && !x.error);
+  recordCost(Math.max(1, items.length) * USD_PER_RESULT);
+  const n = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : undefined);
+  return items.flatMap((it): ProfilePost[] => {
+    if (platform === "instagram") {
+      const views = n(it.videoPlayCount ?? it.igPlayCount ?? it.videoViewCount);
+      if (typeof it.url !== "string" || views === undefined) return []; // only videos
+      return [{ url: it.url, text: String(it.caption ?? ""), postedAt: it.timestamp, stats: { views, likes: n(it.likesCount), comments: n(it.commentsCount) } }];
+    }
+    const url = it.webVideoUrl ?? it.url;
+    const views = n(it.playCount ?? it.stats?.playCount);
+    if (typeof url !== "string" || views === undefined) return [];
+    return [{
+      url,
+      text: String(it.text ?? it.desc ?? ""),
+      postedAt: it.createTimeISO,
+      stats: { views, likes: n(it.diggCount), comments: n(it.commentCount), shares: n(it.shareCount), saves: n(it.collectCount) },
+    }];
+  });
+}
+
 async function fetchTikTokStats(url: string): Promise<{ stats: PostStats; postedAt?: string }> {
   assertBudget();
   const api =

@@ -52,6 +52,8 @@ export interface Settings {
   dailyMix: DailyMix;
   /** Set once rounds switched to the daily mix (round size and daily limit raised to fit it). */
   mixV1?: boolean;
+  /** Instagram username, so posted videos can be found on the profile automatically. */
+  instagramHandle?: string;
   /** The account's story, woven into every post description (who Lex is, the trip, where we are). */
   story: string;
   /** Set once the yellow CapCut look became the default (keeps later manual choices). */

@@ -80,6 +80,7 @@ async function loadStatus() {
   if (document.activeElement?.form !== form) {
     form.petName.value = s.settings.petName;
     form.handle.value = s.settings.handle;
+    if (document.activeElement !== form.instagramHandle) form.instagramHandle.value = s.settings.instagramHandle ? `@${s.settings.instagramHandle}` : "";
     if (document.activeElement !== form.story) form.story.value = s.settings.story ?? "";
   }
   if (document.activeElement?.form !== $("#limits")) $("#limits").maxVideosPerDay.value = String(s.settings.maxVideosPerDay);
@@ -109,7 +110,7 @@ async function loadStatus() {
 
 $("#settings").addEventListener("change", async (e) => {
   const f = e.currentTarget;
-  state.status.settings = await api("/api/settings", { method: "PUT", body: { petName: f.petName.value, handle: f.handle.value, story: f.story.value } });
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { petName: f.petName.value, handle: f.handle.value, instagramHandle: f.instagramHandle.value, story: f.story.value } });
   renderSummaries();
 });
 $("#settings").addEventListener("submit", (e) => e.preventDefault());
@@ -766,7 +767,9 @@ function detailsBody(r) {
       h("div", { class: "d-sec-head" }, h("span", {}, "Performance")),
       platformRow("tiktok", "TikTok", "Posted? Paste the TikTok link"),
       platformRow("instagram", "Instagram", "Posted? Paste the Instagram Reel link"),
-      h("p", { class: "d-hint" }, "Refreshed daily for 2 weeks. The AI learns from what performs. Instagram only shows plays, likes and comments publicly."),
+      h("p", { class: "d-hint" },
+        "Found automatically on your profiles a few hours after you post (paste the description Rollcut wrote; small edits are fine), " +
+        "or paste the link. Refreshed daily for 2 weeks; the AI learns from what performs. Instagram only shows plays, likes and comments publicly."),
     );
   renderPerf();
 

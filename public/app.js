@@ -1171,12 +1171,26 @@ async function refreshAlbums() {
           h("label", { class: "muted recent" }, "Import ",
             h("select", {
               onchange: async (e) => {
-                await api(`/api/albums/${a.id}`, { method: "PATCH", body: { recentDays: Number(e.target.value) } });
-                const r = await api(`/api/albums/${a.id}/sync`, { method: "POST" });
-                banner(r.newItems ? `Found ${r.newItems} video(s) to import…` : "Saved.", "ok");
-                await Promise.all([refreshAlbums(), refreshClips()]);
+                const select = e.currentTarget;
+                select.disabled = true;
+                try {
+                  await api(`/api/albums/${a.id}`, { method: "PATCH", body: { recentDays: Number(select.value) } });
+                  const r = await api(`/api/albums/${a.id}/sync`, { method: "POST" });
+                  await Promise.all([refreshAlbums(), refreshClips()]);
+                  const now = (state.albums ?? []).find((x) => x.id === a.id);
+                  const waiting = now?.waiting ?? 0;
+                  banner(
+                    r.error ? `Saved, but reading the album failed: ${r.error}`
+                    : r.newItems ? `Importing ${r.newItems} video(s) now${waiting ? `; ${waiting} more come in as rounds need them (up to 80 a day)` : ""}.`
+                    : waiting ? `Saved. ${waiting} video(s) are now in range; they come in as rounds need them (up to 80 a day).`
+                    : "Saved. No new videos in that range.",
+                    r.error ? undefined : "ok",
+                  );
+                } finally {
+                  select.disabled = false;
+                }
               },
-            }, ...[[30, "videos from the last 30 days"], [60, "videos from the last 60 days"], [0, "all videos"]].map(([v, t]) =>
+            }, ...[[30, "videos from the last 30 days"], [60, "videos from the last 60 days"], [90, "videos from the last 90 days"], [120, "videos from the last 120 days"], [180, "videos from the last 180 days"], [0, "all videos"]].map(([v, t]) =>
               h("option", { value: v, selected: (a.recentDays ?? 0) === v }, t))),
           ),
           a.tooOld || a.waiting ? h("div", { class: "muted" },

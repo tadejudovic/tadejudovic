@@ -7,7 +7,8 @@ import { directClip, planVideos, type DirectContext } from "./ai/director.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
-import type { Clip, GenerateRequest, Render, ReviewFeedback, VideoPlan } from "./types.ts";
+import type { Clip, GenerateRequest, Partner, Render, ReviewFeedback, VideoPlan } from "./types.ts";
+import { findClipFor } from "./ai/collabPick.ts";
 
 function applyHashtags(p: VideoPlan, scene: string | undefined) {
   const info = researchedHashtags(scene);
@@ -168,10 +169,20 @@ export async function plan(
     const { captionAudience } = store.settings();
     const audienceFor = (i: number): "pets" | "everyone" =>
       captionAudience === "everyone" ? "everyone" : captionAudience === "pets" ? "pets" : i % 2 === 0 ? "everyone" : "pets";
+    // Tips videos: the second video of the round (and the fourth with two per round), so a round
+    // still opens with a regular post.
+    const { tipsPerRound } = store.settings();
+    const isTips = (i: number) => tipsPerRound > 0 && chosen.length > 1 && (i === 1 || (tipsPerRound > 1 && i === 3));
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {
         try {
-          const p = await directClip(clip, { ...ctx, proven: provenCaptions(clip.scene), audience: audienceFor(i) });
+          const tips = isTips(i);
+          const p = await directClip(clip, {
+            ...ctx,
+            proven: provenCaptions(clip.scene),
+            audience: audienceFor(i),
+            ...(tips ? { format: "tips" as const, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
+          });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);
           onPlan?.(p);
@@ -304,6 +315,22 @@ export async function makeCollabVersion(renderId: string, partnerId: string, not
   if (!config.claude.enabled) throw new Error("Collab versions need the AI (ANTHROPIC_API_KEY).");
   const clip = store.clip(r.plan.segments[0]?.clipId ?? "");
   if (!clip || clip.status !== "ready") throw new Error("The clip this video was made from is no longer in the library.");
+  return queueRender(await collabPlan(clip, partner, note), r.options, r.batch, { countUse: false });
+}
+
+/** Find the clip with the best angle on a partner's product or place, and make a collab video from it. */
+export async function makeCollabFromLibrary(partnerId: string, note?: string): Promise<{ render: Render; reason: string }> {
+  const partner = store.partner(partnerId);
+  if (!partner) throw new Error("Unknown partner.");
+  if (!config.claude.enabled) throw new Error("Collab videos need the AI (ANTHROPIC_API_KEY).");
+  const { clip, reason } = await findClipFor(partner, note);
+  const { fontId, textStyle, textSize } = store.settings();
+  const render = queueRender(await collabPlan(clip, partner, note), { keepOriginalAudio: true, textStyle, textSize, fontId }, undefined, { countUse: false });
+  store.updateClip(clip.id, { uses: clip.uses + 1 });
+  return { render, reason };
+}
+
+async function collabPlan(clip: Clip, partner: Partner, note?: string): Promise<VideoPlan> {
   const { petName, handle, story } = store.settings();
   const target = store.auto().targetSeconds;
   const p = await directClip(clip, {
@@ -325,7 +352,7 @@ export async function makeCollabVersion(renderId: string, partnerId: string, not
   if (partner.handle && !p.postCaption.includes(partner.handle)) p.postCaption += ` ${partner.handle}`;
   if (partner.mustInclude && !p.postCaption.includes(partner.mustInclude)) p.postCaption += `\n\n${partner.mustInclude}`;
   if (!/#ad\b|#sponsored|paid partnership/i.test(p.postCaption)) p.postCaption += "\n\n#ad";
-  return queueRender(p, r.options, r.batch, { countUse: false });
+  return p;
 }
 
 /** Queue a failed or interrupted render again, with the same plan. */

@@ -41,6 +41,8 @@ export interface Settings {
    * the dog as the punchline) or "mix" (alternating, so the account reaches beyond dog lovers).
    */
   captionAudience: CaptionAudience;
+  /** How many videos per round are educational tips videos (hook + 3 tips about flying with a pet). */
+  tipsPerRound: number;
   /** The account's story, woven into every post description (who Lex is, the trip, where we are). */
   story: string;
   /** Set once the yellow CapCut look became the default (keeps later manual choices). */
@@ -63,6 +65,7 @@ const DEFAULT_SETTINGS: Settings = {
   textStyle: "yellow",
   textSize: "medium",
   captionAudience: "mix",
+  tipsPerRound: 1,
   story:
     "Lex (@lex.poodle) is a poodle on a trip around the world with us: new countries, airports, planes and cities, " +
     "one adventure at a time. We share the real side of traveling the world with a dog, so more pets get to come " +

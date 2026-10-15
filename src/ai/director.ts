@@ -325,8 +325,27 @@ export interface DirectContext {
   audience?: "pets" | "everyone";
   /** The account's story, woven into the post description. */
   story?: string;
+  /** "tips": an educational video, a hook then three tips about flying with a pet. */
+  format?: "tips";
   /** Make this a collab version for a brand partner. */
   collab?: { name: string; handle?: string; about: string; mustInclude?: string; note?: string };
+}
+
+/** An educational video: hook, then three practical tips building up on screen. */
+function tipsText(petName: string, scene?: string): string {
+  return (
+    `\n\nFORMAT FOR THIS VIDEO: TIPS (educational). Instead of one joke line, the on-screen text is a hook and three ` +
+    `practical tips about flying with a pet${scene ? `, tied to this situation (${scene}) where possible` : ""}, ` +
+    `learned from traveling the world with ${petName}.` +
+    `\n- Overlays, in order, back to back: (1) the hook alone for ~2.5s, e.g. "3 things I wish I knew before ` +
+    `flying with my dog"; then (2) "1. first tip", (3) "1. first tip / 2. second tip", (4) all three, each shown ~3s, ` +
+    `the last one staying to the end. So the list builds up on screen.` +
+    `\n- Each tip under 7 words, concrete and useful (what to do, not vague advice). Only tips that are true for most ` +
+    `airlines and countries; no specific rules, fees or legal requirements you aren't sure of.` +
+    `\n- The video must be long enough to read everything: at least 12s.` +
+    `\n- Post description: expand each tip in a sentence, connect it to ${petName}'s journey, and end by asking what ` +
+    `tip they'd add. Ignore the one-line overlay limit above; the proven captions are only for the hook's tone.`
+  );
 }
 
 /** A paid collaboration: the brand becomes part of the moment, not an ad read. */
@@ -453,6 +472,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : audienceText(ctx.audience, ctx.petName)) +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`
@@ -505,6 +525,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     overlays,
     concept: r.concept,
     scene: clip.scene,
+    ...(ctx.format ? { format: ctx.format } : {}),
     basedOn: (() => {
       const c = ctx.proven[r.basedOn - 1];
       return c ? { text: c.text, views: c.views, url: c.url } : undefined;

@@ -534,7 +534,9 @@ function stackCard(r) {
       h("span", { class: "stamp keep" }, "POST"),
       h("span", { class: "stamp nope" }, "NOPE"),
       h("span", { class: "stack-tap" }, "Tap for details"),
-      r.plan.collab ? h("span", { class: "collab-badge on-video" }, `Collab · ${r.plan.collab.name}`) : null,
+      r.plan.collab || r.plan.format === "tips"
+        ? h("span", { class: "collab-badge on-video" }, r.plan.collab ? `Collab · ${r.plan.collab.name}` : "Tips")
+        : null,
     ),
   );
   // Tap opens the details full screen (like a Tinder profile); swiping still decides.
@@ -682,6 +684,7 @@ function detailsBody(r) {
         h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version"),
       ),
       plan.collab ? h("span", { class: "collab-badge" }, `Collab · ${plan.collab.name}`) : null,
+      plan.format === "tips" ? h("span", { class: "collab-badge" }, "Tips") : null,
       editText,
       styleEdit,
       collabEdit,
@@ -955,6 +958,12 @@ async function refreshPartners() {
           p.about ? h("div", { class: "muted" }, p.about) : null,
           p.mustInclude ? h("div", { class: "muted" }, `Always: ${p.mustInclude}`) : null,
         ),
+        h("button", { class: "btn small primary", title: "Picks the clip with the best angle on this brand and makes a collab video from it", onclick: (e) =>
+          withBusy(e.currentTarget, "Finding a clip…", async () => {
+            const r = await api(`/api/partners/${p.id}/collab`, { method: "POST", body: {} });
+            await refreshRenders();
+            banner(`Making a ${p.name} video. Picked: ${r.reason} It shows up on Review in a minute or two.`, "ok");
+          }) }, "Find a clip & make it"),
         h("button", { class: "btn small", onclick: () => {
           form.partnerId.value = p.id;
           for (const k of ["name", "handle", "about", "mustInclude"]) form[k].value = p[k] ?? "";
@@ -1450,6 +1459,8 @@ async function loadFonts() {
   $("#look-preview").className = `look-preview ${textStyle} size-${textSize}`;
   for (const r of document.querySelectorAll("#text-style input")) r.checked = r.value === textStyle;
   for (const r of document.querySelectorAll("#text-size input")) r.checked = r.value === textSize;
+  const tips = String(state.status.settings.tipsPerRound ?? 1);
+  for (const r of document.querySelectorAll("#tips-per-round input")) r.checked = r.value === tips;
   const audience = state.status.settings.captionAudience ?? "mix";
   for (const r of document.querySelectorAll("#caption-audience input")) r.checked = r.value === audience;
   $("#audience-hint").textContent = {
@@ -1468,6 +1479,11 @@ async function loadFonts() {
 
 $("#font-select").addEventListener("change", async (e) => {
   state.status.settings = await api("/api/settings", { method: "PUT", body: { fontId: e.target.value } });
+  loadFonts();
+});
+
+$("#tips-per-round").addEventListener("change", async (e) => {
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { tipsPerRound: Number(e.target.value) } });
   loadFonts();
 });
 

@@ -32,7 +32,8 @@ export function screenText(s: string): string {
 /** Greedy word wrap. " / " forces a line break (as in "nobody: / my dog:"). */
 export function wrap(text: string, maxChars: number): string[] {
   const parts = text.split(/\s+\/\s+/);
-  if (parts.length > 1) return parts.flatMap((p) => wrap(p, maxChars)).slice(0, 5);
+  // Lists (a hook plus tips building up) can run longer than a one-liner; the renderer shrinks them a bit.
+  if (parts.length > 1) return parts.flatMap((p) => wrap(p, maxChars)).slice(0, parts.length >= 3 ? 8 : 5);
   const greedy = wrapGreedy(text, maxChars);
   // Re-wrap to even line lengths so the last line isn't a lonely word.
   for (let w = Math.ceil(text.length / greedy.length); w < maxChars; w++) {
@@ -250,11 +251,13 @@ async function finalize(
     // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
     const above = placed.filter((p) => p.o.start < o.end && o.start < p.o.end);
     const offset = above.length ? Math.max(...above.map((p) => p.bottom)) + 24 : 0;
+    // A list of three or more lines (tips) is set a little smaller so every point fits.
+    const px = o.text.split(/\s+\/\s+/).length >= 3 ? Math.round(textPx(options) * 0.82) : textPx(options);
     const { filters: f, height } = textFilters(o.text, {
       yFrac: HOOK_Y,
       yTop: Math.round(H * HOOK_Y) + offset,
-      size: textPx(options),
-      maxChars: charsFor(textPx(options), 24),
+      size: px,
+      maxChars: charsFor(px, 24),
       style: options.textStyle,
       font,
       enable: `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`,

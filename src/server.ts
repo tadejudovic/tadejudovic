@@ -125,7 +125,7 @@ app.get("/api/status", (req, res) => {
 });
 
 app.put("/api/settings", (req, res) => {
-  const { petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay, onlySituations, captionAudience, story, tipsPerRound } = req.body ?? {};
+  const { petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay, onlySituations, captionAudience, story, tipsPerRound, faq } = req.body ?? {};
   const fontOk = typeof fontId === "string" && listFonts().some((f) => f.id === fontId);
   res.json(
     store.updateSettings({
@@ -136,6 +136,14 @@ app.put("/api/settings", (req, res) => {
       ...(["small", "medium", "large"].includes(textSize) ? { textSize } : {}),
       ...(["pets", "mix", "everyone"].includes(captionAudience) ? { captionAudience } : {}),
       ...(typeof story === "string" ? { story: story.trim().slice(0, 2000) } : {}),
+      ...(Array.isArray(faq)
+        ? {
+            faq: faq
+              .map((f: any) => ({ q: String(f?.q ?? "").trim().slice(0, 200), a: String(f?.a ?? "").trim().slice(0, 1500) }))
+              .filter((f: { q: string }) => f.q)
+              .slice(0, 20),
+          }
+        : {}),
       ...([0, 1, 2].includes(Number(tipsPerRound)) && tipsPerRound !== undefined && tipsPerRound !== "" ? { tipsPerRound: Number(tipsPerRound) } : {}),
       ...(Number.isFinite(Number(aiMonthlyBudget)) && aiMonthlyBudget !== "" && aiMonthlyBudget !== undefined
         ? { aiMonthlyBudget: clamp(Number(aiMonthlyBudget), 0, 1000) }

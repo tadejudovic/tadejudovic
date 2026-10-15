@@ -55,6 +55,7 @@ const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)
 async function loadStatus() {
   const s = (state.status = await api("/api/status"));
   $("#app-version").textContent = `Version ${s.version}`;
+  renderFaq();
   $("#chip-google").classList.toggle("on", s.google.connected);
   $("#paused").hidden = !s.paused;
   $("#ai-credit").hidden = !s.aiOutOfCredit;
@@ -942,6 +943,41 @@ function closeSheet() {
 }
 $("#sheet").addEventListener("click", (e) => e.target.id === "sheet" && closeSheet());
 document.addEventListener("keydown", (e) => e.key === "Escape" && !$("#sheet").hidden && closeSheet());
+
+// ---- Questions people ask (answered by educational videos) --------------------
+
+function renderFaq() {
+  const faq = state.status?.settings?.faq ?? [];
+  $("#sum-faq").textContent = faq.length ? `${faq.filter((f) => f.a?.trim()).length} of ${faq.length} answered` : "";
+  if ($("#faq-list").contains(document.activeElement)) return; // don't rebuild while typing
+  $("#faq-list").replaceChildren(
+    ...faq.map((f, i) =>
+      h("div", { class: "faq-item" },
+        h("div", { class: "faq-q" },
+          h("textarea", { class: "faq-question", rows: 2, maxlength: 200, onchange: (e) => saveFaq((list) => (list[i].q = e.target.value.replace(/\s+/g, " "))) }, f.q),
+          h("button", { class: "d-link", type: "button", onclick: () => saveFaq((list) => list.splice(i, 1)) }, "Remove"),
+        ),
+        h("textarea", { rows: 3, maxlength: 1500, placeholder: "Your answer, e.g. the exact bag, airline or places",
+          onchange: (e) => saveFaq((list) => (list[i].a = e.target.value)) }, f.a ?? ""),
+      ),
+    ),
+  );
+}
+
+async function saveFaq(change) {
+  const list = (state.status.settings.faq ?? []).map((f) => ({ ...f }));
+  change(list);
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { faq: list.filter((f) => f.q.trim()) } });
+  if (!$("#faq-list").contains(document.activeElement)) renderFaq();
+  else $("#sum-faq").textContent = `${state.status.settings.faq.filter((f) => f.a?.trim()).length} of ${state.status.settings.faq.length} answered`;
+}
+
+$("#faq-add").addEventListener("click", async () => {
+  const q = prompt("The question people ask:");
+  if (!q?.trim()) return;
+  await saveFaq((list) => list.push({ q: q.trim(), a: "" }));
+  renderFaq();
+});
 
 // ---- Brand partners -----------------------------------------------------------
 

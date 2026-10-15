@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -41,6 +41,11 @@ export interface Settings {
    * the dog as the punchline) or "mix" (alternating, so the account reaches beyond dog lovers).
    */
   captionAudience: CaptionAudience;
+  /**
+   * What followers ask most, with the creator's own answers. Educational videos each answer one of
+   * these; the answers are the only source for specifics (brands, airlines, places, rules).
+   */
+  faq: FaqItem[];
   /** How many videos per round are educational tips videos (hook + 3 tips about flying with a pet). */
   tipsPerRound: number;
   /** The account's story, woven into every post description (who Lex is, the trip, where we are). */
@@ -66,6 +71,14 @@ const DEFAULT_SETTINGS: Settings = {
   textSize: "medium",
   captionAudience: "mix",
   tipsPerRound: 1,
+  faq: [
+    { q: "What bag / carrier do you fly with?", a: "" },
+    { q: "Which airline do you fly with?", a: "" },
+    { q: "Where have you traveled with Lex?", a: "" },
+    { q: "What are the requirements for different destinations?", a: "" },
+    { q: "Where does Lex pee and poo when traveling?", a: "" },
+    { q: "How do you keep Lex stress-free when flying?", a: "" },
+  ],
   story:
     "Lex (@lex.poodle) is a poodle on a trip around the world with us: new countries, airports, planes and cities, " +
     "one adventure at a time. We share the real side of traveling the world with a dog, so more pets get to come " +

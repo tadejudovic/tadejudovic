@@ -327,16 +327,30 @@ export interface DirectContext {
   story?: string;
   /** "tips": an educational video about flying/traveling with a pet (hook + a short teaching beat). */
   format?: "tips";
+  /** For an educational video: the follower question it answers, with the creator's answer. */
+  faq?: { q: string; a?: string };
   /** Make this a collab version for a brand partner. */
   collab?: { name: string; handle?: string; about: string; mustInclude?: string; note?: string };
 }
 
 /** An educational video: a scroll-stopping hook, then a short teaching beat that builds up on screen. */
-function tipsText(petName: string, scene?: string): string {
+function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string }): string {
+  const question = faq
+    ? `\n\nTHIS VIDEO ANSWERS A QUESTION FOLLOWERS ASK ALL THE TIME: "${faq.q}"` +
+      (faq.a?.trim()
+        ? `\nThe creator's own answer (the ONLY source for specifics: brand and product names, airlines, places, ` +
+          `rules; never add others): ${faq.a.trim()}`
+        : `\nThe creator hasn't written their answer yet: keep it general and useful (what to look for, how we ` +
+          `think about it) and name no brands, airlines, places or country rules.`) +
+      `\nA hook that plays on the question works well ("You always ask what bag ${petName} flies in", "The #1 ` +
+      `question we get: …").`
+    : "";
   return (
     `\n\nFORMAT FOR THIS VIDEO: EDUCATIONAL. Teach something real about flying or traveling with a pet` +
     `${scene ? `, tied to this situation (${scene}) where possible` : ""}, learned from traveling the world with ` +
-    `${petName}. Pick the structure that suits this footage best, and don't use the same one as recent videos:` +
+    `${petName}.` +
+    question +
+    `\nPick the structure that suits this footage best, and don't use the same one as recent videos:` +
     `\n- a numbered list (2–4 points) that builds up on screen;` +
     `\n- the mistake we made, then what to do instead;` +
     `\n- myth vs. reality;` +
@@ -484,7 +498,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : audienceText(ctx.audience, ctx.petName)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene) : "") +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`
@@ -538,6 +552,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     concept: r.concept,
     scene: clip.scene,
     ...(ctx.format ? { format: ctx.format } : {}),
+    ...(ctx.format === "tips" && ctx.faq ? { faq: ctx.faq.q } : {}),
     basedOn: (() => {
       const c = ctx.proven[r.basedOn - 1];
       return c ? { text: c.text, views: c.views, url: c.url } : undefined;

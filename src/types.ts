@@ -158,8 +158,16 @@ export interface VideoPlan {
   hashtagInfo?: PickedHashtag[];
   /** "tips": an educational video (hook + a short teaching beat about traveling with a pet). */
   format?: "tips";
+  /** The follower question an educational video answers. */
+  faq?: string;
   /** A brand collaboration version of a video. */
   collab?: { partnerId: string; name: string; handle?: string };
+}
+
+/** A question followers ask, with the creator's answer. */
+export interface FaqItem {
+  q: string;
+  a?: string;
 }
 
 /** A brand the creator works with. */

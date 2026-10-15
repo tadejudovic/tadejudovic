@@ -117,6 +117,28 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
   return picked.length ? picked : pick(false);
 }
 
+/** Which situations suit which kind of question (footage that shows what the answer is about). */
+const QUESTION_FITS: [RegExp, RegExp][] = [
+  [/bag|carrier/i, /seat|airplane|plane|gate/i],
+  [/airline/i, /check-in|airplane|plane|gate/i],
+  [/pee|poo|potty|toilet|relief/i, /terminal|gate|check-in/i],
+  [/stress|calm|anxious|nervous/i, /security|airplane|plane|seat/i],
+  [/requirement|document|paper|rule/i, /check-in/i],
+];
+
+/**
+ * The follower question an educational video should answer: the one answered least in the last
+ * 30 days, preferring questions that suit the clip's situation.
+ */
+export function nextQuestion(scene: string | undefined, skip = new Set<string>()): { q: string; a?: string } | undefined {
+  const faq = store.settings().faq.filter((f) => f.q && !skip.has(f.q));
+  if (!faq.length) return undefined;
+  const recent = store.renders().filter((r) => r.plan.faq && Date.now() - Date.parse(r.createdAt) < 30 * 86400_000);
+  const asked = (q: string) => recent.filter((r) => r.plan.faq === q).length;
+  const fits = (q: string) => (scene && QUESTION_FITS.some(([qr, sr]) => qr.test(q) && sr.test(scene)) ? 1 : 0);
+  return [...faq].sort((a, b) => asked(a.q) - asked(b.q) || fits(b.q) - fits(a.q))[0];
+}
+
 /**
  * `onPlan` is called as soon as each video's plan is ready (one-clip videos), so it can start
  * rendering while the AI is still writing the others.
@@ -173,15 +195,18 @@ export async function plan(
     // still opens with a regular post.
     const { tipsPerRound } = store.settings();
     const isTips = (i: number) => tipsPerRound > 0 && chosen.length > 1 && (i === 1 || (tipsPerRound > 1 && i === 3));
+    const askedThisRound = new Set<string>();
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {
         try {
           const tips = isTips(i);
+          const faq = tips ? nextQuestion(clip.scene, askedThisRound) : undefined;
+          if (faq) askedThisRound.add(faq.q);
           const p = await directClip(clip, {
             ...ctx,
             proven: provenCaptions(clip.scene),
             audience: audienceFor(i),
-            ...(tips ? { format: "tips" as const, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
+            ...(tips ? { format: "tips" as const, faq, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
           });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);

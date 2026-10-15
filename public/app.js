@@ -61,6 +61,7 @@ async function loadStatus() {
   $("#chip-google").classList.toggle("on", s.google.connected);
   $("#paused").hidden = !s.paused;
   $("#ai-credit").hidden = !s.aiOutOfCredit;
+  $("#ai-budget").hidden = !s.claude?.enabled || !(s.spend && s.spend.usd >= s.spend.limit);
   const sp = s.spend;
   $("#spend-used").textContent = `$${sp.usd.toFixed(2)}`;
   $("#spend-limit").textContent = `$${sp.limit.toFixed(0)}`;
@@ -693,6 +694,23 @@ function detailsBody(r) {
     else saveCaption();
   } }, "Edit");
 
+  // Ask the AI for a new description (the video stays as it is), optionally saying what to change.
+  const newCaptionBtn = h("button", { class: "d-link", onclick: async (e) => {
+    const note = prompt("New caption. Anything it should do differently? (optional)", "");
+    if (note === null) return;
+    await withBusy(e.currentTarget, "Writing…", async () => {
+      const updated = await api(`/api/renders/${r.id}/caption`, { method: "POST", body: { note } });
+      plan.postCaption = updated.plan.postCaption;
+      plan.aiNote = undefined;
+      captionText.textContent = plan.postCaption || "No caption";
+      captionEdit.value = plan.postCaption;
+      aiWarn.hidden = true;
+      refreshRenders().catch(() => {});
+    });
+  } }, "New caption");
+  const aiWarn = h("p", { class: "d-warn", hidden: !plan.aiNote },
+    `Written without the AI (${plan.aiNote ?? ""}), so the caption is only a placeholder. Tap New caption.`);
+
   const b = plan.basedOn;
   const seg = plan.segments?.[0];
   const clip = seg && state.clips.find((c) => c.id === seg.clipId);
@@ -711,7 +729,8 @@ function detailsBody(r) {
       collabEdit,
     ),
     h("section", { class: "d-sec" },
-      h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, editCaptionBtn, copyBtn)),
+      h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, newCaptionBtn, editCaptionBtn, copyBtn)),
+      aiWarn,
       captionText,
       captionEdit,
       tags.length ? h("div", { class: "d-chips" },

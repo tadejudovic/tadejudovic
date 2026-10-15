@@ -160,6 +160,8 @@ export interface VideoPlan {
   format?: PostFormat;
   /** The follower question an educational video answers. */
   faq?: string;
+  /** Set when the AI couldn't write this video and a no-AI fallback was used: why. */
+  aiNote?: string;
   /** A brand collaboration version of a video. */
   collab?: { partnerId: string; name: string; handle?: string };
 }

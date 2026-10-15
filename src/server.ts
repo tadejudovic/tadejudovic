@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption } from "./generate.ts";
 import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
@@ -92,6 +92,9 @@ app.get("/api/diagnostics", (_req, res) => {
     },
     renders: {
       byStatus: count(renders, (r) => r.status),
+      // Videos the AI couldn't write (fallback captions), and why.
+      withoutAi: renders.filter((r) => r.plan.aiNote).length,
+      withoutAiReasons: [...new Set(renders.filter((r) => r.plan.aiNote).map((r) => r.plan.aiNote!))].slice(0, 5),
       errors: [...new Set(renders.filter((r) => r.error).map((r) => r.error!))].slice(0, 10),
     },
     albums: store.albums().map(({ seen, url, ...a }) => ({ ...a, seen: seen.length })),
@@ -652,6 +655,14 @@ app.delete("/api/partners/:id", (req, res) => {
   store.removePartner(String(req.params.id));
   res.json({ ok: true });
 });
+
+app.post(
+  "/api/renders/:id/caption",
+  h(async (req, res) => {
+    const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) || undefined : undefined;
+    res.json(await regenerateCaption(String(req.params.id), note));
+  }),
+);
 
 app.post(
   "/api/renders/:id/collab",

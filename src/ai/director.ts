@@ -484,6 +484,55 @@ function examplesText(examples: Example[]): string {
 }
 
 /** Watch one clip and write the edit that suits it best: which part to use, the overlay and the post caption. */
+/** A new post description for a finished video, in the same voice; the video itself doesn't change. */
+export async function writeCaption(ctx: {
+  petName: string;
+  handle?: string;
+  story?: string;
+  plan: VideoPlan;
+  clip?: Clip;
+  note?: string;
+  faq?: { q: string; a?: string };
+  collab?: { name: string; handle?: string; about: string; mustInclude?: string };
+  feedback?: ReviewFeedback;
+}): Promise<string> {
+  const content: Anthropic.Beta.BetaContentBlockParam[] = [];
+  // Two frames so the description is about what's actually on screen.
+  if (ctx.clip?.status === "ready") {
+    for (const f of [0.3, 0.7]) {
+      const jpg = await frameBuffer(ctx.clip.file, Math.round(ctx.clip.duration * f * 10) / 10, 400).catch(() => null);
+      if (jpg) content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: jpg.toString("base64") } });
+    }
+  }
+  const p = ctx.plan;
+  const overlay = p.overlays?.length ? p.overlays.map((o) => o.text).join(" → ") : p.hook;
+  const kind = p.format === "tips" ? "educational" : p.format === "inspire" ? "inspirational" : "fun / entertaining";
+  content.push({
+    type: "text",
+    text:
+      `Write a new post description for this ${kind} TikTok/Reels video of ${ctx.petName}` +
+      `${ctx.handle ? ` (${ctx.handle})` : ""}.` +
+      `\nOn-screen text: "${overlay}"` +
+      (p.scene ? `\nSituation: ${p.scene}` : "") +
+      (ctx.clip?.ai?.summary ? `\nWhat the clip shows: ${ctx.clip.ai.summary}` : "") +
+      (ctx.faq ? `\nIt answers the follower question "${ctx.faq.q}". The creator's answer (only source for specifics): ${ctx.faq.a || "(none: stay general, name no brands, airlines or places)"}` : "") +
+      (ctx.collab ? `\nIt's a paid collaboration with ${ctx.collab.name}${ctx.collab.handle ? ` (${ctx.collab.handle})` : ""}: ${ctx.collab.about}. Mention them${ctx.collab.mustInclude ? `, include exactly: ${ctx.collab.mustInclude}` : ""}, end with "#ad".` : "") +
+      (ctx.story ? `\nThe account's story, to weave in (vary which part): ${ctx.story}` : "") +
+      (p.postCaption ? `\nThe current description, which the creator wants replaced (don't reuse its wording): "${p.postCaption}"` : "") +
+      (ctx.note ? `\nWhat the creator wants from the new one: ${ctx.note}` : "") +
+      `\n\n4–7 sentences (about 400–900 characters) in the creator's voice: a hook first line, what happens in this ` +
+      `moment tied into the bigger journey, and a closing question that invites comments. Emoji ok, no hashtags.` +
+      feedbackText(ctx.feedback),
+  });
+  const r = await structured<{ postCaption: string }>({
+    system: "You write post descriptions for a creator who travels the world with their dog. Warm, specific, never generic.",
+    content,
+    schema: { type: "object", additionalProperties: false, required: ["postCaption"], properties: { postCaption: { type: "string" } } },
+    effort: "low",
+  });
+  return r.postCaption;
+}
+
 export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoPlan> {
   const frames = Math.max(4, Math.min(8, Math.ceil(clip.duration / 2)));
   const content: Anthropic.Beta.BetaContentBlockParam[] = [];

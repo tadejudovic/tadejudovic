@@ -3,7 +3,7 @@ import { config } from "./config.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
-import { directClip, planVideos, type DirectContext } from "./ai/director.ts";
+import { directClip, planVideos, writeCaption, type DirectContext } from "./ai/director.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
@@ -235,7 +235,8 @@ export async function plan(
       }
       const p = heuristicPlan({ template: "auto", targetSeconds: req.targetSeconds, clips: [clip], petName, used: new Map() });
       // Without the AI director: use a proven caption for the clip's situation if there is one,
-      // otherwise a generic trend example. Review and edit before posting.
+      // otherwise a generic trend example. Flagged so the creator knows, and can ask for a new caption.
+      if (aiOn) p.aiNote = (failures[failures.length - 1] ?? "the AI didn't answer").slice(0, 300);
       const proven = provenCaptions(clip.scene);
       const pc = proven[i % Math.max(1, proven.length)];
       if (pc) {
@@ -244,11 +245,15 @@ export async function plan(
       } else if (overlays.length) p.hook = p.title = overlays[i % overlays.length].example.replaceAll("{pet}", petName);
       p.scene = clip.scene;
       p.postCaption = `${p.hook} 🐾`;
+      p.format = kinds[i] ?? "fun";
       applyHashtags(p, clip.scene);
       onPlan?.(p);
       return p;
     });
-    if (failures.length) warning = `AI director failed on ${failures.length} clip(s) (${failures[0]}); used heuristics for those.`;
+    if (failures.length) {
+      warning = `AI director failed on ${failures.length} clip(s) (${failures[0]}); used heuristics for those.`;
+      console.warn(`[round] ${warning}`);
+    }
     if (chosen.length < req.count) {
       warning = [warning, `Only ${chosen.length} usable clip(s), so only ${chosen.length} video(s).`].filter(Boolean).join(" ");
     }
@@ -395,6 +400,34 @@ async function collabPlan(clip: Clip, partner: Partner, note?: string): Promise<
   if (partner.mustInclude && !p.postCaption.includes(partner.mustInclude)) p.postCaption += `\n\n${partner.mustInclude}`;
   if (!/#ad\b|#sponsored|paid partnership/i.test(p.postCaption)) p.postCaption += "\n\n#ad";
   return p;
+}
+
+/** Write a new post description for a video (the video itself stays as it is). */
+export async function regenerateCaption(renderId: string, note?: string): Promise<Render> {
+  const r = store.render(renderId);
+  if (!r) throw new Error("Unknown video.");
+  if (!config.claude.enabled) throw new Error("New captions need the AI (ANTHROPIC_API_KEY).");
+  const clip = store.clip(r.plan.segments[0]?.clipId ?? "");
+  const partner = r.plan.collab ? store.partner(r.plan.collab.partnerId) : undefined;
+  const { petName, handle, story, faq } = store.settings();
+  const caption = await writeCaption({
+    petName,
+    handle,
+    story,
+    plan: r.plan,
+    clip,
+    note,
+    faq: r.plan.faq ? faq.find((f) => f.q === r.plan.faq) : undefined,
+    collab: partner ? { name: partner.name, handle: partner.handle, about: partner.about, mustInclude: partner.mustInclude } : undefined,
+    feedback: reviewFeedback(),
+  });
+  let text = caption.trim();
+  if (partner) {
+    if (partner.handle && !text.includes(partner.handle)) text += ` ${partner.handle}`;
+    if (partner.mustInclude && !text.includes(partner.mustInclude)) text += `\n\n${partner.mustInclude}`;
+    if (!/#ad\b|#sponsored|paid partnership/i.test(text)) text += "\n\n#ad";
+  }
+  return store.updateRender(r.id, { plan: { ...r.plan, postCaption: text, aiNote: undefined } })!;
 }
 
 /** Queue a failed or interrupted render again, with the same plan. */

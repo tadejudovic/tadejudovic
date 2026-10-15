@@ -697,3 +697,5 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .mix-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .mix-grid label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
 .mix-grid input { font: inherit; padding: 8px 10px; border: 1px solid #d4d4d8; border-radius: 10px; width: 100%; }
+.d-warn { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fff7e6; color: #8a5300; font-size: 12px; }
+.d-warn[hidden] { display: none; }

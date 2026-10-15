@@ -189,7 +189,7 @@ export async function plan(
 
   if (req.template === "auto") {
     // Footage first: each video is built around one clip, directed from what's in it.
-    const chosen = req.clipIds?.length ? rankClips(clips).slice(0, req.count) : pickBySituation(clips, req.count);
+    const chosen = req.clipIds?.length && !req.pickFromPool ? rankClips(clips).slice(0, req.count) : pickBySituation(clips, req.count);
     // Each situation needs caption research (TikTok's most-viewed videos) before its first video.
     // Research that's merely old is still used, and refreshed later, so it never holds up a round.
     if (aiOn) {

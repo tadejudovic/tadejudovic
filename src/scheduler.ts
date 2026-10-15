@@ -202,6 +202,7 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
         targetSeconds: auto.targetSeconds,
         count,
         clipIds: pool.map((c) => c.id),
+        pickFromPool: true,
         useAi: true,
         options,
       },

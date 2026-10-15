@@ -249,6 +249,8 @@ export interface GenerateRequest {
   /** Free-text direction, e.g. "Lex being dramatic about bath time". */
   brief?: string;
   clipIds?: string[];
+  /** clipIds are a pool to choose from (rotating situations, one take per moment), not a hand-picked list. */
+  pickFromPool?: boolean;
   useAi: boolean;
   options: RenderOptions;
 }

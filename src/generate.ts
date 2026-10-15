@@ -7,7 +7,7 @@ import { directClip, planVideos, writeCaption, type DirectContext } from "./ai/d
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
-import type { Clip, DailyMix, GenerateRequest, Partner, PostFormat, Render, ReviewFeedback, VideoPlan } from "./types.ts";
+import type { Clip, DailyMix, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
 
@@ -41,15 +41,17 @@ export function reviewFeedback(limit = 15): ReviewFeedback {
     format: r.plan.format,
   });
   // How posted videos actually did: the strongest signal. Best and worst, so both lessons come through.
+  // One entry per post (a video on TikTok and Instagram counts twice: the platforms differ).
   const posted = store
     .renders()
-    .filter((r) => r.posted?.stats && r.plan.hook)
-    .sort((a, b) => b.posted!.stats!.views - a.posted!.stats!.views);
+    .filter((r) => r.plan.hook)
+    .flatMap((r) => (r.posts ?? []).filter((p) => p.stats).map((p) => ({ r, p })))
+    .sort((a, b) => b.p.stats!.views - a.p.stats!.views);
   const ranked = posted.length > 10 ? [...posted.slice(0, 6), ...posted.slice(-4)] : posted;
   return {
     kept: reviewed.filter((r) => r.review === "approved").slice(0, limit).map(item),
     rejected: reviewed.filter((r) => r.review === "rejected").slice(0, limit).map((r) => ({ ...item(r), reason: r.rejectReason })),
-    performance: ranked.map((r) => ({ ...item(r), ...r.posted!.stats! })),
+    performance: ranked.map(({ r, p }) => ({ ...item(r), platform: p.platform, ...p.stats! })),
   };
 }
 
@@ -444,28 +446,33 @@ export async function regenerateCaption(renderId: string, note?: string): Promis
 }
 
 /** Fetch (or refresh) the stats of a video the creator posted, and keep them on the video. */
-export async function refreshPostStats(renderId: string): Promise<Render> {
+export async function refreshPostStats(renderId: string, platform: Platform): Promise<Render> {
   const r = store.render(renderId);
-  if (!r?.posted?.url) throw new Error("No post link on this video.");
+  const post = r?.posts?.find((p) => p.platform === platform);
+  if (!r || !post) throw new Error("No post link for that platform on this video.");
   if (!apifyEnabled()) throw new Error("Reading post stats needs Apify (APIFY_TOKEN).");
+  const save = (patch: Partial<PostedInfo>) =>
+    store.updateRender(r.id, { posts: (store.render(r.id)!.posts ?? []).map((p) => (p.platform === platform ? { ...p, ...patch } : p)) })!;
   try {
-    const { stats, postedAt } = await fetchPostStats(r.posted.url);
-    return store.updateRender(r.id, { posted: { ...r.posted, stats, postedAt: postedAt ?? r.posted.postedAt, fetchedAt: new Date().toISOString(), error: undefined } })!;
+    const { stats, postedAt } = await fetchPostStats(post.url);
+    return save({ stats, postedAt: postedAt ?? post.postedAt, fetchedAt: new Date().toISOString(), error: undefined });
   } catch (err) {
-    store.updateRender(r.id, { posted: { ...r.posted, fetchedAt: new Date().toISOString(), error: (err as Error).message.slice(0, 200) } });
+    save({ fetchedAt: new Date().toISOString(), error: (err as Error).message.slice(0, 200) });
     throw err;
   }
 }
 
 /** Posts whose stats are due a daily refresh (the first two weeks after posting, when views come in). */
-export function postsDueForStats(now = Date.now()): Render[] {
-  return store.renders().filter((r) => {
-    const p = r.posted;
-    if (!p?.url) return false;
-    const since = Date.parse(p.postedAt ?? p.addedAt);
-    const last = p.fetchedAt ? Date.parse(p.fetchedAt) : 0;
-    return now - since < 14 * 86400_000 && now - last > 20 * 3600_000;
-  });
+export function postsDueForStats(now = Date.now()): { render: Render; platform: Platform }[] {
+  return store.renders().flatMap((render) =>
+    (render.posts ?? [])
+      .filter((p) => {
+        const since = Date.parse(p.postedAt ?? p.addedAt);
+        const last = p.fetchedAt ? Date.parse(p.fetchedAt) : 0;
+        return now - since < 14 * 86400_000 && now - last > 20 * 3600_000;
+      })
+      .map((p) => ({ render, platform: p.platform })),
+  );
 }
 
 /** Queue a failed or interrupted render again, with the same plan. */

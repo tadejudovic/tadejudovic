@@ -124,6 +124,10 @@ function load(): DB {
     }
     db.albums ??= [];
     db.partners ??= [];
+    for (const r of db.renders ?? []) {
+      if (r.posted && !r.posts) r.posts = [{ ...r.posted, platform: "tiktok" }];
+      delete r.posted;
+    }
     // One-time switch to the daily mix: a round holds the mix's candidates, and the daily limit fits a round.
     if (!db.settings.mixV1) {
       const size = mixSize(db.settings.dailyMix);

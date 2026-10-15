@@ -15,7 +15,7 @@ import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, 
 import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
-import { apifyEnabled, isTikTokPostUrl } from "./ai/tiktokSearch.ts";
+import { apifyEnabled, platformOf } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
@@ -663,14 +663,21 @@ app.post(
     const r = store.render(String(req.params.id));
     if (!r) return res.sendStatus(404);
     const url = String(req.body?.url ?? "").trim();
+    const asked = req.body?.platform === "instagram" ? "instagram" : req.body?.platform === "tiktok" ? "tiktok" : undefined;
+    const posts = r.posts ?? [];
     if (!url) {
-      store.updateRender(r.id, { posted: undefined });
+      // Clearing a link.
+      store.updateRender(r.id, { posts: posts.filter((p) => p.platform !== asked) });
       return res.json(store.render(r.id));
     }
-    if (!isTikTokPostUrl(url)) return res.status(400).json({ error: "Paste the TikTok link of the post (tiktok.com/…)." });
-    if (r.posted?.url !== url) store.updateRender(r.id, { posted: { url, addedAt: new Date().toISOString() } });
+    const platform = platformOf(url);
+    if (!platform) return res.status(400).json({ error: "Paste the link of the post on TikTok (tiktok.com/…) or Instagram (instagram.com/reel/…)." });
+    if (asked && asked !== platform) return res.status(400).json({ error: `That's ${platform === "tiktok" ? "a TikTok" : "an Instagram"} link; paste it in the ${platform === "tiktok" ? "TikTok" : "Instagram"} box.` });
+    if (posts.find((p) => p.platform === platform)?.url !== url) {
+      store.updateRender(r.id, { posts: [...posts.filter((p) => p.platform !== platform), { platform, url, addedAt: new Date().toISOString() }] });
+    }
     try {
-      res.json(await refreshPostStats(r.id));
+      res.json(await refreshPostStats(r.id, platform));
     } catch (err) {
       res.json({ ...store.render(r.id), warning: (err as Error).message });
     }

@@ -216,7 +216,9 @@ export interface Render {
   reviewedAt?: string;
   /** The video file was downloaded. */
   downloaded?: boolean;
-  /** Where the creator posted it, and how it's doing there. */
+  /** Where the creator posted it (TikTok and/or Instagram), and how it's doing there. */
+  posts?: PostedInfo[];
+  /** Before Instagram was supported: the TikTok post. Moved into `posts` on load. */
   posted?: PostedInfo;
   /** Whether this is a new video: counts toward the daily limit and as a use of its clips (false for re-renders). */
   countUse?: boolean;
@@ -316,7 +318,10 @@ export interface PostStats {
   saves?: number;
 }
 
+export type Platform = "tiktok" | "instagram";
+
 export interface PostedInfo {
+  platform: Platform;
   url: string;
   addedAt: string;
   stats?: PostStats;
@@ -338,5 +343,5 @@ export interface ReviewFeedback {
   kept: FeedbackItem[];
   rejected: (FeedbackItem & { reason?: RejectReason })[];
   /** Posted videos with real stats, best first. */
-  performance?: (FeedbackItem & { views: number; likes?: number; shares?: number; saves?: number })[];
+  performance?: (FeedbackItem & { platform: Platform; views: number; likes?: number; shares?: number; saves?: number })[];
 }

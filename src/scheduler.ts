@@ -66,8 +66,8 @@ async function runDue({ afterReview = false } = {}) {
   // Posted videos: refresh their stats once a day for two weeks (a few per tick, half a cent each).
   if (apifyEnabled() && Date.now() - lastStats > 10 * 60_000) {
     lastStats = Date.now();
-    for (const r of postsDueForStats().slice(0, 3)) {
-      await refreshPostStats(r.id).catch((err) => console.warn(`[stats] ${r.posted?.url}: ${(err as Error).message}`));
+    for (const { render, platform } of postsDueForStats().slice(0, 3)) {
+      await refreshPostStats(render.id, platform).catch((err) => console.warn(`[stats] ${platform} ${render.id}: ${(err as Error).message}`));
     }
   }
   // Once an hour: delete the files of week-old clips that will never be used (records stay).

@@ -6,7 +6,7 @@ import { structured } from "./director.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { newId } from "../store.ts";
 import { candidates, chooseHashtags, postCount, tagsOf } from "./hashtags.ts";
-import type { PickedHashtag, PostStats, ProvenCaption } from "../types.ts";
+import type { PickedHashtag, Platform, PostStats, ProvenCaption } from "../types.ts";
 
 /**
  * Caption research through TikTok's own search, the way the creator does it by
@@ -152,9 +152,43 @@ export async function hashtagPostCounts(tags: string[]): Promise<Map<string, num
 }
 
 export const isTikTokPostUrl = (url: string) => /^https:\/\/(www\.|vm\.|vt\.|m\.)?tiktok\.com\//i.test(url.trim());
+export const isInstagramPostUrl = (url: string) => /^https:\/\/(www\.)?instagram\.com\/(reel|reels|p|tv)\/[\w-]+/i.test(url.trim());
+export const platformOf = (url: string): Platform | undefined =>
+  isTikTokPostUrl(url) ? "tiktok" : isInstagramPostUrl(url) ? "instagram" : undefined;
 
-/** A posted TikTok's stats (views, likes, comments, shares, saves), through Apify. */
-export async function fetchPostStats(url: string): Promise<{ stats: PostStats; postedAt?: string }> {
+/** A post's public numbers, through Apify. */
+export function fetchPostStats(url: string): Promise<{ stats: PostStats; postedAt?: string }> {
+  return platformOf(url) === "instagram" ? fetchInstagramStats(url) : fetchTikTokStats(url);
+}
+
+/** Instagram shows plays, likes and comments publicly (shares and saves only to the owner). */
+async function fetchInstagramStats(url: string): Promise<{ stats: PostStats; postedAt?: string }> {
+  assertBudget();
+  const api =
+    `https://api.apify.com/v2/acts/${config.apify.instagramActor}/run-sync-get-dataset-items` +
+    `?token=${encodeURIComponent(config.apify.token)}&timeout=120&memory=1024`;
+  const res = await fetch(api, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ directUrls: [url.trim()], resultsType: "posts", resultsLimit: 1, addParentData: false }),
+    signal: AbortSignal.timeout(150_000),
+  });
+  if (!res.ok) throw new Error(`Apify couldn't read the Instagram post (${res.status}): ${(await res.text()).slice(0, 160)}`);
+  const items = (await res.json()) as any[];
+  recordCost(USD_PER_RESULT);
+  const it = Array.isArray(items) ? items.find((x) => !x?.error) : undefined;
+  if (!it) throw new Error("Instagram didn't return this post. Is the link right and the account public?");
+  const n = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : undefined);
+  // Reels report plays; likes are -1 when the owner hides like counts.
+  const views = n(it.videoPlayCount ?? it.igPlayCount ?? it.videoViewCount ?? it.playCount);
+  if (views === undefined) throw new Error("Couldn't read the play count (only Reels and videos have one).");
+  return {
+    stats: { views, likes: n(it.likesCount), comments: n(it.commentsCount) },
+    postedAt: typeof it.timestamp === "string" ? it.timestamp : undefined,
+  };
+}
+
+async function fetchTikTokStats(url: string): Promise<{ stats: PostStats; postedAt?: string }> {
   assertBudget();
   const api =
     `https://api.apify.com/v2/acts/${config.apify.actor}/run-sync-get-dataset-items` +

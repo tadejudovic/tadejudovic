@@ -422,10 +422,10 @@ export function feedbackText(f: ReviewFeedback | undefined): string {
     `${x.basedOn ? ` [adapted from "${x.basedOn}"]` : ""}`;
   const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
   const perf = f.performance?.length
-    ? `\n\nHOW POSTED VIDEOS ACTUALLY DID on TikTok, best first. This is the strongest signal: lean toward what ` +
+    ? `\n\nHOW POSTED VIDEOS ACTUALLY DID, best first. This is the strongest signal: lean toward what ` +
       `got views, saves and shares, away from what didn't (look at hook style, kind of post and situation):\n` +
       f.performance
-        .map((p) => `${line(p)}: ${fmt(p.views)} views${p.likes ? `, ${fmt(p.likes)} likes` : ""}${p.saves ? `, ${fmt(p.saves)} saves` : ""}${p.shares ? `, ${fmt(p.shares)} shares` : ""}`)
+        .map((p) => `${line(p)} on ${p.platform === "instagram" ? "Instagram" : "TikTok"}: ${fmt(p.views)} ${p.platform === "instagram" ? "plays" : "views"}${p.likes ? `, ${fmt(p.likes)} likes` : ""}${p.saves ? `, ${fmt(p.saves)} saves` : ""}${p.shares ? `, ${fmt(p.shares)} shares` : ""}`)
         .join("\n")
     : "";
   return (

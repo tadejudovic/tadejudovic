@@ -45,6 +45,8 @@ export const config = {
     actor: process.env.APIFY_TIKTOK_ACTOR ?? "clockworks~tiktok-scraper",
     /** Reads a hashtag's total number of posts (TikTok blocks reading it directly). */
     hashtagActor: process.env.APIFY_HASHTAG_ACTOR ?? "crawlerbros~tiktok-hashtag-scraper",
+    /** Reads a public Instagram post's numbers (plays, likes, comments). */
+    instagramActor: process.env.APIFY_INSTAGRAM_ACTOR ?? "apify~instagram-scraper",
   },
   fontFile: findFont(),
   output: { width: 1080, height: 1920, fps: 30 },

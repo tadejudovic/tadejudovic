@@ -708,34 +708,43 @@ function detailsBody(r) {
     });
   } }, "New caption");
 
-  // Performance: paste the post's link; stats are fetched now and refreshed daily for two weeks.
+  // Performance: paste each post's link (TikTok, Instagram); stats are fetched now and daily for two weeks.
   const perf = h("section", { class: "d-sec" });
-  const renderPerf = () => {
-    const p = r.posted;
+  const ago = (iso) => {
+    const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+    return m < 60 ? `${Math.max(1, m)} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+  };
+  const platformRow = (platform, label, placeholder) => {
+    const p = (r.posts ?? []).find((x) => x.platform === platform);
     const s = p?.stats;
-    const ago = (iso) => {
-      const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
-      return m < 60 ? `${Math.max(1, m)} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
-    };
-    const linkInput = h("input", { class: "perf-input", value: p?.url ?? "", placeholder: "Posted? Paste the TikTok link", inputmode: "url" });
-    const save = h("button", { class: "btn small primary", onclick: (e) => withBusy(e.currentTarget, "Reading…", async () => {
-      const updated = await api(`/api/renders/${r.id}/posted`, { method: "POST", body: { url: linkInput.value } });
-      r.posted = updated.posted;
+    const input = h("input", { class: "perf-input", value: p?.url ?? "", placeholder, inputmode: "url" });
+    const go = h("button", { class: "btn small primary", onclick: (e) => withBusy(e.currentTarget, "Reading…", async () => {
+      const updated = await api(`/api/renders/${r.id}/posted`, { method: "POST", body: { url: input.value, platform } });
+      r.posts = updated.posts;
       if (updated.warning) banner(updated.warning);
       renderPerf();
       refreshRenders().catch(() => {});
     }) }, s ? "Refresh" : "Get stats");
-    perf.replaceChildren(...[
-      h("div", { class: "d-sec-head" }, h("span", {}, "Performance")),
-      s ? h("div", { class: "perf-stats" },
-        ...[["views", "views"], ["likes", "likes"], ["comments", "comments"], ["shares", "shares"], ["saves", "saves"]]
+    const stats = s
+      ? [["views", platform === "instagram" ? "plays" : "views"], ["likes", "likes"], ["comments", "comments"], ["shares", "shares"], ["saves", "saves"]]
           .filter(([k]) => s[k] !== undefined)
-          .map(([k, label]) => h("span", { class: "perf-stat" }, h("b", {}, fmtViews(s[k])), h("small", {}, label)))) : null,
-      s && p.fetchedAt ? h("p", { class: "d-hint" }, `Updated ${ago(p.fetchedAt)} · refreshed daily for 2 weeks · the AI learns from what performs`) : null,
+      : [];
+    return h("div", { class: "perf-platform" },
+      h("span", { class: "d-label" }, label),
+      stats.length ? h("div", { class: "perf-stats", style: { gridTemplateColumns: `repeat(${stats.length}, 1fr)` } },
+        ...stats.map(([k, name]) => h("span", { class: "perf-stat" }, h("b", {}, fmtViews(s[k])), h("small", {}, name)))) : null,
+      s && p.fetchedAt ? h("p", { class: "d-hint" }, `Updated ${ago(p.fetchedAt)}`) : null,
       p?.error && !s ? h("p", { class: "d-hint" }, p.error) : null,
-      h("div", { class: "perf-row" }, linkInput, save),
-    ].filter(Boolean));
+      h("div", { class: "perf-row" }, input, go),
+    );
   };
+  const renderPerf = () =>
+    perf.replaceChildren(
+      h("div", { class: "d-sec-head" }, h("span", {}, "Performance")),
+      platformRow("tiktok", "TikTok", "Posted? Paste the TikTok link"),
+      platformRow("instagram", "Instagram", "Posted? Paste the Instagram Reel link"),
+      h("p", { class: "d-hint" }, "Refreshed daily for 2 weeks. The AI learns from what performs. Instagram only shows plays, likes and comments publicly."),
+    );
   renderPerf();
 
   const b = plan.basedOn;
@@ -944,7 +953,7 @@ function tile(r) {
     : r.status !== "done" ? h("span", { class: "badge" }, r.status === "queued" ? "Waiting…" : `Making… ${Math.round(r.progress * 100)}%`)
     : r.review === "rejected" ? h("span", { class: "badge no" }, `Rejected${r.rejectReason && r.rejectReason !== "other" ? ` · ${REASON_LABEL[r.rejectReason]}` : ""}`)
     : r.downloaded ? h("span", { class: "badge yes" }, "Saved ✓")
-    : r.posted?.stats ? h("span", { class: "badge yes" }, `${fmtViews(r.posted.stats.views)} views`)
+    : r.posts?.some((p) => p.stats) ? h("span", { class: "badge yes" }, `${fmtViews(r.posts.reduce((n, p) => n + (p.stats?.views ?? 0), 0))} views`)
     : r.review === "approved" ? h("span", { class: "badge yes" }, r.plan.collab ? `To post · ${r.plan.collab.name}` : "To post")
     : null;
   return h("div", { class: `tile ${r.status === "done" ? "openable" : ""}`, onclick: () => r.status === "done" && openSheet(r) },

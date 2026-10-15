@@ -535,7 +535,7 @@ function stackCard(r) {
       h("span", { class: "stamp nope" }, "NOPE"),
       h("span", { class: "stack-tap" }, "Tap for details"),
       r.plan.collab || r.plan.format === "tips"
-        ? h("span", { class: "collab-badge on-video" }, r.plan.collab ? `Collab · ${r.plan.collab.name}` : "Tips")
+        ? h("span", { class: "collab-badge on-video" }, r.plan.collab ? `Collab · ${r.plan.collab.name}` : "Educational")
         : null,
     ),
   );
@@ -684,7 +684,7 @@ function detailsBody(r) {
         h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version"),
       ),
       plan.collab ? h("span", { class: "collab-badge" }, `Collab · ${plan.collab.name}`) : null,
-      plan.format === "tips" ? h("span", { class: "collab-badge" }, "Tips") : null,
+      plan.format === "tips" ? h("span", { class: "collab-badge" }, "Educational") : null,
       editText,
       styleEdit,
       collabEdit,

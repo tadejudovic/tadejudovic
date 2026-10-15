@@ -325,26 +325,38 @@ export interface DirectContext {
   audience?: "pets" | "everyone";
   /** The account's story, woven into the post description. */
   story?: string;
-  /** "tips": an educational video, a hook then three tips about flying with a pet. */
+  /** "tips": an educational video about flying/traveling with a pet (hook + a short teaching beat). */
   format?: "tips";
   /** Make this a collab version for a brand partner. */
   collab?: { name: string; handle?: string; about: string; mustInclude?: string; note?: string };
 }
 
-/** An educational video: hook, then three practical tips building up on screen. */
+/** An educational video: a scroll-stopping hook, then a short teaching beat that builds up on screen. */
 function tipsText(petName: string, scene?: string): string {
   return (
-    `\n\nFORMAT FOR THIS VIDEO: TIPS (educational). Instead of one joke line, the on-screen text is a hook and three ` +
-    `practical tips about flying with a pet${scene ? `, tied to this situation (${scene}) where possible` : ""}, ` +
-    `learned from traveling the world with ${petName}.` +
-    `\n- Overlays, in order, back to back: (1) the hook alone for ~2.5s, e.g. "3 things I wish I knew before ` +
-    `flying with my dog"; then (2) "1. first tip", (3) "1. first tip / 2. second tip", (4) all three, each shown ~3s, ` +
-    `the last one staying to the end. So the list builds up on screen.` +
-    `\n- Each tip under 7 words, concrete and useful (what to do, not vague advice). Only tips that are true for most ` +
-    `airlines and countries; no specific rules, fees or legal requirements you aren't sure of.` +
-    `\n- The video must be long enough to read everything: at least 12s.` +
-    `\n- Post description: expand each tip in a sentence, connect it to ${petName}'s journey, and end by asking what ` +
-    `tip they'd add. Ignore the one-line overlay limit above; the proven captions are only for the hook's tone.`
+    `\n\nFORMAT FOR THIS VIDEO: EDUCATIONAL. Teach something real about flying or traveling with a pet` +
+    `${scene ? `, tied to this situation (${scene}) where possible` : ""}, learned from traveling the world with ` +
+    `${petName}. Pick the structure that suits this footage best, and don't use the same one as recent videos:` +
+    `\n- a numbered list (2–4 points) that builds up on screen;` +
+    `\n- the mistake we made, then what to do instead;` +
+    `\n- myth vs. reality;` +
+    `\n- do this / not this;` +
+    `\n- the question everyone asks us, then the answer;` +
+    `\n- what we pack / what we check before a flight;` +
+    `\n- "nobody tells you…" followed by the thing nobody tells you.` +
+    `\n\nTHE HOOK matters most: it's alone on screen for the first ~2.5s and must stop the scroll on its own. ` +
+    `Make it specific, curious or a little high-stakes, in first person or as a direct "you": e.g. "The airline ` +
+    `almost didn't let ${petName} on", "Stop doing this before a flight with your dog", "Nobody warned us about ` +
+    `security", "I wish someone told me this before our first flight". Never a bland title like "Tips for flying ` +
+    `with a dog".` +
+    `\n\nOn screen: overlays back to back on the output timeline. The hook first, then the teaching beats, each ` +
+    `shown ~3s; for a list, each overlay repeats the earlier points and adds the next (" / " between them) so it ` +
+    `builds up; the last overlay stays to the end. Each line under ~8 words, concrete and useful. Only facts that ` +
+    `hold for most airlines and countries; no specific rules, fees or legal requirements you aren't sure of. ` +
+    `The video must be long enough to read everything: at least 12s.` +
+    `\n\nPost description: expand the lesson in a few sentences, connect it to ${petName}'s journey, and end with ` +
+    `a question that invites people to share their own experience. Ignore the one-line overlay limit above; the ` +
+    `proven captions are only inspiration for the hook's tone.`
   );
 }
 

@@ -156,7 +156,7 @@ export interface VideoPlan {
   scene?: string;
   /** Post counts of the researched hashtags this video uses. */
   hashtagInfo?: PickedHashtag[];
-  /** "tips": an educational hook + three tips video. */
+  /** "tips": an educational video (hook + a short teaching beat about traveling with a pet). */
   format?: "tips";
   /** A brand collaboration version of a video. */
   collab?: { partnerId: string; name: string; handle?: string };

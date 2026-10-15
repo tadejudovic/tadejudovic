@@ -11,11 +11,11 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats } from "./generate.ts";
 import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
-import { apifyEnabled } from "./ai/tiktokSearch.ts";
+import { apifyEnabled, isTikTokPostUrl } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
@@ -655,6 +655,27 @@ app.delete("/api/partners/:id", (req, res) => {
   store.removePartner(String(req.params.id));
   res.json({ ok: true });
 });
+
+/** The creator posted this video: keep the link and fetch its stats (refreshed daily for two weeks). */
+app.post(
+  "/api/renders/:id/posted",
+  h(async (req, res) => {
+    const r = store.render(String(req.params.id));
+    if (!r) return res.sendStatus(404);
+    const url = String(req.body?.url ?? "").trim();
+    if (!url) {
+      store.updateRender(r.id, { posted: undefined });
+      return res.json(store.render(r.id));
+    }
+    if (!isTikTokPostUrl(url)) return res.status(400).json({ error: "Paste the TikTok link of the post (tiktok.com/…)." });
+    if (r.posted?.url !== url) store.updateRender(r.id, { posted: { url, addedAt: new Date().toISOString() } });
+    try {
+      res.json(await refreshPostStats(r.id));
+    } catch (err) {
+      res.json({ ...store.render(r.id), warning: (err as Error).message });
+    }
+  }),
+);
 
 app.post(
   "/api/renders/:id/caption",

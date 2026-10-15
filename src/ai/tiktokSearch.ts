@@ -6,7 +6,7 @@ import { structured } from "./director.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { newId } from "../store.ts";
 import { candidates, chooseHashtags, postCount, tagsOf } from "./hashtags.ts";
-import type { PickedHashtag, ProvenCaption } from "../types.ts";
+import type { PickedHashtag, PostStats, ProvenCaption } from "../types.ts";
 
 /**
  * Caption research through TikTok's own search, the way the creator does it by
@@ -149,6 +149,47 @@ export async function hashtagPostCounts(tags: string[]): Promise<Map<string, num
     if (parsed && tags.includes(parsed[0]) && !counts.has(parsed[0])) counts.set(...parsed);
   }
   return counts;
+}
+
+export const isTikTokPostUrl = (url: string) => /^https:\/\/(www\.|vm\.|vt\.|m\.)?tiktok\.com\//i.test(url.trim());
+
+/** A posted TikTok's stats (views, likes, comments, shares, saves), through Apify. */
+export async function fetchPostStats(url: string): Promise<{ stats: PostStats; postedAt?: string }> {
+  assertBudget();
+  const api =
+    `https://api.apify.com/v2/acts/${config.apify.actor}/run-sync-get-dataset-items` +
+    `?token=${encodeURIComponent(config.apify.token)}&timeout=120&memory=1024`;
+  const res = await fetch(api, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      postURLs: [url.trim()],
+      resultsPerPage: 1,
+      shouldDownloadVideos: false,
+      shouldDownloadCovers: false,
+      shouldDownloadSubtitles: false,
+      shouldDownloadSlideshowImages: false,
+    }),
+    signal: AbortSignal.timeout(150_000),
+  });
+  if (!res.ok) throw new Error(`Apify couldn't read the post (${res.status}): ${(await res.text()).slice(0, 160)}`);
+  const items = (await res.json()) as any[];
+  recordCost(USD_PER_RESULT);
+  const it = Array.isArray(items) ? items[0] : undefined;
+  if (!it) throw new Error("TikTok didn't return this post. Is the link right and the post public?");
+  const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : undefined);
+  const views = n(it.playCount ?? it.stats?.playCount ?? it.views);
+  if (views === undefined) throw new Error("Couldn't read the view count for this post.");
+  return {
+    stats: {
+      views,
+      likes: n(it.diggCount ?? it.stats?.diggCount),
+      comments: n(it.commentCount ?? it.stats?.commentCount),
+      shares: n(it.shareCount ?? it.stats?.shareCount),
+      saves: n(it.collectCount ?? it.stats?.collectCount),
+    },
+    postedAt: typeof it.createTimeISO === "string" ? it.createTimeISO : undefined,
+  };
 }
 
 const READ_SCHEMA = {

@@ -216,6 +216,8 @@ export interface Render {
   reviewedAt?: string;
   /** The video file was downloaded. */
   downloaded?: boolean;
+  /** Where the creator posted it, and how it's doing there. */
+  posted?: PostedInfo;
   /** Whether this is a new video: counts toward the daily limit and as a use of its clips (false for re-renders). */
   countUse?: boolean;
   /** Its clips' use was counted when it finished. */
@@ -306,7 +308,35 @@ export interface AutoSettings {
 }
 
 /** The creator's recent swipe decisions, fed to the AI director. */
+export interface PostStats {
+  views: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+}
+
+export interface PostedInfo {
+  url: string;
+  addedAt: string;
+  stats?: PostStats;
+  fetchedAt?: string;
+  /** When TikTok says it was posted. */
+  postedAt?: string;
+  error?: string;
+}
+
+export interface FeedbackItem {
+  text: string;
+  scene?: string;
+  basedOn?: string;
+  /** fun / tips / inspire */
+  format?: string;
+}
+
 export interface ReviewFeedback {
-  kept: { text: string; scene?: string; basedOn?: string }[];
-  rejected: { text: string; scene?: string; basedOn?: string; reason?: RejectReason }[];
+  kept: FeedbackItem[];
+  rejected: (FeedbackItem & { reason?: RejectReason })[];
+  /** Posted videos with real stats, best first. */
+  performance?: (FeedbackItem & { views: number; likes?: number; shares?: number; saves?: number })[];
 }

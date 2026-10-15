@@ -699,3 +699,10 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .mix-grid input { font: inherit; padding: 8px 10px; border: 1px solid #d4d4d8; border-radius: 10px; width: 100%; }
 .d-warn { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fff7e6; color: #8a5300; font-size: 12px; }
 .d-warn[hidden] { display: none; }
+.perf-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.perf-stats .perf-stat b { font-size: 15px; }
+.perf-stat { display: grid; justify-items: center; padding: 8px 4px; background: var(--soft); border-radius: 10px; }
+.perf-stat b { font-size: 16px; }
+.perf-stat small { color: var(--muted); font-size: 11px; }
+.perf-row { display: flex; gap: 8px; }
+.perf-input { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border: 1px solid #d4d4d8; border-radius: 10px; }

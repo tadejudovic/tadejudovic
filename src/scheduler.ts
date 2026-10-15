@@ -1,7 +1,8 @@
 import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { importBudget, syncAll } from "./albums.ts";
-import { plan, queueRender, isPortrait, onTopic } from "./generate.ts";
+import { plan, queueRender, isPortrait, onTopic, postsDueForStats, refreshPostStats } from "./generate.ts";
+import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
 
 /**
@@ -43,6 +44,7 @@ export function setPaused(value: boolean) {
 let lastAttempt = 0;
 let lastTopUp = 0;
 let lastArchive = 0;
+let lastStats = 0;
 let researching = false;
 let lastRelook = Date.now(); // startup already queues them
 const TOP_UP_EVERY_MS = 2 * 60_000;
@@ -61,6 +63,13 @@ export function startScheduler() {
 }
 
 async function runDue({ afterReview = false } = {}) {
+  // Posted videos: refresh their stats once a day for two weeks (a few per tick, half a cent each).
+  if (apifyEnabled() && Date.now() - lastStats > 10 * 60_000) {
+    lastStats = Date.now();
+    for (const r of postsDueForStats().slice(0, 3)) {
+      await refreshPostStats(r.id).catch((err) => console.warn(`[stats] ${r.posted?.url}: ${(err as Error).message}`));
+    }
+  }
   // Once an hour: delete the files of week-old clips that will never be used (records stay).
   if (Date.now() - lastArchive > 3600_000) {
     lastArchive = Date.now();

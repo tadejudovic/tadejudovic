@@ -413,11 +413,23 @@ const REASON_TEXT: Record<string, string> = {
   other: "no reason given",
 };
 
+const KIND: Record<string, string> = { fun: "fun", tips: "educational", inspire: "inspirational" };
+
 export function feedbackText(f: ReviewFeedback | undefined): string {
-  if (!f || (!f.kept.length && !f.rejected.length)) return "";
-  const line = (x: { text: string; scene?: string; basedOn?: string }) =>
-    `- "${x.text}"${x.scene ? ` (${x.scene})` : ""}${x.basedOn ? ` [adapted from "${x.basedOn}"]` : ""}`;
+  if (!f || (!f.kept.length && !f.rejected.length && !f.performance?.length)) return "";
+  const line = (x: { text: string; scene?: string; basedOn?: string; format?: string }) =>
+    `- "${x.text}"${x.format && KIND[x.format] ? ` [${KIND[x.format]}]` : ""}${x.scene ? ` (${x.scene})` : ""}` +
+    `${x.basedOn ? ` [adapted from "${x.basedOn}"]` : ""}`;
+  const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
+  const perf = f.performance?.length
+    ? `\n\nHOW POSTED VIDEOS ACTUALLY DID on TikTok, best first. This is the strongest signal: lean toward what ` +
+      `got views, saves and shares, away from what didn't (look at hook style, kind of post and situation):\n` +
+      f.performance
+        .map((p) => `${line(p)}: ${fmt(p.views)} views${p.likes ? `, ${fmt(p.likes)} likes` : ""}${p.saves ? `, ${fmt(p.saves)} saves` : ""}${p.shares ? `, ${fmt(p.shares)} shares` : ""}`)
+        .join("\n")
+    : "";
   return (
+    perf +
     `\n\nThe creator reviews every video: swipe right to keep it, left to reject it. Learn their taste from this ` +
     `and write more like what they kept and less like what they rejected (don't copy the kept lines).` +
     (f.kept.length ? `\nKept:\n${f.kept.map(line).join("\n")}` : "") +

@@ -708,6 +708,36 @@ function detailsBody(r) {
     });
   } }, "New caption");
 
+  // Performance: paste the post's link; stats are fetched now and refreshed daily for two weeks.
+  const perf = h("section", { class: "d-sec" });
+  const renderPerf = () => {
+    const p = r.posted;
+    const s = p?.stats;
+    const ago = (iso) => {
+      const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+      return m < 60 ? `${Math.max(1, m)} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+    };
+    const linkInput = h("input", { class: "perf-input", value: p?.url ?? "", placeholder: "Posted? Paste the TikTok link", inputmode: "url" });
+    const save = h("button", { class: "btn small primary", onclick: (e) => withBusy(e.currentTarget, "Reading…", async () => {
+      const updated = await api(`/api/renders/${r.id}/posted`, { method: "POST", body: { url: linkInput.value } });
+      r.posted = updated.posted;
+      if (updated.warning) banner(updated.warning);
+      renderPerf();
+      refreshRenders().catch(() => {});
+    }) }, s ? "Refresh" : "Get stats");
+    perf.replaceChildren(...[
+      h("div", { class: "d-sec-head" }, h("span", {}, "Performance")),
+      s ? h("div", { class: "perf-stats" },
+        ...[["views", "views"], ["likes", "likes"], ["comments", "comments"], ["shares", "shares"], ["saves", "saves"]]
+          .filter(([k]) => s[k] !== undefined)
+          .map(([k, label]) => h("span", { class: "perf-stat" }, h("b", {}, fmtViews(s[k])), h("small", {}, label)))) : null,
+      s && p.fetchedAt ? h("p", { class: "d-hint" }, `Updated ${ago(p.fetchedAt)} · refreshed daily for 2 weeks · the AI learns from what performs`) : null,
+      p?.error && !s ? h("p", { class: "d-hint" }, p.error) : null,
+      h("div", { class: "perf-row" }, linkInput, save),
+    ].filter(Boolean));
+  };
+  renderPerf();
+
   const b = plan.basedOn;
   const seg = plan.segments?.[0];
   const clip = seg && state.clips.find((c) => c.id === seg.clipId);
@@ -733,6 +763,7 @@ function detailsBody(r) {
         tags.map((t) => h("span", { class: "chip" }, `#${t}`, posts.has(t) ? h("small", {}, ` ${fmtViews(posts.get(t))}`) : null))) : null,
       posts.size ? h("p", { class: "d-hint" }, "Numbers are how many TikTok posts use each hashtag.") : null,
     ),
+    r.review === "approved" ? perf : null,
     seg ? h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Made from")),
       h("button", { class: "d-source", onclick: () => openClip(seg.clipId) },
@@ -913,6 +944,7 @@ function tile(r) {
     : r.status !== "done" ? h("span", { class: "badge" }, r.status === "queued" ? "Waiting…" : `Making… ${Math.round(r.progress * 100)}%`)
     : r.review === "rejected" ? h("span", { class: "badge no" }, `Rejected${r.rejectReason && r.rejectReason !== "other" ? ` · ${REASON_LABEL[r.rejectReason]}` : ""}`)
     : r.downloaded ? h("span", { class: "badge yes" }, "Saved ✓")
+    : r.posted?.stats ? h("span", { class: "badge yes" }, `${fmtViews(r.posted.stats.views)} views`)
     : r.review === "approved" ? h("span", { class: "badge yes" }, r.plan.collab ? `To post · ${r.plan.collab.name}` : "To post")
     : null;
   return h("div", { class: `tile ${r.status === "done" ? "openable" : ""}`, onclick: () => r.status === "done" && openSheet(r) },

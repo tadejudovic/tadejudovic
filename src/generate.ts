@@ -9,6 +9,7 @@ import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
 import type { Clip, DailyMix, GenerateRequest, Partner, PostFormat, Render, ReviewFeedback, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
+import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
 
 function applyHashtags(p: VideoPlan, scene: string | undefined) {
   const info = researchedHashtags(scene);
@@ -33,10 +34,22 @@ export function reviewFeedback(limit = 15): ReviewFeedback {
     .renders()
     .filter((r) => r.review !== "pending" && r.status === "done" && r.plan.hook)
     .sort((a, b) => Date.parse(b.reviewedAt ?? b.createdAt) - Date.parse(a.reviewedAt ?? a.createdAt));
-  const item = (r: Render) => ({ text: r.plan.overlays?.map((o) => o.text).join(" / ") || r.plan.hook, scene: r.plan.scene, basedOn: r.plan.basedOn?.text });
+  const item = (r: Render) => ({
+    text: r.plan.overlays?.map((o) => o.text).join(" / ") || r.plan.hook,
+    scene: r.plan.scene,
+    basedOn: r.plan.basedOn?.text,
+    format: r.plan.format,
+  });
+  // How posted videos actually did: the strongest signal. Best and worst, so both lessons come through.
+  const posted = store
+    .renders()
+    .filter((r) => r.posted?.stats && r.plan.hook)
+    .sort((a, b) => b.posted!.stats!.views - a.posted!.stats!.views);
+  const ranked = posted.length > 10 ? [...posted.slice(0, 6), ...posted.slice(-4)] : posted;
   return {
     kept: reviewed.filter((r) => r.review === "approved").slice(0, limit).map(item),
     rejected: reviewed.filter((r) => r.review === "rejected").slice(0, limit).map((r) => ({ ...item(r), reason: r.rejectReason })),
+    performance: ranked.map((r) => ({ ...item(r), ...r.posted!.stats! })),
   };
 }
 
@@ -428,6 +441,31 @@ export async function regenerateCaption(renderId: string, note?: string): Promis
     if (!/#ad\b|#sponsored|paid partnership/i.test(text)) text += "\n\n#ad";
   }
   return store.updateRender(r.id, { plan: { ...r.plan, postCaption: text, aiNote: undefined } })!;
+}
+
+/** Fetch (or refresh) the stats of a video the creator posted, and keep them on the video. */
+export async function refreshPostStats(renderId: string): Promise<Render> {
+  const r = store.render(renderId);
+  if (!r?.posted?.url) throw new Error("No post link on this video.");
+  if (!apifyEnabled()) throw new Error("Reading post stats needs Apify (APIFY_TOKEN).");
+  try {
+    const { stats, postedAt } = await fetchPostStats(r.posted.url);
+    return store.updateRender(r.id, { posted: { ...r.posted, stats, postedAt: postedAt ?? r.posted.postedAt, fetchedAt: new Date().toISOString(), error: undefined } })!;
+  } catch (err) {
+    store.updateRender(r.id, { posted: { ...r.posted, fetchedAt: new Date().toISOString(), error: (err as Error).message.slice(0, 200) } });
+    throw err;
+  }
+}
+
+/** Posts whose stats are due a daily refresh (the first two weeks after posting, when views come in). */
+export function postsDueForStats(now = Date.now()): Render[] {
+  return store.renders().filter((r) => {
+    const p = r.posted;
+    if (!p?.url) return false;
+    const since = Date.parse(p.postedAt ?? p.addedAt);
+    const last = p.fetchedAt ? Date.parse(p.fetchedAt) : 0;
+    return now - since < 14 * 86400_000 && now - last > 20 * 3600_000;
+  });
 }
 
 /** Queue a failed or interrupted render again, with the same plan. */

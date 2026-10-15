@@ -9,6 +9,7 @@ import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
 import type { Clip, DailyMix, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
+import { planStory } from "./ai/story.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
 
 function applyHashtags(p: VideoPlan, scene: string | undefined) {
@@ -473,6 +474,16 @@ export function postsDueForStats(now = Date.now()): { render: Render; platform: 
       })
       .map((p) => ({ render, platform: p.platform })),
   );
+}
+
+/** A story video from the creator's storyline: matching clips stitched in order, text per beat. */
+export async function makeStoryVideo(storyline: string, targetSeconds = 20): Promise<Render> {
+  if (!config.claude.enabled) throw new Error("Story videos need the AI (ANTHROPIC_API_KEY).");
+  const text = storyline.trim();
+  if (text.length < 10) throw new Error("Write the storyline first: what happens, in order.");
+  const p = await planStory(text, targetSeconds);
+  const { fontId, textStyle, textSize } = store.settings();
+  return queueRender(p, { keepOriginalAudio: true, textStyle, textSize, fontId });
 }
 
 /** Queue a failed or interrupted render again, with the same plan. */

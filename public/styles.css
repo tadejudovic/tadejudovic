@@ -707,3 +707,6 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .perf-row { display: flex; gap: 8px; }
 .perf-input { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border: 1px solid #d4d4d8; border-radius: 10px; }
 .perf-platform { display: grid; gap: 6px; margin-bottom: 6px; }
+#story-form .wide { grid-column: 1 / -1; }
+#story-form textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid #d4d4d8; border-radius: 10px; resize: vertical; }
+#btn-story-empty { display: block; margin: 10px auto 0; }

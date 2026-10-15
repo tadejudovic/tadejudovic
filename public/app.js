@@ -624,7 +624,7 @@ function openDetails(r, muted = true) {
 }
 
 /** Everything about a video except the player: made from, text on video, caption, hashtags. */
-const KIND_LABEL = { fun: "Fun", tips: "Educational", inspire: "Inspirational" };
+const KIND_LABEL = { fun: "Fun", tips: "Educational", inspire: "Inspirational", story: "Story" };
 
 function detailsBody(r) {
   const plan = r.plan;
@@ -1042,6 +1042,25 @@ function closeSheet() {
 }
 $("#sheet").addEventListener("click", (e) => e.target.id === "sheet" && closeSheet());
 document.addEventListener("keydown", (e) => e.key === "Escape" && !$("#sheet").hidden && closeSheet());
+
+// ---- Story videos (storyline → matching clips stitched together) ---------------
+
+$("#story-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.currentTarget;
+  withBusy(f.querySelector("button[type=submit]"), "Finding the clips… (about a minute)", async () => {
+    await api("/api/story", { method: "POST", body: { storyline: f.storyline.value, seconds: Number(f.seconds.value) } });
+    await refreshRenders();
+    closeSubpages();
+    showTab("review");
+    banner("Making your story video. It shows up on Review in a minute or two.", "ok");
+  });
+});
+
+$("#btn-story-empty").addEventListener("click", () => {
+  showTab("settings");
+  openSubpage("sp-story");
+});
 
 // ---- Questions people ask (answered by educational videos) --------------------
 

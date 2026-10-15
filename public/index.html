@@ -86,6 +86,7 @@
         <p id="batch-empty-text">New videos are made every morning, or click “Make videos”.</p>
         <div id="ready-strip" class="ready-strip"></div>
         <button id="btn-batch-empty" class="btn primary" hidden>Make a video now</button>
+        <button id="btn-story-empty" class="link-btn" type="button">Or write a story and let Rollcut find the clips</button>
       </div>
     </section>
 
@@ -123,6 +124,7 @@
       <div class="group">
         <button class="srow" data-open="sp-scenes"><span class="row-title">Situations &amp; TikTok captions</span><span class="row-value" id="sum-scenes"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-examples"><span class="row-title">Videos that worked</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" data-open="sp-story"><span class="row-title">Story video</span><span class="row-value">from your words</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-faq"><span class="row-title">Questions people ask</span><span class="row-value" id="sum-faq"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-partners"><span class="row-title">Brand partners</span><span class="row-value" id="sum-partners"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       </div>
@@ -250,6 +252,21 @@
             <input name="scene" placeholder="Add a situation, e.g. baggage claim" maxlength="60" />
             <button class="btn" type="submit">Add</button>
           </form>
+        </div>
+      </div>
+
+      <div class="subpage" id="sp-story" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Story video</h2></header>
+        <div class="sp-body">
+        <p class="sp-intro">Write what happens, in order. Rollcut finds the clip that shows each moment, stitches them together with a line of text for each, and writes the description. It shows up on Review.</p>
+        <form id="story-form" class="grid-form">
+          <label class="wide">Storyline <textarea name="storyline" rows="7" maxlength="2000" placeholder="Lex's first day in Tokyo: we land exhausted after 14 hours → his first train ride, glued to the window → walking through Shibuya like he owns it → passed out at the hotel."></textarea></label>
+          <label>Length
+            <select name="seconds"><option value="15">15s</option><option value="20" selected>20s</option><option value="30">30s</option></select>
+          </label>
+          <div class="wide"><button class="btn primary" type="submit">Make story video</button></div>
+        </form>
+        <p class="hint">Works best with moments you've actually filmed. It looks through your 40 most recent clips (unused ones first). About $0.10 per story.</p>
         </div>
       </div>
 

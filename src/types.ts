@@ -166,7 +166,7 @@ export interface VideoPlan {
   collab?: { partnerId: string; name: string; handle?: string };
 }
 
-export type PostFormat = "fun" | "tips" | "inspire";
+export type PostFormat = "fun" | "tips" | "inspire" | "story";
 
 /** How many candidates of each kind of post a round makes (the creator keeps the best of each). */
 export interface DailyMix {

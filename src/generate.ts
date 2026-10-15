@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { config } from "./config.ts";
+import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
 import { directClip, planVideos, type DirectContext } from "./ai/director.ts";
@@ -83,19 +84,36 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
     if ((a === "other") !== (b === "other")) return a === "other" ? 1 : -1;
     return postedLately(a) - postedLately(b) || scenes.indexOf(a) - scenes.indexOf(b);
   });
-  const picked: Clip[] = [];
-  for (let round = 0; picked.length < count; round++) {
-    let added = false;
-    for (const scene of order) {
-      const c = groups.get(scene)![round];
-      if (c && picked.length < count) {
-        picked.push(c);
-        added = true;
+  // Similar shots: at most one take per moment in a round, and none from a moment used in the last
+  // few days. Within a situation the clips are ranked, so the strongest take of a moment is used.
+  const moment = momentsOf(store.clips());
+  const momentOf = (c: Clip) => moment.get(c.id) ?? c.id;
+  const pick = (spaced: boolean) => {
+    const blocked = spaced ? recentlyUsedMoments(moment) : new Set<string>();
+    const taken = new Set<string>();
+    const next = new Map(order.map((s) => [s, 0]));
+    const picked: Clip[] = [];
+    while (picked.length < count) {
+      let added = false;
+      for (const scene of order) {
+        if (picked.length >= count) break;
+        const list = groups.get(scene)!;
+        let i = next.get(scene)!;
+        while (i < list.length && (taken.has(momentOf(list[i])) || blocked.has(momentOf(list[i])))) i++;
+        next.set(scene, i + 1);
+        if (i < list.length) {
+          picked.push(list[i]);
+          taken.add(momentOf(list[i]));
+          added = true;
+        }
       }
+      if (!added) break;
     }
-    if (!added) break;
-  }
-  return picked;
+    return picked;
+  };
+  const picked = pick(true);
+  // Only if spacing leaves nothing at all: better a take of a recent moment than no video.
+  return picked.length ? picked : pick(false);
 }
 
 /**

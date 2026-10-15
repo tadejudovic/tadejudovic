@@ -84,13 +84,27 @@ export function markDuplicates(): number {
  * Check a shared album for items we haven't seen and import the videos.
  * Photos in the album are remembered and skipped.
  */
-export async function syncAlbum(id: string): Promise<{ newItems: number }> {
+/**
+ * The whole album's listing, kept for half an hour: big albums take many requests to list, and the
+ * importer checks back every few minutes while videos are waiting.
+ */
+const listings = new Map<string, { at: number; page: Awaited<ReturnType<typeof fetchAlbum>> }>();
+const LISTING_TTL_MS = 30 * 60_000;
+
+export async function syncAlbum(id: string, { reread = false } = {}): Promise<{ newItems: number }> {
   const album = store.album(id);
   if (!album) throw new Error("Unknown album");
   if (syncing.has(id)) return { newItems: 0 };
   syncing.add(id);
   try {
-    const page = await fetchAlbum(album.url);
+    const cached = listings.get(id);
+    const page: Awaited<ReturnType<typeof fetchAlbum>> =
+      !reread && cached && Date.now() - cached.at < LISTING_TTL_MS ? cached.page : await fetchAlbum(album.url, { allPages: true });
+    if (page !== cached?.page) {
+      listings.set(id, { at: Date.now(), page });
+      store.updateAlbum(id, { itemsSeen: page.items.length, listingComplete: page.listing?.complete ?? true, listingError: page.listing?.error });
+      if (page.listing?.error) console.warn(`[albums] ${album.title ?? id}: listed ${page.items.length} items, couldn't load more: ${page.listing.error}`);
+    }
     if (album.detectVersion !== DETECT_VERSION) {
       // Keep only items that were actually imported; everything skipped gets re-checked.
       // Also repairs albums where a video's clip was removed but the item stayed marked as handled.

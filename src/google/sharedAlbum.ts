@@ -25,6 +25,10 @@ export interface AlbumItem {
 export interface AlbumPage {
   title?: string;
   items: AlbumItem[];
+  /** Big albums only put their newest items on the page; this token asks Google for the next batch. */
+  nextToken?: string;
+  /** How listing the whole album went (big albums load in batches). */
+  listing?: { batches: number; complete: boolean; error?: string };
 }
 
 const UA =
@@ -124,7 +128,7 @@ async function resolveShareUrl(url: string): Promise<{ url: string; html?: strin
   return { url, trail };
 }
 
-export async function fetchAlbum(url: string): Promise<AlbumPage> {
+export async function fetchAlbum(url: string, { allPages = false } = {}): Promise<AlbumPage> {
   if (!isAlbumUrl(url)) throw new Error("That doesn't look like a Google Photos shared-album link.");
   const resolved = await resolveShareUrl(url);
   let html = resolved.html;
@@ -133,7 +137,7 @@ export async function fetchAlbum(url: string): Promise<AlbumPage> {
     const res = await fetch(resolved.url, { headers: HEADERS, redirect: "follow", signal: AbortSignal.timeout(PAGE_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`Couldn't open the album (HTTP ${res.status}). Is link sharing turned on?`);
     html = await res.text();
-    finalUrl = res.url;
+    finalUrl = res.url || resolved.url;
   }
   const page = parseAlbumHtml(html);
   if (!page.items.length) {
@@ -147,17 +151,117 @@ export async function fetchAlbum(url: string): Promise<AlbumPage> {
         : `Opened the album page but found no photos or videos in it (${blocks} data blocks). Check that link sharing is on.`,
     );
   }
+  if (allPages && page.nextToken) await loadMore(page, finalUrl);
+  else page.listing = { batches: 1, complete: !page.nextToken };
   return page;
 }
 
 export function parseAlbumHtml(html: string): AlbumPage {
   const title = html.match(/<meta property="og:title" content="([^"]*)"/)?.[1];
   const items = new Map<string, AlbumItem>();
-  for (const data of embeddedData(html)) collectItems(data, items);
+  let nextToken: string | undefined;
+  for (const data of embeddedData(html)) {
+    collectItems(data, items);
+    nextToken ??= findPageToken(data);
+  }
   if (!items.size && /accounts\.google\.com\/ServiceLogin/.test(html)) {
     throw new Error("Google asked for a sign-in, so this album isn't shared publicly.");
   }
-  return { title: title ? decodeEntities(title) : undefined, items: [...items.values()] };
+  return { title: title ? decodeEntities(title) : undefined, items: [...items.values()], nextToken };
+}
+
+const isItem = (x: unknown) =>
+  Array.isArray(x) && typeof x[0] === "string" && /^AF1Q/.test(x[0]) && Array.isArray(x[1]) && typeof x[1][0] === "string";
+
+/**
+ * The "load more" token: the string right after the list of items in Google's data
+ * ([…, [items], "token", …]). Absent when the whole album fits on the page.
+ */
+export function findPageToken(node: unknown): string | undefined {
+  if (!Array.isArray(node)) return undefined;
+  for (let i = 0; i < node.length - 1; i++) {
+    const list = node[i];
+    const next = node[i + 1];
+    if (Array.isArray(list) && list.length && list.every(isItem) && typeof next === "string" && next.length >= 8 && !/^(AF1Q|https?:)/.test(next)) {
+      return next;
+    }
+  }
+  for (const child of node) {
+    const t = findPageToken(child);
+    if (t) return t;
+  }
+  return undefined;
+}
+
+/** Pull Google's answers out of a batchexecute response ()]}' prefix, then JSON lines, maybe chunked). */
+export function parseBatchResponse(text: string, rpcId: string): unknown[] {
+  const out: unknown[] = [];
+  for (const line of text.replace(/^\)\]\}'/, "").split("\n")) {
+    const t = line.trim();
+    if (!t.startsWith("[")) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(t);
+    } catch {
+      continue;
+    }
+    for (const e of Array.isArray(parsed) ? parsed : []) {
+      if (Array.isArray(e) && e[0] === "wrb.fr" && e[1] === rpcId && typeof e[2] === "string") {
+        try {
+          out.push(JSON.parse(e[2]));
+        } catch {}
+      }
+    }
+  }
+  return out;
+}
+
+const MAX_BATCHES = 40;
+const LISTING_TIME_MS = 4 * 60_000;
+
+/**
+ * Load the rest of a big album, batch by batch, the way the album page does when you scroll
+ * (Google's own "snAcKc" request with the page token). Best effort: if Google says no, the
+ * first batch is still used.
+ */
+async function loadMore(page: AlbumPage, shareUrl: string): Promise<void> {
+  const items = new Map(page.items.map((it) => [it.id, it]));
+  let token = page.nextToken;
+  let batches = 1;
+  const until = Date.now() + LISTING_TIME_MS;
+  try {
+    const u = new URL(shareUrl);
+    const albumId = u.pathname.match(/\/share\/([^/?]+)/)?.[1];
+    const key = u.searchParams.get("key");
+    if (!albumId) throw new Error("couldn't read the album id from its address");
+    while (token && batches < MAX_BATCHES && Date.now() < until) {
+      const fReq = JSON.stringify([[["snAcKc", JSON.stringify([albumId, token, null, key]), null, "generic"]]]);
+      const res = await fetch(
+        `https://photos.google.com/_/PhotosUi/data/batchexecute?rpcids=snAcKc&source-path=${encodeURIComponent(`/share/${albumId}`)}&rt=c`,
+        {
+          method: "POST",
+          headers: { ...HEADERS, "content-type": "application/x-www-form-urlencoded;charset=UTF-8", origin: "https://photos.google.com", referer: shareUrl },
+          body: `f.req=${encodeURIComponent(fReq)}`,
+          signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
+        },
+      );
+      if (!res.ok) throw new Error(`Google answered ${res.status} when asked for more of the album`);
+      const payloads = parseBatchResponse(await res.text(), "snAcKc");
+      const before = items.size;
+      let next: string | undefined;
+      for (const p of payloads) {
+        collectItems(p, items);
+        next ??= findPageToken(p);
+      }
+      batches++;
+      if (items.size === before) break; // nothing new: stop rather than loop
+      token = next;
+    }
+    page.listing = { batches, complete: !token };
+  } catch (err) {
+    page.listing = { batches, complete: false, error: (err as Error).message.slice(0, 160) };
+  }
+  page.items = [...items.values()];
 }
 
 /** Pull the JSON `data:` payloads out of every AF_initDataCallback(...) block. */

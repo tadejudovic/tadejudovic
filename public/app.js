@@ -1193,6 +1193,10 @@ async function refreshAlbums() {
             }, ...[[30, "videos from the last 30 days"], [60, "videos from the last 60 days"], [90, "videos from the last 90 days"], [120, "videos from the last 120 days"], [180, "videos from the last 180 days"], [0, "all videos"]].map(([v, t]) =>
               h("option", { value: v, selected: (a.recentDays ?? 0) === v }, t))),
           ),
+          a.itemsSeen ? h("div", { class: "muted" },
+            a.listingComplete === false
+              ? `Sees the newest ${a.itemsSeen} items only: Google wouldn't load the rest of this big album${a.listingError ? ` (${a.listingError})` : ""}.`
+              : `${a.itemsSeen} items in the album.`) : null,
           a.tooOld || a.waiting ? h("div", { class: "muted" },
             [a.tooOld ? `${a.tooOld} older item(s) left out` : "", a.waiting ? `${a.waiting} more waiting; imported as new rounds need them` : ""].filter(Boolean).join(" · ")) : null,
           a.lastError ? h("div", { class: "err" }, a.lastError) : null,

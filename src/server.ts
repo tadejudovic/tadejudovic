@@ -307,7 +307,8 @@ app.post(
 app.post(
   "/api/albums/:id/sync",
   h(async (req, res) => {
-    res.json(await syncAlbum(String(req.params.id)));
+    // Asked for by the creator (Check now, a new date range): read the album afresh.
+    res.json(await syncAlbum(String(req.params.id), { reread: true }));
   }),
 );
 

@@ -278,6 +278,11 @@ export interface AlbumSource {
   tooOld?: number;
   /** Videos waiting for a later check (each check imports a limited number). */
   waiting?: number;
+  /** Items Rollcut can see in the album (big albums load in batches). */
+  itemsSeen?: number;
+  /** Whether the whole album could be listed, and why not if it couldn't. */
+  listingComplete?: boolean;
+  listingError?: string;
 }
 
 /** A text-overlay format that is currently performing on TikTok. */

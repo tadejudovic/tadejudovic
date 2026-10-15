@@ -262,7 +262,9 @@ const DIRECT_SCHEMA = {
   properties: {
     basedOn: {
       type: "integer",
-      description: "Number of the proven caption the overlay is adapted from, or -1 if it is original",
+      description:
+        "Number of the proven caption the hook is built on: its wording, or its hook pattern/structure. -1 only if " +
+        "there were no proven captions or truly none of them shaped the hook.",
     },
     concept: { type: "string", description: "One sentence: what the joke/feeling is and why it works for this footage" },
     title: { type: "string" },
@@ -370,7 +372,8 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `The video must be long enough to read everything: at least 12s.` +
     `\n\nPost description: expand the lesson in a few sentences, connect it to ${petName}'s journey, and end with ` +
     `a question that invites people to share their own experience. Ignore the one-line overlay limit above; the ` +
-    `proven captions are only inspiration for the hook's tone.`
+    `proven captions are where the HOOK comes from: build the hook on the pattern or wording of one of them (adapted ` +
+    `to this lesson) and set basedOn to it.`
   );
 }
 
@@ -383,6 +386,8 @@ function inspireText(petName: string): string {
     `\n- The hook still has to stop the scroll: personal, specific and a little emotional, e.g. "Six countries ` +
     `later, he still sleeps on my feet", "Everyone said we couldn't bring him", "If you're scared to fly with your ` +
     `dog, this is for you", "The moment I knew we'd made the right choice". No clichés like "living our best life".` +
+    `\n- Build the hook on the pattern or wording of one of the proven captions (made personal and ` +
+    `emotional) and set basedOn to it.` +
     `\n- One overlay, or a setup and a payoff line that appears a few seconds later. Calm pacing: let the moment ` +
     `breathe (at least 8s).` +
     `\n- Post description: the most story-driven of all: where we are in ${petName}'s journey, what it means to ` +
@@ -402,7 +407,8 @@ function collabText(c: NonNullable<DirectContext["collab"]>, petName: string): s
     `\n- Post description: weave ${c.name} into the story, mention ${c.handle || c.name}` +
     (c.mustInclude ? `, and include exactly: ${c.mustInclude}` : "") +
     `, and end with the disclosure "#ad".` +
-    `\n- Ignore the proven-caption instruction to adapt one as is: use them only for tone and structure.`
+    `\n- Don't paste a proven caption as is here: build the hook on the pattern of one of them, made about ` +
+    `${c.name}'s moment, and set basedOn to it.`
   );
 }
 

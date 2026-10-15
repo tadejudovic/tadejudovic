@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { store } from "../store.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { structured } from "./director.ts";
+import { provenCaptions } from "./research.ts";
 import type { Clip, Overlay, Segment, VideoPlan } from "../types.ts";
 
 /**
@@ -47,9 +48,17 @@ export async function planStory(storyline: string, targetSeconds: number): Promi
   }
   if (shown.length < 2) throw new Error("Couldn't read enough clips to build a story.");
 
+  // Proven hooks from TikTok research (a few per situation), so the story's hook stands on one too.
+  const proven = scenes.flatMap((sc) => provenCaptions(sc).slice(0, 3));
   content.push({
     type: "text",
     text:
+      (proven.length
+        ? `PROVEN HOOKS from the most-viewed TikToks in this creator's situations:\n` +
+          proven.map((c, i) => `${i + 1}. "${c.text}"${c.views ? ` (${c.views.toLocaleString("en")} views)` : ""}`).join("\n") +
+          `\nBuild the first beat's text (the hook) on the pattern or wording of one of these, made about this story, ` +
+          `and set basedOn to its number (-1 if none fits).\n\n`
+        : "") +
       `The creator's storyline for a vertical video of ${petName}${handle ? ` (${handle})` : ""}:\n"""${storyline}"""\n\n` +
       `Turn it into beats (3–7, in the storyline's order) and pick for each beat the clip above that shows it best, ` +
       `and the part of that clip to use (start/end seconds inside the clip, 1.5–5s each; prefer the best moments). ` +
@@ -65,6 +74,7 @@ export async function planStory(storyline: string, targetSeconds: number): Promi
 
   const out = await structured<{
     title: string;
+    basedOn: number;
     beats: { clip: number; start: number; end: number; text: string }[];
     postCaption: string;
     hashtags: string[];
@@ -76,9 +86,10 @@ export async function planStory(storyline: string, targetSeconds: number): Promi
     schema: {
       type: "object",
       additionalProperties: false,
-      required: ["title", "beats", "postCaption", "hashtags"],
+      required: ["title", "basedOn", "beats", "postCaption", "hashtags"],
       properties: {
         title: { type: "string" },
+        basedOn: { type: "integer", description: "Number of the proven hook the first beat's text is built on, or -1" },
         beats: {
           type: "array",
           items: {
@@ -133,6 +144,10 @@ export async function planStory(storyline: string, targetSeconds: number): Promi
     postCaption: out.postCaption,
     hashtags: out.hashtags.map((h) => h.replace(/^#/, "")).slice(0, 3),
     format: "story",
+    basedOn: (() => {
+      const c = proven[out.basedOn - 1];
+      return c ? { text: c.text, views: c.views, url: c.url } : undefined;
+    })(),
     plannedBy: "claude",
     concept: storyline.slice(0, 300),
     scene: scene && scenes.includes(scene) ? scene : undefined,

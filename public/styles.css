@@ -676,3 +676,9 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .d-style .d-label { font-size: 12px; font-weight: 600; color: var(--muted); }
 .d-style select { font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px solid #d4d4d8; background: #fff; }
 .d-style .seg label { white-space: nowrap; }
+.collab-badge { display: inline-block; justify-self: start; margin: 6px 0 2px; padding: 3px 10px; border-radius: 999px; background: #1f1f23; color: #fff; font-size: 12px; font-weight: 600; }
+.collab-badge.on-video { position: absolute; left: 12px; top: 12px; z-index: 3; margin: 0; background: rgba(0,0,0,.6); }
+.d-style input { font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px solid #d4d4d8; background: #fff; }
+.partner-form .wide, .partner-actions { grid-column: 1 / -1; }
+.partner-form textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid #d4d4d8; border-radius: 10px; resize: vertical; }
+.partner-actions { display: flex; gap: 8px; }

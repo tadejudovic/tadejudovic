@@ -325,6 +325,24 @@ export interface DirectContext {
   audience?: "pets" | "everyone";
   /** The account's story, woven into the post description. */
   story?: string;
+  /** Make this a collab version for a brand partner. */
+  collab?: { name: string; handle?: string; about: string; mustInclude?: string; note?: string };
+}
+
+/** A paid collaboration: the brand becomes part of the moment, not an ad read. */
+function collabText(c: NonNullable<DirectContext["collab"]>, petName: string): string {
+  return (
+    `\n\nTHIS IS A BRAND COLLABORATION with ${c.name}${c.handle ? ` (${c.handle})` : ""}. About the brand, in the ` +
+    `creator's words: ${c.about}` +
+    (c.note ? `\nThe creator's note for this video: ${c.note}` : "") +
+    `\n- Pick the part of the clip where ${c.name}'s product or place is visible or most relevant.` +
+    `\n- On-screen text: about the moment, with ${c.name} naturally part of it (what it makes possible for ` +
+    `${petName} and us). It must still feel like a creator's post, never an ad read or a slogan.` +
+    `\n- Post description: weave ${c.name} into the story, mention ${c.handle || c.name}` +
+    (c.mustInclude ? `, and include exactly: ${c.mustInclude}` : "") +
+    `, and end with the disclosure "#ad".` +
+    `\n- Ignore the proven-caption instruction to adapt one as is: use them only for tone and structure.`
+  );
 }
 
 const REASON_TEXT: Record<string, string> = {
@@ -434,7 +452,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
         ? `\n\nText formats currently working for pet accounts (optional inspiration):\n` +
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
-      audienceText(ctx.audience, ctx.petName) +
+      (ctx.collab ? collabText(ctx.collab, ctx.petName) : audienceText(ctx.audience, ctx.petName)) +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`

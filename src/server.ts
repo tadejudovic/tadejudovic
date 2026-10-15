@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion } from "./generate.ts";
 import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
@@ -592,6 +592,44 @@ app.post("/api/renders/:id/retry", (req, res) => {
   if (!r) return res.sendStatus(404);
   res.json(r);
 });
+
+// ---- Brand partners & collab versions ----------------------------------------
+
+const handleOf = (v: unknown) => {
+  const t = String(v ?? "").trim().replace(/\s+/g, "");
+  return t ? (t.startsWith("@") ? t : `@${t}`).slice(0, 60) : undefined;
+};
+
+app.get("/api/partners", (_req, res) => res.json(store.partners()));
+
+app.post("/api/partners", (req, res) => {
+  const b = req.body ?? {};
+  const name = String(b.name ?? "").trim().slice(0, 80);
+  if (!name) return res.status(400).json({ error: "Give the brand a name." });
+  const existing = b.id ? store.partner(String(b.id)) : undefined;
+  res.json(
+    store.savePartner({
+      id: existing?.id ?? newId(),
+      name,
+      handle: handleOf(b.handle),
+      about: String(b.about ?? "").trim().slice(0, 1500),
+      mustInclude: String(b.mustInclude ?? "").trim().slice(0, 500) || undefined,
+    }),
+  );
+});
+
+app.delete("/api/partners/:id", (req, res) => {
+  store.removePartner(String(req.params.id));
+  res.json({ ok: true });
+});
+
+app.post(
+  "/api/renders/:id/collab",
+  h(async (req, res) => {
+    const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) || undefined : undefined;
+    res.json(await makeCollabVersion(String(req.params.id), String(req.body?.partnerId ?? ""), note));
+  }),
+);
 
 /** Change the on-screen text and render again; replaces the old version. */
 app.post("/api/renders/:id/rerender", (req, res) => {

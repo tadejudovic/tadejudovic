@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -14,6 +14,7 @@ interface DB {
   settings: Settings;
   albums: AlbumSource[];
   examples: Example[];
+  partners: Partner[];
   trends?: Trends;
   auto: AutoSettings;
   research: Record<string, SceneResearch>;
@@ -99,6 +100,7 @@ function load(): DB {
       db.settings.lookV2 = true;
     }
     db.albums ??= [];
+    db.partners ??= [];
     for (const a of db.albums) a.kind ??= "google_photos_album";
     db.examples ??= [];
     db.research ??= {};
@@ -107,7 +109,7 @@ function load(): DB {
     for (const r of db.renders) r.review ??= "pending";
     return db;
   } catch {
-    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], auto: { ...DEFAULT_AUTO }, research: {}, spend: { month: "", usd: 0, calls: 0 } };
+    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], partners: [], auto: { ...DEFAULT_AUTO }, research: {}, spend: { month: "", usd: 0, calls: 0 } };
   }
 }
 
@@ -199,6 +201,20 @@ export const store = {
   },
   removeAlbum(id: string) {
     db.albums = db.albums.filter((a) => a.id !== id);
+    save();
+  },
+
+  partners: () => db.partners,
+  partner: (id: string) => db.partners.find((p) => p.id === id),
+  savePartner(p: Partner) {
+    const i = db.partners.findIndex((x) => x.id === p.id);
+    if (i >= 0) db.partners[i] = p;
+    else db.partners.push(p);
+    save();
+    return p;
+  },
+  removePartner(id: string) {
+    db.partners = db.partners.filter((p) => p.id !== id);
     save();
   },
 

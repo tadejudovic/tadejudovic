@@ -292,6 +292,42 @@ export function syncClipUses(id: string) {
   store.updateRender(id, { usesReturned: giveBack });
 }
 
+/**
+ * A brand version of a video: same clip, new text, cut and description built around the partner.
+ * The original stays; the new one goes to Review.
+ */
+export async function makeCollabVersion(renderId: string, partnerId: string, note?: string): Promise<Render> {
+  const r = store.render(renderId);
+  if (!r) throw new Error("Unknown video.");
+  const partner = store.partner(partnerId);
+  if (!partner) throw new Error("Unknown partner.");
+  if (!config.claude.enabled) throw new Error("Collab versions need the AI (ANTHROPIC_API_KEY).");
+  const clip = store.clip(r.plan.segments[0]?.clipId ?? "");
+  if (!clip || clip.status !== "ready") throw new Error("The clip this video was made from is no longer in the library.");
+  const { petName, handle, story } = store.settings();
+  const target = store.auto().targetSeconds;
+  const p = await directClip(clip, {
+    petName,
+    handle,
+    minSeconds: Math.max(6, target - 3),
+    maxSeconds: target + 5,
+    examples: store.examples().filter((e) => e.status === "ready"),
+    trends: [],
+    recentOverlays: store.renders().slice(0, 30).map((x) => x.plan.hook).filter(Boolean),
+    proven: provenCaptions(clip.scene),
+    feedback: reviewFeedback(),
+    story,
+    collab: { name: partner.name, handle: partner.handle, about: partner.about, mustInclude: partner.mustInclude, note },
+  });
+  applyHashtags(p, clip.scene);
+  p.collab = { partnerId: partner.id, name: partner.name, handle: partner.handle };
+  // The mention, required details and disclosure go in whatever the AI wrote.
+  if (partner.handle && !p.postCaption.includes(partner.handle)) p.postCaption += ` ${partner.handle}`;
+  if (partner.mustInclude && !p.postCaption.includes(partner.mustInclude)) p.postCaption += `\n\n${partner.mustInclude}`;
+  if (!/#ad\b|#sponsored|paid partnership/i.test(p.postCaption)) p.postCaption += "\n\n#ad";
+  return queueRender(p, r.options, r.batch, { countUse: false });
+}
+
 /** Queue a failed or interrupted render again, with the same plan. */
 export function retryRender(id: string, { urgent = true } = {}): Render | undefined {
   const r = store.render(id);

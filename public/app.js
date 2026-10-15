@@ -534,6 +534,7 @@ function stackCard(r) {
       h("span", { class: "stamp keep" }, "POST"),
       h("span", { class: "stamp nope" }, "NOPE"),
       h("span", { class: "stack-tap" }, "Tap for details"),
+      r.plan.collab ? h("span", { class: "collab-badge on-video" }, `Collab · ${r.plan.collab.name}`) : null,
     ),
   );
   // Tap opens the details full screen (like a Tinder profile); swiping still decides.
@@ -628,6 +629,24 @@ function detailsBody(r) {
     applyLook,
   );
 
+  // Collab version: a variation of this video built around a brand partner.
+  const partnerSelect = h("select", {}, ...(state.partners ?? []).map((p) => h("option", { value: p.id }, p.name)));
+  const collabNote = h("input", { placeholder: "Anything to focus on? (optional)", maxlength: 500 });
+  const collabEdit = h("div", { class: "d-style", hidden: true },
+    ...((state.partners ?? []).length
+      ? [
+          h("span", { class: "d-label" }, "Brand"), partnerSelect,
+          h("span", { class: "d-label" }, "Note"), collabNote,
+          h("button", { class: "btn small primary", onclick: (e) => withBusy(e.currentTarget, "Writing… (about a minute)", async () => {
+            await api(`/api/renders/${r.id}/collab`, { method: "POST", body: { partnerId: partnerSelect.value, note: collabNote.value } });
+            closeSheet();
+            await refreshRenders();
+            banner(`Making the ${partnerSelect.selectedOptions[0]?.textContent} version. It shows up on Review, and this one stays as it is.`, "ok");
+          }) }, "Make collab version"),
+        ]
+      : [h("p", { class: "muted" }, "Add your brand partners first: Settings → Brand partners.")]),
+  );
+
   // Caption: readable text first; edit only when needed.
   const captionText = h("p", { class: "d-caption" }, caption || "No caption");
   const captionEdit = h("textarea", { class: "d-caption-edit", rows: 4, hidden: true }, caption);
@@ -660,9 +679,12 @@ function detailsBody(r) {
       h("span", { class: "d-actions" },
         h("button", { class: "d-link", onclick: () => { editText.hidden = !editText.hidden; if (!editText.hidden) textInput.focus(); } }, "Edit text"),
         h("button", { class: "d-link", onclick: () => (styleEdit.hidden = !styleEdit.hidden) }, "Text style"),
+        h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version"),
       ),
+      plan.collab ? h("span", { class: "collab-badge" }, `Collab · ${plan.collab.name}`) : null,
       editText,
       styleEdit,
+      collabEdit,
     ),
     h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, editCaptionBtn, copyBtn)),
@@ -852,7 +874,7 @@ function tile(r) {
     : r.status !== "done" ? h("span", { class: "badge" }, r.status === "queued" ? "Waiting…" : `Making… ${Math.round(r.progress * 100)}%`)
     : r.review === "rejected" ? h("span", { class: "badge no" }, `Rejected${r.rejectReason && r.rejectReason !== "other" ? ` · ${REASON_LABEL[r.rejectReason]}` : ""}`)
     : r.downloaded ? h("span", { class: "badge yes" }, "Saved ✓")
-    : r.review === "approved" ? h("span", { class: "badge yes" }, "To post")
+    : r.review === "approved" ? h("span", { class: "badge yes" }, r.plan.collab ? `To post · ${r.plan.collab.name}` : "To post")
     : null;
   return h("div", { class: `tile ${r.status === "done" ? "openable" : ""}`, onclick: () => r.status === "done" && openSheet(r) },
     h("div", { class: "tile-media" },
@@ -917,6 +939,48 @@ function closeSheet() {
 }
 $("#sheet").addEventListener("click", (e) => e.target.id === "sheet" && closeSheet());
 document.addEventListener("keydown", (e) => e.key === "Escape" && !$("#sheet").hidden && closeSheet());
+
+// ---- Brand partners -----------------------------------------------------------
+
+async function refreshPartners() {
+  state.partners = await api("/api/partners");
+  const n = state.partners.length;
+  $("#sum-partners").textContent = n ? `${n}` : "";
+  const form = $("#partner-form");
+  $("#partners").replaceChildren(
+    ...state.partners.map((p) =>
+      h("li", {},
+        h("div", { class: "grow" },
+          h("b", {}, p.name), p.handle ? h("span", { class: "muted" }, ` ${p.handle}`) : null,
+          p.about ? h("div", { class: "muted" }, p.about) : null,
+          p.mustInclude ? h("div", { class: "muted" }, `Always: ${p.mustInclude}`) : null,
+        ),
+        h("button", { class: "btn small", onclick: () => {
+          form.partnerId.value = p.id;
+          for (const k of ["name", "handle", "about", "mustInclude"]) form[k].value = p[k] ?? "";
+          form.name.focus();
+        } }, "Edit"),
+        h("button", { class: "btn small", onclick: async () => {
+          if (!confirm(`Remove ${p.name}? Videos already made stay.`)) return;
+          await api(`/api/partners/${p.id}`, { method: "DELETE" });
+          refreshPartners();
+        } }, "Remove"),
+      ),
+    ),
+  );
+}
+
+$("#partner-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.currentTarget;
+  withBusy(f.querySelector("button[type=submit]"), "Saving…", async () => {
+    await api("/api/partners", { method: "POST", body: { id: f.partnerId.value || undefined, ...Object.fromEntries(["name", "handle", "about", "mustInclude"].map((k) => [k, f[k].value])) } });
+    f.reset();
+    f.partnerId.value = "";
+    await refreshPartners();
+    banner("Partner saved. Open any video and tap Collab version.", "ok");
+  });
+});
 
 // ---- Shared albums ----------------------------------------------------------
 
@@ -1652,7 +1716,7 @@ if (params.get("google_error")) banner(`Google sign-in failed: ${params.get("goo
 if (params.size) history.replaceState(null, "", `/${location.hash}`);
 
 await loadStatus();
-await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadFonts(), refreshExamples(), refreshScenes()]);
+await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadFonts(), refreshExamples(), refreshScenes(), refreshPartners()]);
 await refreshSuggestions();
 renderHomeState();
 

@@ -156,6 +156,20 @@ export interface VideoPlan {
   scene?: string;
   /** Post counts of the researched hashtags this video uses. */
   hashtagInfo?: PickedHashtag[];
+  /** A brand collaboration version of a video. */
+  collab?: { partnerId: string; name: string; handle?: string };
+}
+
+/** A brand the creator works with. */
+export interface Partner {
+  id: string;
+  name: string;
+  /** @handle on TikTok/Instagram. */
+  handle?: string;
+  /** What the product/place is and what to highlight, in the creator's words. */
+  about: string;
+  /** Anything every collab post must include: a code, link, wording. */
+  mustInclude?: string;
 }
 
 export type RenderStatus = "queued" | "rendering" | "done" | "error";

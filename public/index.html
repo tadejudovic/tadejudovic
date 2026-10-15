@@ -42,6 +42,7 @@
 
       <!-- Swipe review, dating-app style: right = keep, left = reject. Tap the video for details. -->
       <div id="stack" class="stack" hidden>
+        <div id="today-bar" class="today-bar" hidden></div>
         <div class="stack-top">
           <button id="stack-undo" class="btn small" hidden><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg> Undo</button>
         </div>
@@ -174,7 +175,7 @@
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Schedule &amp; limits</h2></header>
         <div class="sp-body">
                 <form id="auto" class="grid-form spaced">
-          <label>Videos per round <input type="number" name="dailyCount" min="1" max="10" /></label>
+          <input type="hidden" name="dailyCount" />
           <label>Ready by <input type="time" name="dailyTime" /></label>
           <label>Length
             <select name="targetSeconds"><option value="10">10s</option><option value="12">12s</option><option value="15">15s</option><option value="20">20s</option></select>
@@ -183,6 +184,15 @@
           <select name="template" id="auto-template" hidden></select>
           <select name="syncEveryHours" hidden><option value="1">1h</option><option value="3">3h</option><option value="6">6h</option><option value="12">12h</option><option value="24">24h</option></select>
         </form>
+        <div class="mix">
+          <p class="field">Each morning's round</p>
+          <p class="hint">Candidates of each kind; keep the best one of each for today's posts.</p>
+          <div id="daily-mix" class="mix-grid">
+            <label>Fun <input type="number" name="fun" min="0" max="4" /></label>
+            <label>Educational <input type="number" name="educational" min="0" max="4" /></label>
+            <label>Inspirational <input type="number" name="inspirational" min="0" max="4" /></label>
+          </div>
+        </div>
         <form id="limits" class="grid-form">
           <label>Daily limit <input type="number" name="maxVideosPerDay" min="1" max="30" /></label>
           <label class="check"><input type="checkbox" name="onlySituations" /> Only use clips from my situations</label>
@@ -218,13 +228,7 @@
               <label><input type="radio" name="captionAudience" value="everyone" />Everyone</label>
             </div>
             <p class="hint" id="audience-hint"></p>
-            <label class="field">Educational videos per round</label>
-            <div class="seg" id="tips-per-round">
-              <label><input type="radio" name="tipsPerRound" value="0" />Off</label>
-              <label><input type="radio" name="tipsPerRound" value="1" />1</label>
-              <label><input type="radio" name="tipsPerRound" value="2" />2</label>
-            </div>
-            <p class="hint">Teaching something about flying with a pet: a list that builds up, the mistake we made, myth vs. reality, do / don't… always behind a hook that stops the scroll.</p>
+
             <label class="link">Upload your own font<input id="font-input" type="file" accept=".ttf,.otf" hidden /></label>
           </div>
         </div>

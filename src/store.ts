@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem, DailyMix } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -46,13 +46,20 @@ export interface Settings {
    * these; the answers are the only source for specifics (brands, airlines, places, rules).
    */
   faq: FaqItem[];
-  /** How many videos per round are educational tips videos (hook + 3 tips about flying with a pet). */
-  tipsPerRound: number;
+  /** Superseded by dailyMix. */
+  tipsPerRound?: number;
+  /** Candidates per kind of post in each round: one fun, one educational and one inspirational post a day, picked from these. */
+  dailyMix: DailyMix;
+  /** Set once rounds switched to the daily mix (round size and daily limit raised to fit it). */
+  mixV1?: boolean;
   /** The account's story, woven into every post description (who Lex is, the trip, where we are). */
   story: string;
   /** Set once the yellow CapCut look became the default (keeps later manual choices). */
   lookV2?: boolean;
 }
+
+/** Videos in a round made from the daily mix. */
+export const mixSize = (m: DailyMix) => Math.max(1, (m.fun ?? 0) + (m.educational ?? 0) + (m.inspirational ?? 0));
 
 export const DEFAULT_SCENES = [
   "check-in desk",
@@ -70,7 +77,7 @@ const DEFAULT_SETTINGS: Settings = {
   textStyle: "yellow",
   textSize: "medium",
   captionAudience: "mix",
-  tipsPerRound: 1,
+  dailyMix: { fun: 2, educational: 2, inspirational: 2 },
   faq: [
     { q: "What bag / carrier do you fly with?", a: "" },
     { q: "Which airline do you fly with?", a: "" },
@@ -117,6 +124,13 @@ function load(): DB {
     }
     db.albums ??= [];
     db.partners ??= [];
+    // One-time switch to the daily mix: a round holds the mix's candidates, and the daily limit fits a round.
+    if (!db.settings.mixV1) {
+      const size = mixSize(db.settings.dailyMix);
+      if (db.auto) db.auto.dailyCount = size;
+      db.settings.maxVideosPerDay = Math.max(db.settings.maxVideosPerDay ?? 0, size);
+      db.settings.mixV1 = true;
+    }
     for (const a of db.albums) a.kind ??= "google_photos_album";
     db.examples ??= [];
     db.research ??= {};

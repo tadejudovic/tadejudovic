@@ -3,7 +3,7 @@ import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { TEMPLATES } from "../templates.ts";
-import type { Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
+import type { PostFormat, Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
 
 /**
  * The "AI director": Claude watches sampled frames of each clip once (cached on
@@ -325,8 +325,8 @@ export interface DirectContext {
   audience?: "pets" | "everyone";
   /** The account's story, woven into the post description. */
   story?: string;
-  /** "tips": an educational video about flying/traveling with a pet (hook + a short teaching beat). */
-  format?: "tips";
+  /** The kind of post: "fun" (entertainment), "tips" (educational) or "inspire" (inspirational). */
+  format?: PostFormat;
   /** For an educational video: the follower question it answers, with the creator's answer. */
   faq?: { q: string; a?: string };
   /** Make this a collab version for a brand partner. */
@@ -371,6 +371,22 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `\n\nPost description: expand the lesson in a few sentences, connect it to ${petName}'s journey, and end with ` +
     `a question that invites people to share their own experience. Ignore the one-line overlay limit above; the ` +
     `proven captions are only inspiration for the hook's tone.`
+  );
+}
+
+/** An inspirational post: the bigger journey, the feeling of traveling the world together. */
+function inspireText(petName: string): string {
+  return (
+    `\n\nFORMAT FOR THIS VIDEO: INSPIRATIONAL. Not a joke and not a lesson: make people feel something about ` +
+    `traveling the world with a dog, and make them want to do it too. Use the footage as a quiet, beautiful or ` +
+    `meaningful moment of the journey.` +
+    `\n- The hook still has to stop the scroll: personal, specific and a little emotional, e.g. "Six countries ` +
+    `later, he still sleeps on my feet", "Everyone said we couldn't bring him", "If you're scared to fly with your ` +
+    `dog, this is for you", "The moment I knew we'd made the right choice". No clichés like "living our best life".` +
+    `\n- One overlay, or a setup and a payoff line that appears a few seconds later. Calm pacing: let the moment ` +
+    `breathe (at least 8s).` +
+    `\n- Post description: the most story-driven of all: where we are in ${petName}'s journey, what it means to ` +
+    `us, and an invitation (where would you take your dog?).`
   );
 }
 
@@ -498,7 +514,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : audienceText(ctx.audience, ctx.petName)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) : "") +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) : ctx.format === "inspire" ? inspireText(ctx.petName) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`

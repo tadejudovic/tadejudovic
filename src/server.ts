@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { config, memoryMb } from "./config.ts";
-import { store, newId } from "./store.ts";
+import { store, newId, mixSize } from "./store.ts";
 import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
@@ -125,10 +125,9 @@ app.get("/api/status", (req, res) => {
 });
 
 app.put("/api/settings", (req, res) => {
-  const { petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay, onlySituations, captionAudience, story, tipsPerRound, faq } = req.body ?? {};
+  const { petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay, onlySituations, captionAudience, story, dailyMix, faq } = req.body ?? {};
   const fontOk = typeof fontId === "string" && listFonts().some((f) => f.id === fontId);
-  res.json(
-    store.updateSettings({
+  const saved = store.updateSettings({
       ...(typeof petName === "string" && petName.trim() ? { petName: petName.trim().slice(0, 40) } : {}),
       ...(typeof handle === "string" ? { handle: handle.trim().slice(0, 40) } : {}),
       ...(fontOk ? { fontId } : {}),
@@ -144,14 +143,28 @@ app.put("/api/settings", (req, res) => {
               .slice(0, 20),
           }
         : {}),
-      ...([0, 1, 2].includes(Number(tipsPerRound)) && tipsPerRound !== undefined && tipsPerRound !== "" ? { tipsPerRound: Number(tipsPerRound) } : {}),
+      ...(dailyMix && typeof dailyMix === "object"
+        ? {
+            dailyMix: {
+              fun: clamp(Math.round(Number(dailyMix.fun) || 0), 0, 4),
+              educational: clamp(Math.round(Number(dailyMix.educational) || 0), 0, 4),
+              inspirational: clamp(Math.round(Number(dailyMix.inspirational) || 0), 0, 4),
+            },
+          }
+        : {}),
       ...(Number.isFinite(Number(aiMonthlyBudget)) && aiMonthlyBudget !== "" && aiMonthlyBudget !== undefined
         ? { aiMonthlyBudget: clamp(Number(aiMonthlyBudget), 0, 1000) }
         : {}),
       ...(typeof onlySituations === "boolean" ? { onlySituations } : {}),
       ...(Number(maxVideosPerDay) >= 1 ? { maxVideosPerDay: clamp(Math.round(Number(maxVideosPerDay)), 1, 30) } : {}),
-    }),
-  );
+  });
+  // A round is the daily mix's candidates; the daily limit has to fit at least one round.
+  if (dailyMix) {
+    const size = mixSize(saved.dailyMix);
+    store.updateAuto({ dailyCount: size });
+    if (saved.maxVideosPerDay < size) store.updateSettings({ maxVideosPerDay: size });
+  }
+  res.json(store.settings());
 });
 
 // ---- Fonts ----------------------------------------------------------------

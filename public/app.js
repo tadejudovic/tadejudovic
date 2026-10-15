@@ -55,6 +55,8 @@ const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)
 async function loadStatus() {
   const s = (state.status = await api("/api/status"));
   $("#app-version").textContent = `Version ${s.version}`;
+  const mix = s.settings.dailyMix;
+  if (mix && !$("#daily-mix").contains(document.activeElement)) for (const k of ["fun", "educational", "inspirational"]) $("#daily-mix").querySelector(`[name=${k}]`).value = mix[k] ?? 0;
   renderFaq();
   $("#chip-google").classList.toggle("on", s.google.connected);
   $("#paused").hidden = !s.paused;
@@ -499,7 +501,23 @@ function toReview() {
   return state.renders.filter((r) => r.status === "done" && r.review === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/** "Today: ✓ Fun · Educational · Inspirational": which kinds of post were picked today. */
+function renderTodayBar() {
+  const mix = state.status?.settings?.dailyMix;
+  const kinds = mix ? [["fun", mix.fun], ["tips", mix.educational], ["inspire", mix.inspirational]].filter(([, n]) => n > 0).map(([k]) => k) : [];
+  const today = new Date().toDateString();
+  const picked = new Set(
+    state.renders.filter((r) => r.review === "approved" && r.reviewedAt && new Date(r.reviewedAt).toDateString() === today).map((r) => r.plan.format),
+  );
+  $("#today-bar").hidden = !kinds.length;
+  $("#today-bar").replaceChildren(
+    h("span", { class: "muted" }, "Today"),
+    ...kinds.map((k) => h("span", { class: `slot ${picked.has(k) ? "done" : ""}` }, picked.has(k) ? `✓ ${KIND_LABEL[k]}` : KIND_LABEL[k])),
+  );
+}
+
 function renderStack() {
+  renderTodayBar();
   const queue = toReview();
   $("#stack").hidden = !queue.length && !stack.whyFor;
   $("#stack-undo").hidden = !stack.history.length;
@@ -535,8 +553,8 @@ function stackCard(r) {
       h("span", { class: "stamp keep" }, "POST"),
       h("span", { class: "stamp nope" }, "NOPE"),
       h("span", { class: "stack-tap" }, "Tap for details"),
-      r.plan.collab || r.plan.format === "tips"
-        ? h("span", { class: "collab-badge on-video" }, r.plan.collab ? `Collab · ${r.plan.collab.name}` : "Educational")
+      r.plan.collab || KIND_LABEL[r.plan.format]
+        ? h("span", { class: "collab-badge on-video" }, r.plan.collab ? `Collab · ${r.plan.collab.name}` : KIND_LABEL[r.plan.format])
         : null,
     ),
   );
@@ -582,6 +600,8 @@ function openDetails(r, muted = true) {
 }
 
 /** Everything about a video except the player: made from, text on video, caption, hashtags. */
+const KIND_LABEL = { fun: "Fun", tips: "Educational", inspire: "Inspirational" };
+
 function detailsBody(r) {
   const plan = r.plan;
   // One line per overlay (" / " inside an overlay is its own line break, so it can't be the separator).
@@ -685,7 +705,7 @@ function detailsBody(r) {
         h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version"),
       ),
       plan.collab ? h("span", { class: "collab-badge" }, `Collab · ${plan.collab.name}`) : null,
-      plan.format === "tips" ? h("span", { class: "collab-badge" }, "Educational") : null,
+      !plan.collab && KIND_LABEL[plan.format] ? h("span", { class: "collab-badge" }, KIND_LABEL[plan.format]) : null,
       editText,
       styleEdit,
       collabEdit,
@@ -1128,6 +1148,14 @@ async function loadAuto() {
   f.syncEveryHours.value = String(a.syncEveryHours);
 }
 
+$("#daily-mix").addEventListener("change", async () => {
+  const f = $("#daily-mix");
+  const mix = Object.fromEntries(["fun", "educational", "inspirational"].map((k) => [k, Number(f.querySelector(`[name=${k}]`).value) || 0]));
+  state.status.settings = await api("/api/settings", { method: "PUT", body: { dailyMix: mix } });
+  await loadAuto();
+  loadStatus().catch(() => {});
+});
+
 $("#auto").addEventListener("change", async (e) => {
   const f = e.currentTarget;
   state.auto = await api("/api/auto", {
@@ -1495,8 +1523,6 @@ async function loadFonts() {
   $("#look-preview").className = `look-preview ${textStyle} size-${textSize}`;
   for (const r of document.querySelectorAll("#text-style input")) r.checked = r.value === textStyle;
   for (const r of document.querySelectorAll("#text-size input")) r.checked = r.value === textSize;
-  const tips = String(state.status.settings.tipsPerRound ?? 1);
-  for (const r of document.querySelectorAll("#tips-per-round input")) r.checked = r.value === tips;
   const audience = state.status.settings.captionAudience ?? "mix";
   for (const r of document.querySelectorAll("#caption-audience input")) r.checked = r.value === audience;
   $("#audience-hint").textContent = {
@@ -1515,11 +1541,6 @@ async function loadFonts() {
 
 $("#font-select").addEventListener("change", async (e) => {
   state.status.settings = await api("/api/settings", { method: "PUT", body: { fontId: e.target.value } });
-  loadFonts();
-});
-
-$("#tips-per-round").addEventListener("change", async (e) => {
-  state.status.settings = await api("/api/settings", { method: "PUT", body: { tipsPerRound: Number(e.target.value) } });
   loadFonts();
 });
 

@@ -156,12 +156,21 @@ export interface VideoPlan {
   scene?: string;
   /** Post counts of the researched hashtags this video uses. */
   hashtagInfo?: PickedHashtag[];
-  /** "tips": an educational video (hook + a short teaching beat about traveling with a pet). */
-  format?: "tips";
+  /** The kind of post: "fun" (entertainment), "tips" (educational) or "inspire" (inspirational). */
+  format?: PostFormat;
   /** The follower question an educational video answers. */
   faq?: string;
   /** A brand collaboration version of a video. */
   collab?: { partnerId: string; name: string; handle?: string };
+}
+
+export type PostFormat = "fun" | "tips" | "inspire";
+
+/** How many candidates of each kind of post a round makes (the creator keeps the best of each). */
+export interface DailyMix {
+  fun: number;
+  educational: number;
+  inspirational: number;
 }
 
 /** A question followers ask, with the creator's answer. */

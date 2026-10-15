@@ -7,7 +7,7 @@ import { directClip, planVideos, type DirectContext } from "./ai/director.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
-import type { Clip, GenerateRequest, Partner, Render, ReviewFeedback, VideoPlan } from "./types.ts";
+import type { Clip, DailyMix, GenerateRequest, Partner, PostFormat, Render, ReviewFeedback, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
 
 function applyHashtags(p: VideoPlan, scene: string | undefined) {
@@ -117,6 +117,22 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
   return picked.length ? picked : pick(false);
 }
 
+/** The kind of each video in a round: fun, educational, inspirational, fun, … as far as the mix allows. */
+export function mixSequence(mix: DailyMix, n: number): PostFormat[] {
+  const left: [PostFormat, number][] = [["fun", mix.fun ?? 0], ["tips", mix.educational ?? 0], ["inspire", mix.inspirational ?? 0]];
+  const out: PostFormat[] = [];
+  while (out.length < n && left.some(([, k]) => k > 0)) {
+    for (const entry of left) {
+      if (out.length < n && entry[1] > 0) {
+        out.push(entry[0]);
+        entry[1]--;
+      }
+    }
+  }
+  while (out.length < n) out.push("fun");
+  return out;
+}
+
 /** Which situations suit which kind of question (footage that shows what the answer is about). */
 const QUESTION_FITS: [RegExp, RegExp][] = [
   [/bag|carrier/i, /seat|airplane|plane|gate/i],
@@ -191,22 +207,23 @@ export async function plan(
     const { captionAudience } = store.settings();
     const audienceFor = (i: number): "pets" | "everyone" =>
       captionAudience === "everyone" ? "everyone" : captionAudience === "pets" ? "pets" : i % 2 === 0 ? "everyone" : "pets";
-    // Tips videos: the second video of the round (and the fourth with two per round), so a round
-    // still opens with a regular post.
-    const { tipsPerRound } = store.settings();
-    const isTips = (i: number) => tipsPerRound > 0 && chosen.length > 1 && (i === 1 || (tipsPerRound > 1 && i === 3));
+    // The daily mix: fun, educational and inspirational candidates, alternating so a round always
+    // has at least one of each (the creator keeps the best of each kind).
+    const kinds = mixSequence(store.settings().dailyMix, chosen.length);
     const askedThisRound = new Set<string>();
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {
         try {
-          const tips = isTips(i);
-          const faq = tips ? nextQuestion(clip.scene, askedThisRound) : undefined;
+          const kind = kinds[i] ?? "fun";
+          const faq = kind === "tips" ? nextQuestion(clip.scene, askedThisRound) : undefined;
           if (faq) askedThisRound.add(faq.q);
           const p = await directClip(clip, {
             ...ctx,
             proven: provenCaptions(clip.scene),
-            audience: audienceFor(i),
-            ...(tips ? { format: "tips" as const, faq, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
+            // Fun posts alternate audiences per the setting; teaching and inspiring speak to everyone.
+            audience: kind === "fun" ? audienceFor(i) : captionAudience === "pets" ? "pets" : "everyone",
+            format: kind,
+            ...(kind === "tips" ? { faq, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
           });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);

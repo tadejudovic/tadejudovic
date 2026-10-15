@@ -502,6 +502,29 @@ function toReview() {
   return state.renders.filter((r) => r.status === "done" && r.review === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/** Why there's nothing to make a round from, in plain numbers. */
+function outOfClipsText(strict, st) {
+  const ready = state.clips.filter((c) => c.status === "ready" && c.kind === "video");
+  const inSituations = (c) => !strict || (c.scene && st.scenes.includes(c.scene));
+  const used = ready.filter((c) => inSituations(c) && c.uses > 0).length;
+  const other = ready.filter((c) => strict && c.scene && !st.scenes.includes(c.scene)).length;
+  const skipped = ready.filter((c) => c.edited || c.duplicateOf || c.width > c.height || c.disliked).length;
+  const waiting = (state.albums ?? []).reduce((n, a) => n + (a.waiting ?? 0), 0);
+  const tooOld = (state.albums ?? []).reduce((n, a) => n + (a.tooOld ?? 0), 0);
+  const parts = [];
+  if (used) parts.push(`All ${used} clips from your situations are already in videos.`);
+  else parts.push("No unused clips from your situations right now.");
+  if (other || skipped) parts.push(`${[other && `${other} are from other moments`, skipped && `${skipped} are edited, duplicates, landscape or rejected`].filter(Boolean).join(", ")}.`);
+  parts.push(
+    waiting
+      ? `${waiting} more are waiting in your albums and come in as they're needed.`
+      : tooOld
+        ? `${tooOld} older videos in your albums are outside the date range: set an album to "all videos" in Settings → Google Photos albums to use them.`
+        : "New videos in your albums are picked up every few hours.",
+  );
+  return parts.join(" ");
+}
+
 /** "Today: ✓ Fun · Educational · Inspirational": which kinds of post were picked today. */
 function renderTodayBar() {
   const mix = state.status?.settings?.dailyMix;
@@ -1108,6 +1131,7 @@ $("#partner-form").addEventListener("submit", (e) => {
 async function refreshAlbums() {
   const albums = await api("/api/albums");
   state.albumCount = albums.length;
+  state.albums = albums;
   renderSummaries();
   // Once one album is connected, make it obvious the box adds another rather than replacing it.
   const input = $("#album-form").url;
@@ -1801,7 +1825,7 @@ function renderHomeState() {
         ? "Your clips are being imported. Videos will follow."
         : unsorted
           ? `${unsorted} clip${unsorted === 1 ? " is" : "s are"} still being sorted into your situations.`
-          : "None of your clips are from your situations yet. New videos in your albums are picked up every few hours.";
+          : outOfClipsText(strict, st);
   $("#btn-batch-empty").hidden = !n || atLimit;
   $("#btn-batch-empty").textContent = "Make the next round";
   $("#btn-batch").hidden ||= !$("#batch-empty").hidden;

@@ -704,12 +704,9 @@ function detailsBody(r) {
       plan.aiNote = undefined;
       captionText.textContent = plan.postCaption || "No caption";
       captionEdit.value = plan.postCaption;
-      aiWarn.hidden = true;
       refreshRenders().catch(() => {});
     });
   } }, "New caption");
-  const aiWarn = h("p", { class: "d-warn", hidden: !plan.aiNote },
-    `Written without the AI (${plan.aiNote ?? ""}), so the caption is only a placeholder. Tap New caption.`);
 
   const b = plan.basedOn;
   const seg = plan.segments?.[0];
@@ -730,7 +727,6 @@ function detailsBody(r) {
     ),
     h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, newCaptionBtn, editCaptionBtn, copyBtn)),
-      aiWarn,
       captionText,
       captionEdit,
       tags.length ? h("div", { class: "d-chips" },

@@ -11,7 +11,7 @@ import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
 import type { Clip, DailyMix, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
-import { planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
+import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
 
@@ -496,8 +496,21 @@ export async function createVoiceDraft(mode: "script" | "talk", source: string, 
   const text = source.trim();
   if (text.length < 20) throw new Error(mode === "script" ? "Paste the script first." : "Write the talk track first: the points you want to make.");
   const partner = partnerId ? store.partner(partnerId) : undefined;
+  rememberShots(parseShots(text).shots);
   const planned = await planVoiceDraft(mode, text, partner);
   return store.saveDraft({ id: newId(), createdAt: new Date().toISOString(), mode, source: text, partnerId: partner?.id, ...planned });
+}
+
+/** Keep the scenes used in a voiceover as reusable tags (most recent first). */
+export function rememberShots(shots: string[]) {
+  if (!shots.length) return;
+  const old = store.settings().shotTags ?? [];
+  const seen = new Set<string>();
+  const tags = [...shots.reverse(), ...old].filter((t) => {
+    const k = t.toLowerCase();
+    return t && !seen.has(k) && seen.add(k);
+  });
+  store.updateSettings({ shotTags: tags.slice(0, 60) });
 }
 
 const voiceDir = () => path.join(config.dataDir, "voice");

@@ -130,7 +130,7 @@ app.get("/api/status", (req, res) => {
 });
 
 app.put("/api/settings", (req, res) => {
-  const { petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay, onlySituations, captionAudience, story, dailyMix, faq, instagramHandle } = req.body ?? {};
+  const { petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay, onlySituations, captionAudience, story, dailyMix, faq, instagramHandle, shotTags } = req.body ?? {};
   const fontOk = typeof fontId === "string" && listFonts().some((f) => f.id === fontId);
   const saved = store.updateSettings({
       ...(typeof petName === "string" && petName.trim() ? { petName: petName.trim().slice(0, 40) } : {}),
@@ -140,6 +140,7 @@ app.put("/api/settings", (req, res) => {
       ...(["small", "medium", "large"].includes(textSize) ? { textSize } : {}),
       ...(["pets", "mix", "everyone"].includes(captionAudience) ? { captionAudience } : {}),
       ...(typeof story === "string" ? { story: story.trim().slice(0, 2000) } : {}),
+      ...(Array.isArray(shotTags) ? { shotTags: shotTags.filter((t): t is string => typeof t === "string" && Boolean(t.trim())).map((t) => t.trim().slice(0, 120)).slice(0, 60) } : {}),
       ...(typeof instagramHandle === "string" ? { instagramHandle: instagramHandle.trim().replace(/^@/, "").slice(0, 40) } : {}),
       ...(Array.isArray(faq)
         ? {

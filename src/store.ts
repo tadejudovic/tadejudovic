@@ -44,6 +44,8 @@ export interface Settings {
   captionAudience: CaptionAudience;
   /** The creator's cloned voice (ElevenLabs), for voiceovers they don't record themselves. */
   voice?: { id: string; createdAt: string; sampleSeconds: number };
+  /** Scenes the creator has asked for in voiceovers ("/ Lex inside airplane"), most recent first, to reuse. */
+  shotTags?: string[];
   /**
    * What followers ask most, with the creator's own answers. Educational videos each answer one of
    * these; the answers are the only source for specifics (brands, airlines, places, rules).

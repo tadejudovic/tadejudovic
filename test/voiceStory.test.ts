@@ -124,3 +124,10 @@ test("cloned voice: made from samples, then reads the lines that weren't recorde
     config.elevenlabs.key = "";
   }
 });
+
+test("scenes used in voiceovers are kept as reusable tags, newest first, no duplicates", async () => {
+  const { rememberShots } = await import("../src/generate.ts");
+  store.updateSettings({ shotTags: ["Lex at security"] });
+  rememberShots(["Lex inside airplane", "lex at security"]);
+  assert.deepEqual(store.settings().shotTags, ["lex at security", "Lex inside airplane"]);
+});

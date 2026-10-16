@@ -58,6 +58,7 @@ async function loadStatus() {
   const mix = s.settings.dailyMix;
   if (mix && !$("#daily-mix").contains(document.activeElement)) for (const k of ["fun", "educational", "inspirational"]) $("#daily-mix").querySelector(`[name=${k}]`).value = mix[k] ?? 0;
   renderFaq();
+  renderSavedShots();
   $("#chip-google").classList.toggle("on", s.google.connected);
   $("#paused").hidden = !s.paused;
   $("#ai-credit").hidden = !s.aiOutOfCredit;
@@ -1061,13 +1062,197 @@ $("#story-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const f = e.currentTarget;
   const mode = f.rough.checked ? "talk" : "script";
+  const text = editorText();
   withBusy($("#story-go"), mode === "talk" ? "Writing & finding clips… (1–2 min)" : "Finding the clips… (1–2 min)", async () => {
-    state.draft = await api("/api/story/drafts", { method: "POST", body: { mode, text: f.storyline.value, partnerId: f.partnerId.value } });
+    state.draft = await api("/api/story/drafts", { method: "POST", body: { mode, text, partnerId: f.partnerId.value } });
+    // The scenes used are saved on the server as reusable tags; mirror that here.
+    const used = [...editor.querySelectorAll(".shot-chip")].map((c) => c.dataset.shot);
+    setShotTags([...used.reverse(), ...shotTags()], false);
     try { localStorage.setItem("rollcut.draft", state.draft.id); } catch {}
     renderDraft();
     $("#story-draft").scrollIntoView({ behavior: "smooth" });
   });
 });
+
+// ---- Voiceover editor: text is spoken, "/scene" turns into a scene chip -------------------
+
+const editor = $("#vo-editor");
+const SLASH_LINE = /^\s*\/\s*(\S.*?)\s*$/;
+const shotTags = () => state.status?.settings?.shotTags ?? [];
+
+async function setShotTags(tags, save = true) {
+  const seen = new Set();
+  const list = tags.filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, 60);
+  if (state.status?.settings) state.status.settings.shotTags = list;
+  renderSavedShots();
+  if (save) await api("/api/settings", { method: "PUT", body: { shotTags: list } }).catch((e) => banner(e.message));
+}
+
+function chipEl(shot) {
+  return h("span", { class: "shot-chip", contenteditable: "false", "data-shot": shot },
+    h("span", { class: "shot-chip-slash", "aria-hidden": "true" }, "/"),
+    h("span", {}, shot),
+    h("button", { type: "button", class: "shot-chip-x", "aria-label": `Remove scene ${shot}`, onclick: (e) => { e.preventDefault(); e.currentTarget.parentElement.remove(); } }, "×"));
+}
+
+/** Text as the server reads it: chips become "/ scene" lines. */
+function editorText() {
+  let out = "";
+  const walk = (n) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === Node.TEXT_NODE) out += c.textContent.replace(/\u00a0/g, " ");
+      else if (c.classList?.contains("shot-chip")) out += `\n/ ${c.dataset.shot}\n`;
+      else if (c.nodeName === "BR") out += "\n";
+      else {
+        if (/^(DIV|P)$/.test(c.nodeName) && out && !out.endsWith("\n")) out += "\n";
+        walk(c);
+      }
+    }
+  };
+  walk(editor);
+  return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** Plain text (pasted, or a saved story) as editor content, "/ scene" lines as chips. */
+function fragmentFromText(text) {
+  const frag = document.createDocumentFragment();
+  text.replace(/\r/g, "").split("\n").forEach((line, i, all) => {
+    const m = line.match(SLASH_LINE);
+    if (m) frag.append(chipEl(m[1]), document.createTextNode("\u00a0"));
+    else {
+      frag.append(document.createTextNode(line));
+      if (i < all.length - 1) frag.append(h("br"));
+    }
+  });
+  return frag;
+}
+
+let lastRange = null;
+document.addEventListener("selectionchange", () => {
+  const sel = getSelection();
+  if (sel.rangeCount && editor.contains(sel.anchorNode)) lastRange = sel.getRangeAt(0).cloneRange();
+});
+
+function insertAtCaret(node) {
+  let range = lastRange && editor.contains(lastRange.startContainer) ? lastRange : null;
+  if (!range) {
+    range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+  }
+  range.deleteContents();
+  const last = node.lastChild ?? node;
+  range.insertNode(node);
+  const r = document.createRange();
+  r.setStartAfter(last);
+  r.collapse(true);
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+  lastRange = r.cloneRange();
+}
+
+/** The "/query" being typed right before the caret, if any. */
+function slashQuery() {
+  const sel = getSelection();
+  if (!sel.rangeCount || !sel.isCollapsed) return null;
+  const node = sel.anchorNode;
+  if (node?.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
+  const before = node.textContent.slice(0, sel.anchorOffset);
+  const m = before.match(/(?:^|[\s\u00a0])\/([^/\n]{0,60})$/);
+  if (!m) return null;
+  return { node, start: sel.anchorOffset - m[1].length - 1, end: sel.anchorOffset, query: m[1].replace(/\u00a0/g, " ") };
+}
+
+let suggest = null; // { q, options, active }
+
+function hideSuggest() {
+  suggest = null;
+  $("#vo-suggest").hidden = true;
+}
+
+function showSuggest() {
+  const q = slashQuery();
+  if (!q) return hideSuggest();
+  const needle = q.query.trim().toLowerCase();
+  const matches = shotTags().filter((t) => !needle || t.toLowerCase().includes(needle)).slice(0, 6);
+  const options = [...matches];
+  if (needle && !matches.some((t) => t.toLowerCase() === needle)) options.push(q.query.trim());
+  const active = suggest && suggest.active < options.length ? suggest.active : 0;
+  suggest = { q, options, active };
+  const box = $("#vo-suggest");
+  box.hidden = false;
+  box.replaceChildren(
+    ...(options.length
+      ? options.map((t, i) =>
+          h("button", { type: "button", class: `vo-opt ${i === active ? "on" : ""}`, onpointerdown: (e) => { e.preventDefault(); commitChip(t); } },
+            h("span", { class: "shot-chip small" }, h("span", { class: "shot-chip-slash" }, "/"), h("span", {}, t)),
+            i === options.length - 1 && !matches.includes(t) ? h("span", { class: "muted" }, " new scene") : null))
+      : [h("p", { class: "muted vo-hint" }, "Type the scene you want, e.g. Lex inside airplane, then press Enter.")]),
+  );
+}
+
+function commitChip(shot) {
+  const q = suggest?.q ?? slashQuery();
+  if (!q || !shot.trim()) return hideSuggest();
+  const range = document.createRange();
+  range.setStart(q.node, q.start);
+  range.setEnd(q.node, Math.min(q.end, q.node.textContent.length));
+  range.deleteContents();
+  const chip = chipEl(shot.trim());
+  const space = document.createTextNode("\u00a0");
+  range.insertNode(space);
+  range.insertNode(chip);
+  const r = document.createRange();
+  r.setStart(space, 1);
+  r.collapse(true);
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+  hideSuggest();
+}
+
+editor.addEventListener("input", showSuggest);
+editor.addEventListener("blur", () => setTimeout(hideSuggest, 150));
+editor.addEventListener("keydown", (e) => {
+  if (!suggest) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const n = suggest.options.length || 1;
+    suggest.active = (suggest.active + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
+    showSuggest();
+  } else if (e.key === "Enter" || e.key === "Tab") {
+    e.preventDefault();
+    commitChip(suggest.options[suggest.active] ?? suggest.q.query);
+  } else if (e.key === "Escape") hideSuggest();
+});
+// Phone keyboards don't always send Enter as a key: catch the new-line itself.
+editor.addEventListener("beforeinput", (e) => {
+  if (suggest && (e.inputType === "insertParagraph" || e.inputType === "insertLineBreak")) {
+    e.preventDefault();
+    commitChip(suggest.options[suggest.active] ?? suggest.q.query);
+  }
+});
+editor.addEventListener("paste", (e) => {
+  e.preventDefault();
+  insertAtCaret(fragmentFromText(e.clipboardData.getData("text/plain")));
+});
+
+/** Scenes used before: tap to add one where the cursor is; × forgets it. */
+function renderSavedShots() {
+  const tags = shotTags();
+  $("#vo-saved").replaceChildren(
+    ...(tags.length
+      ? [h("span", { class: "muted vo-saved-title" }, "Your scenes"),
+         ...tags.map((t) =>
+           h("span", { class: "shot-chip saved" },
+             h("button", { type: "button", class: "shot-chip-add", onpointerdown: (e) => e.preventDefault(), onclick: () => { insertAtCaret(chipEl(t)); insertAtCaret(document.createTextNode("\u00a0")); } },
+               h("span", { class: "shot-chip-slash" }, "/"), t),
+             h("button", { type: "button", class: "shot-chip-x", "aria-label": `Forget scene ${t}`, onclick: () => setShotTags(shotTags().filter((x) => x !== t)) }, "×")))]
+      : []),
+  );
+}
+renderSavedShots();
 
 /** The shot list: each spoken line with its clip (or what's missing), and recording. */
 function renderDraft() {
@@ -1197,7 +1382,7 @@ async function refreshVoice() {
   const box = $("#my-voice");
   const v = state.voice;
   if (!v) return box.replaceChildren();
-  box.replaceChildren(
+  box.replaceChildren(h("div", {},
     h("div", { class: "row-title" }, "My voice"),
     !v.enabled
       ? h("p", { class: "muted" }, "To let Rollcut read your voiceovers in your own voice, add an ElevenLabs API key (ELEVENLABS_API_KEY) on Render. You can always record the lines yourself.")
@@ -1214,7 +1399,7 @@ async function refreshVoice() {
             renderDraft();
           } }, "Remove") : null)
       : null,
-  );
+  ));
 }
 
 async function makeVoice(btn) {
@@ -1239,6 +1424,7 @@ refreshVoice();
   state.draft = await api(`/api/story/drafts/${id}`).catch(() => null);
   if (state.draft) {
     $("#story-form").rough.checked = state.draft.mode === "talk";
+    if (!editorText()) editor.replaceChildren(fragmentFromText(state.draft.source));
     renderDraft();
   }
 })();

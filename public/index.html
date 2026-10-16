@@ -258,16 +258,16 @@
       <div class="subpage" id="sp-story" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Story video</h2></header>
         <div class="sp-body">
-        <p class="sp-intro">Write what you'll say. To pick the footage, start a line with <b>/</b> and describe the scene; it goes with the words after it and is never spoken. Lines without a scene get the best-matching clip automatically.</p>
+        <p class="sp-intro">Write what you'll say. To pick the footage, type <b>/</b> and the scene (or pick one you used before): it becomes a tag for the words after it and is never spoken. Words without a scene get the best-matching clip automatically.</p>
         <div id="my-voice" class="voice-card"></div>
         <form id="story-form" class="grid-form">
-          <label class="wide">Voiceover <textarea name="storyline" rows="10" maxlength="5000" placeholder="I'm flying my dog 42,000 kilometres around the world, and honestly, things don't always go to plan.
-
-/ Lex inside airplane
-Take-off is the worst part. He shivers, then falls asleep on my lap.
-
-/ Lex walking through the airport
-At the airport? Zero stress. More relaxed than me."></textarea></label>
+          <div class="wide vo-field">
+            <span class="vo-label">Voiceover</span>
+            <div id="vo-editor" class="vo-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Voiceover" data-placeholder="I'm flying my dog 42,000 kilometres around the world, and honestly, things don't always go to plan.
+Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll say over it."></div>
+            <div id="vo-suggest" class="vo-suggest" hidden></div>
+            <div id="vo-saved" class="vo-saved"></div>
+          </div>
           <label class="wide check"><input type="checkbox" name="rough" /> These are rough notes: write the voiceover for me</label>
           <label class="wide">Brand partner (optional)
             <select name="partnerId"><option value="">None</option></select>

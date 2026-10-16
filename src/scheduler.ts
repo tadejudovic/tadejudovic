@@ -7,16 +7,18 @@ import { syncProfiles } from "./postMatch.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
 
 /**
- * Videos are made in rounds: the next batch only starts once every video of the last one
- * has been reviewed (kept or rejected), so each decision can shape the next round.
+ * Videos are made in rounds, and there are always a few waiting: when fewer than MIN_WAITING are
+ * left to review, the next ones are made (a full round once everything is reviewed), so each
+ * decision still shapes what comes next. All within the daily limit.
  */
+export const MIN_WAITING = 3;
 export function awaitingReview(): number {
   return store.renders().filter((r) => r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending")).length;
 }
 
-/** Called after a review: if that was the last one, start the next round right away. */
+/** Called after a review: if fewer than MIN_WAITING are left, make the next ones right away. */
 export function afterReview() {
-  if (awaitingReview() === 0) runDue({ afterReview: true }).catch((err) => console.error("[scheduler]", err));
+  if (awaitingReview() < MIN_WAITING) runDue({ afterReview: true }).catch((err) => console.error("[scheduler]", err));
 }
 import { ingestQueue } from "./queue.ts";
 import { archiveUnusable, ARCHIVE_AFTER_DAYS, queueMissingAiLooks } from "./library.ts";
@@ -115,7 +117,7 @@ async function runDue({ afterReview = false } = {}) {
   // If a batch fails (e.g. no footage yet), retry every 30 minutes rather than every tick, or as
   // soon as enough clips have been sorted since.
   const retry = Date.now() - lastAttempt > 30 * 60_000 || (lastRoundError !== null && usableClips() >= enoughToStart());
-  if (due && !batchRunning && awaitingReview() === 0 && videosLeftToday() > 0 && (afterReview || retry)) {
+  if (due && !batchRunning && awaitingReview() < MIN_WAITING && videosLeftToday() > 0 && (afterReview || retry)) {
     lastAttempt = Date.now();
     try {
       const r = await runDailyBatch({ force: true });
@@ -149,9 +151,9 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
   const date = today();
   try {
     if (!opts.force && auto.lastBatchDate === date) return { renders: [], skipped: "already done today" };
-    // Every video of the last round needs a decision before more are made.
+    // Enough videos waiting for a decision: the next ones are made after a few reviews.
     const waiting = awaitingReview();
-    if (waiting) {
+    if (waiting >= MIN_WAITING) {
       if (opts.force) throw new Error(`Review the ${waiting} video${waiting === 1 ? "" : "s"} you have first (swipe right or left). Then the next ones are made.`);
       return { renders: [], skipped: "waiting for review" };
     }
@@ -194,7 +196,8 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     // Each video starts rendering as soon as its text is written, not when the whole round is.
     const renders: ReturnType<typeof queueRender>[] = [];
     const queued = new Set<VideoPlan>();
-    const count = Math.min(auto.dailyCount, left);
+    // A full round when everything is reviewed; otherwise enough to have MIN_WAITING waiting again.
+    const count = Math.min(waiting ? MIN_WAITING - waiting : Math.max(auto.dailyCount, MIN_WAITING), left);
     roundStage = `Writing the videos (0 of ${count})…`;
     const start = (p: VideoPlan) => {
       queued.add(p);
@@ -228,9 +231,11 @@ function usableClips(): number {
   return store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c) && c.uses === 0).length;
 }
 
-/** A round starts as soon as this many clips are sorted, even while more are importing: early feedback beats a full round. */
-const START_WITH = 1;
-const enoughToStart = () => Math.max(1, Math.min(store.auto().dailyCount, videosLeftToday(), START_WITH));
+/**
+ * A round starts as soon as this many clips are sorted, even while more are importing: enough for
+ * MIN_WAITING videos (one of each kind), not a whole round.
+ */
+const enoughToStart = () => Math.max(1, Math.min(videosLeftToday(), MIN_WAITING - awaitingReview()));
 
 async function waitForIngest(maxMs: number) {
   const until = Date.now() + maxMs;

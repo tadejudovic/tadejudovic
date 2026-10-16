@@ -258,6 +258,19 @@ export function limitSlowMotion(segments: Segment[]): Segment[] {
   });
 }
 
+/**
+ * Whether an arrow points at what the text names: the AI described a visible object, and it shares a
+ * real word with the text ("1. Kato backpack" / "black backpack under Lex").
+ */
+export function arrowTarget(text: string, pointAt: string): boolean {
+  const words = (s: string) =>
+    new Set(s.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !["the", "and", "with", "his", "her", "dog", "lex", "our", "your"].includes(w)));
+  const seen = words(pointAt ?? "");
+  if (!seen.size) return false;
+  const named = [...words(text)];
+  return named.some((w) => [...seen].some((s) => s === w || (w.length >= 5 && s.length >= 5 && (s.startsWith(w.slice(0, 5)) || w.startsWith(s.slice(0, 5))))));
+}
+
 /** Too short for the text to be read: play the footage again (videos loop anyway) rather than slow it down. */
 export function fillByRepeating(segments: Segment[], minSeconds: number): Segment[] {
   const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
@@ -316,12 +329,18 @@ const DIRECT_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["text", "start", "end", "y", "pointX", "pointY"],
+        required: ["text", "start", "end", "y", "pointAt", "pointX", "pointY"],
         properties: {
           text: { type: "string" },
           start: { type: "number" },
           end: { type: "number" },
           y: { type: "number", description: "Vertical center of the text, 0 (top) to 1 (bottom); -1 for the usual place" },
+          pointAt: {
+            type: "string",
+            description:
+              "The object the text names, as you actually see it in the frame while this text is on screen (e.g. " +
+              "\"black backpack under Lex\"). Empty if it isn't clearly visible: then there's no arrow.",
+          },
           pointX: { type: "number", description: "Arrow target, 0 (left) to 1 (right) in the frame; -1 for no arrow" },
           pointY: { type: "number", description: "Arrow target, 0 (top) to 1 (bottom) in the frame; -1 for no arrow" },
         },
@@ -405,9 +424,12 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `documents". Short: up to ~5 words, numbered when it's a list. A light, funny last point is great if it fits ` +
     `("4. Optional: a patient owner").` +
     `\n- Place each point lower in the frame, next to what it's about, with y (0.35–0.8), never over ${petName}'s ` +
-    `face. If the thing it names is visible in the footage while it's on screen (the bag, the harness, the tracker, ` +
-    `the documents, the seat), point an arrow at it: pointX/pointY = where it is in the frame (0..1 from the left / ` +
-    `top), judged from the frames above at that moment. No arrow (-1) when it isn't visible.` +
+    `face.` +
+    `\n- An arrow ONLY when the exact object the point names is clearly visible in the footage while the point is ` +
+    `on screen (e.g. the backpack Lex sits in, the tracker on his collar): say what you see in pointAt and where it ` +
+    `is in pointX/pointY (0..1 from the left / top), judged from the frames above at that moment. If it isn't ` +
+    `clearly visible (documents that aren't shown, an idea, a tip), pointAt is empty, no arrow (-1), and the point ` +
+    `just sits in a clear part of the frame.` +
     `\n- Only facts that hold for most airlines and countries; no specific rules, fees or legal requirements you ` +
     `aren't sure of. The video must be long enough to read everything: at least 12s.` +
     `\n\nIT HAS TO MAKE SENSE TO A STRANGER WITH THE SOUND OFF, reading only the text on screen:` +
@@ -653,7 +675,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     title: string;
     basedOn: number;
     segments: { start: number; end: number; speed: number }[];
-    overlays: { text: string; start: number; end: number; y: number; pointX: number; pointY: number }[];
+    overlays: { text: string; start: number; end: number; y: number; pointAt: string; pointX: number; pointY: number }[];
     postCaption: string;
     hashtags: string[];
   }>({
@@ -684,8 +706,10 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     .filter((o) => o.text.trim())
     .map((o) => {
       const y = frac(o.y);
-      const px = frac(o.pointX);
-      const py = frac(o.pointY);
+      // An arrow only for an object really on screen, and the one the text names.
+      const seen = arrowTarget(o.text, o.pointAt);
+      const px = seen ? frac(o.pointX) : undefined;
+      const py = seen ? frac(o.pointY) : undefined;
       return {
         text: o.text.trim(),
         start: Math.max(0, Math.min(o.start * k, total - 0.5)),

@@ -15,3 +15,11 @@ test("a short clip is replayed at real speed to give time to read, not slowed do
   assert.ok(out.every((s) => s.speed === 1));
   assert.deepEqual(fillByRepeating([seg(0, 14)], 12).length, 1);
 });
+
+test("arrows only point at a visible object the text names", async () => {
+  const { arrowTarget } = await import("../src/ai/director.ts");
+  assert.equal(arrowTarget("1. Kato backpack", "black backpack Lex sits in"), true);
+  assert.equal(arrowTarget("2. PetPace health tracker", "tracker on his collar"), true);
+  assert.equal(arrowTarget("3. A ton of documents", ""), false);
+  assert.equal(arrowTarget("3. A ton of documents", "the airplane seat"), false);
+});

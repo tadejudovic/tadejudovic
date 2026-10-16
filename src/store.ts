@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem, DailyMix } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem, DailyMix, StoryDraft } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -15,6 +15,7 @@ interface DB {
   albums: AlbumSource[];
   examples: Example[];
   partners: Partner[];
+  drafts: StoryDraft[];
   trends?: Trends;
   auto: AutoSettings;
   research: Record<string, SceneResearch>;
@@ -126,6 +127,7 @@ function load(): DB {
     }
     db.albums ??= [];
     db.partners ??= [];
+    db.drafts ??= [];
     for (const r of db.renders ?? []) {
       if (r.posted && !r.posts) r.posts = [{ ...r.posted, platform: "tiktok" }];
       delete r.posted;
@@ -145,7 +147,7 @@ function load(): DB {
     for (const r of db.renders) r.review ??= "pending";
     return db;
   } catch {
-    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], partners: [], auto: { ...DEFAULT_AUTO }, research: {}, spend: { month: "", usd: 0, calls: 0 } };
+    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], partners: [], drafts: [], auto: { ...DEFAULT_AUTO }, research: {}, spend: { month: "", usd: 0, calls: 0 } };
   }
 }
 
@@ -237,6 +239,21 @@ export const store = {
   },
   removeAlbum(id: string) {
     db.albums = db.albums.filter((a) => a.id !== id);
+    save();
+  },
+
+  drafts: () => db.drafts,
+  draft: (id: string) => db.drafts.find((d) => d.id === id),
+  saveDraft(d: StoryDraft) {
+    const i = db.drafts.findIndex((x) => x.id === d.id);
+    if (i >= 0) db.drafts[i] = d;
+    else db.drafts.unshift(d);
+    db.drafts = db.drafts.slice(0, 20);
+    save();
+    return d;
+  },
+  removeDraft(id: string) {
+    db.drafts = db.drafts.filter((d) => d.id !== id);
     save();
   },
 

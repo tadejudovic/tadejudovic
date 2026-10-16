@@ -124,6 +124,8 @@ export interface Overlay {
   text: string;
   start: number;
   end: number;
+  /** "caption": subtitles in the lower part of the frame (voiceover videos), instead of the hook position. */
+  at?: "caption";
 }
 
 export type TemplateId = "auto" | "text_overlay" | "quick_cuts" | "single_moment" | "pov_story" | "then_vs_now";
@@ -162,6 +164,8 @@ export interface VideoPlan {
   faq?: string;
   /** Set when the AI couldn't write this video and a no-AI fallback was used: why. */
   aiNote?: string;
+  /** Voiceover lines on the output timeline (story videos with the creator's voice). */
+  voiceover?: { file: string; start: number }[];
   /** A brand collaboration version of a video. */
   collab?: { partnerId: string; name: string; handle?: string };
 }
@@ -173,6 +177,34 @@ export interface DailyMix {
   fun: number;
   educational: number;
   inspirational: number;
+}
+
+/** One spoken line of a voiceover story: its words, the clip shown, and the creator's recording. */
+export interface DraftLine {
+  text: string;
+  clipId?: string;
+  start?: number;
+  end?: number;
+  /** What footage this line needs when no clip fits. */
+  missing?: string;
+  /** The recorded line (m4a) and its length. */
+  audio?: string;
+  audioSeconds?: number;
+}
+
+/** A voiceover story waiting for its recording: built from a script (word for word) or a talk track (rewritten). */
+export interface StoryDraft {
+  id: string;
+  createdAt: string;
+  mode: "script" | "talk";
+  source: string;
+  partnerId?: string;
+  title: string;
+  lines: DraftLine[];
+  postCaption: string;
+  hashtags: string[];
+  basedOn?: { text: string; views?: number; url?: string };
+  scene?: string;
 }
 
 /** A question followers ask, with the creator's answer. */

@@ -258,15 +258,23 @@
       <div class="subpage" id="sp-story" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Story video</h2></header>
         <div class="sp-body">
-        <p class="sp-intro">Write what happens, in order. Rollcut finds the clip that shows each moment, stitches them together with a line of text for each, and writes the description. It shows up on Review.</p>
+        <div class="seg" id="story-mode">
+          <label><input type="radio" name="storyMode" value="storyline" checked />Storyline</label>
+          <label><input type="radio" name="storyMode" value="talk" />Talk track</label>
+          <label><input type="radio" name="storyMode" value="script" />Script</label>
+        </div>
+        <p class="sp-intro" id="story-intro"></p>
         <form id="story-form" class="grid-form">
-          <label class="wide">Storyline <textarea name="storyline" rows="7" maxlength="2000" placeholder="Lex's first day in Tokyo: we land exhausted after 14 hours → his first train ride, glued to the window → walking through Shibuya like he owns it → passed out at the hotel."></textarea></label>
-          <label>Length
+          <label class="wide"><span id="story-label">Storyline</span> <textarea name="storyline" rows="8" maxlength="5000"></textarea></label>
+          <label id="story-length">Length
             <select name="seconds"><option value="15">15s</option><option value="20" selected>20s</option><option value="30">30s</option></select>
           </label>
-          <div class="wide"><button class="btn primary" type="submit">Make story video</button></div>
+          <label id="story-partner" hidden>Brand partner (optional)
+            <select name="partnerId"><option value="">None</option></select>
+          </label>
+          <div class="wide"><button class="btn primary" type="submit" id="story-go">Make story video</button></div>
         </form>
-        <p class="hint">Works best with moments you've actually filmed. It looks through your 40 most recent clips (unused ones first). About $0.10 per story.</p>
+        <div id="story-draft" class="story-draft" hidden></div>
         </div>
       </div>
 

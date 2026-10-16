@@ -249,13 +249,14 @@ async function finalize(
   const placed: { o: Overlay; bottom: number }[] = [];
   for (const [i, o] of overlays.entries()) {
     // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
-    const above = placed.filter((p) => p.o.start < o.end && o.start < p.o.end);
+    const above = placed.filter((p) => (p.o.at ?? "") === (o.at ?? "") && p.o.start < o.end && o.start < p.o.end);
     const offset = above.length ? Math.max(...above.map((p) => p.bottom)) + 24 : 0;
     // A list of three or more lines (tips) is set a little smaller so every point fits.
     const px = o.text.split(/\s+\/\s+/).length >= 3 ? Math.round(textPx(options) * 0.82) : textPx(options);
+    const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
     const { filters: f, height } = textFilters(o.text, {
-      yFrac: HOOK_Y,
-      yTop: Math.round(H * HOOK_Y) + offset,
+      yFrac,
+      yTop: Math.round(H * yFrac) + offset,
       size: px,
       maxChars: charsFor(px, 24),
       style: options.textStyle,
@@ -273,15 +274,34 @@ async function finalize(
   // Audio and video are finished in separate passes: loudness normalization alone needs ~100 MB,
   // and running it next to the video encoder pushed a render past a 512 MB server's limit.
   const audio = path.join(tmp, "audio.m4a");
-  const af = music
-    ? `[1:a]atrim=0:${duration.toFixed(3)},volume=${options.keepOriginalAudio ? 0.35 : 1},afade=t=out:st=${fadeAt}:d=1[m];` +
-      `[0:a][m]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[aout]`
-    : `[0:a]loudnorm=I=-14:TP=-1.5:LRA=11[aout]`;
+  // A voiceover: the creator's lines at their places on the timeline, the clips' own sound and any
+  // music turned well down underneath.
+  const voice = (plan.voiceover ?? []).filter((v) => fs.existsSync(v.file));
+  const voiceInputs = voice.flatMap((v) => ["-i", v.file]);
+  const firstVoice = music ? 2 : 1;
+  let af: string;
+  if (voice.length) {
+    const lines = voice.map((v, i) => {
+      const ms = Math.max(0, Math.round(v.start * 1000));
+      return `[${firstVoice + i}:a]aresample=44100,aformat=channel_layouts=stereo,adelay=${ms}|${ms}[v${i}]`;
+    });
+    const voiceMix = `${voice.map((_, i) => `[v${i}]`).join("")}amix=inputs=${voice.length}:duration=longest:normalize=0[vo]`;
+    const bed = music
+      ? `[0:a]volume=0.18[o];[1:a]atrim=0:${duration.toFixed(3)},volume=0.12,afade=t=out:st=${fadeAt}:d=1[m];[o][m]amix=inputs=2:duration=first:normalize=0[bed]`
+      : `[0:a]volume=0.18[bed]`;
+    af = `${lines.join(";")};${voiceMix};${bed};[bed][vo]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[aout]`;
+  } else {
+    af = music
+      ? `[1:a]atrim=0:${duration.toFixed(3)},volume=${options.keepOriginalAudio ? 0.35 : 1},afade=t=out:st=${fadeAt}:d=1[m];` +
+        `[0:a][m]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[aout]`
+      : `[0:a]loudnorm=I=-14:TP=-1.5:LRA=11[aout]`;
+  }
   await run("ffmpeg", [
     "-y", "-v", "error",
     "-vn", "-threads", "1",
     "-i", input,
     ...(music ? ["-i", options.musicFile!] : []),
+    ...voiceInputs,
     "-filter_complex", af,
     "-map", "[aout]",
     "-c:a", "aac", "-b:a", "192k", "-ar", "44100",

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { config } from "./config.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { store, newId } from "./store.ts";
@@ -7,9 +8,10 @@ import { directClip, planVideos, writeCaption, type DirectContext } from "./ai/d
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
-import type { Clip, DailyMix, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, VideoPlan } from "./types.ts";
+import type { Clip, DailyMix, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
-import { planStory } from "./ai/story.ts";
+import { planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
+import { run, probe } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
 
 function applyHashtags(p: VideoPlan, scene: string | undefined) {
@@ -482,6 +484,70 @@ export async function makeStoryVideo(storyline: string, targetSeconds = 20): Pro
   const text = storyline.trim();
   if (text.length < 10) throw new Error("Write the storyline first: what happens, in order.");
   const p = await planStory(text, targetSeconds);
+  const { fontId, textStyle, textSize } = store.settings();
+  return queueRender(p, { keepOriginalAudio: true, textStyle, textSize, fontId });
+}
+
+// ---- Voiceover stories (script / talk track → lines → recordings → video) ----------------
+
+export async function createVoiceDraft(mode: "script" | "talk", source: string, partnerId?: string): Promise<StoryDraft> {
+  if (!config.claude.enabled) throw new Error("Voiceover stories need the AI (ANTHROPIC_API_KEY).");
+  const text = source.trim();
+  if (text.length < 20) throw new Error(mode === "script" ? "Paste the script first." : "Write the talk track first: the points you want to make.");
+  const partner = partnerId ? store.partner(partnerId) : undefined;
+  const planned = await planVoiceDraft(mode, text, partner);
+  return store.saveDraft({ id: newId(), createdAt: new Date().toISOString(), mode, source: text, partnerId: partner?.id, ...planned });
+}
+
+const voiceDir = () => path.join(config.dataDir, "voice");
+
+/** Save a recorded line: converted to AAC, silence at the start and end trimmed, length measured. */
+export async function saveLineRecording(draftId: string, index: number, uploaded: string): Promise<StoryDraft> {
+  const d = store.draft(draftId);
+  if (!d?.lines[index]) throw new Error("Unknown line.");
+  fs.mkdirSync(voiceDir(), { recursive: true });
+  const out = path.join(voiceDir(), `${draftId}-${index}-${Date.now()}.m4a`);
+  try {
+    await run("ffmpeg", [
+      "-y", "-v", "error", "-i", uploaded,
+      "-af", "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.05,areverse,silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.15,areverse,loudnorm=I=-16:TP=-1.5",
+      "-ac", "1", "-ar", "44100", "-c:a", "aac", "-b:a", "128k", out,
+    ]);
+  } finally {
+    fs.rmSync(uploaded, { force: true });
+  }
+  const { duration } = await probe(out);
+  if (!(duration > 0.3)) {
+    fs.rmSync(out, { force: true });
+    throw new Error("That recording was silent. Check the microphone and try again.");
+  }
+  const old = d.lines[index].audio;
+  if (old) fs.rmSync(old, { force: true });
+  d.lines[index] = { ...d.lines[index], audio: out, audioSeconds: Math.round(duration * 100) / 100 };
+  return store.saveDraft(d);
+}
+
+/** Show a different clip for a line (or one for a line that had none). */
+export function setLineClip(draftId: string, index: number, clipId: string): StoryDraft {
+  const d = store.draft(draftId);
+  const clip = store.clip(clipId);
+  if (!d?.lines[index] || !clip || clip.status !== "ready") throw new Error("Unknown line or clip.");
+  d.lines[index] = { ...d.lines[index], clipId, start: 0, end: clip.duration, missing: undefined };
+  return store.saveDraft(d);
+}
+
+/** Make the video from a draft: with the recorded voice, or with captions only. */
+export function renderDraft(draftId: string, withVoice: boolean): Render {
+  const d = store.draft(draftId);
+  if (!d) throw new Error("Unknown story.");
+  const p = planFromDraft(d, withVoice);
+  const partner = d.partnerId ? store.partner(d.partnerId) : undefined;
+  if (partner) {
+    p.collab = { partnerId: partner.id, name: partner.name, handle: partner.handle };
+    if (partner.handle && !p.postCaption.includes(partner.handle)) p.postCaption += ` ${partner.handle}`;
+    if (partner.mustInclude && !p.postCaption.includes(partner.mustInclude)) p.postCaption += `\n\n${partner.mustInclude}`;
+    if (!/#ad\b|#sponsored|paid partnership/i.test(p.postCaption)) p.postCaption += "\n\n#ad";
+  }
   const { fontId, textStyle, textSize } = store.settings();
   return queueRender(p, { keepOriginalAudio: true, textStyle, textSize, fontId });
 }

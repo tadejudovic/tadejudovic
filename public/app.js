@@ -1046,19 +1046,168 @@ function closeSheet() {
 $("#sheet").addEventListener("click", (e) => e.target.id === "sheet" && closeSheet());
 document.addEventListener("keydown", (e) => e.key === "Escape" && !$("#sheet").hidden && closeSheet());
 
-// ---- Story videos (storyline → matching clips stitched together) ---------------
+// ---- Story videos -------------------------------------------------------------------
+// Storyline: what happens → clips + short text. Talk track: rough points → a spoken script.
+// Script: exact words. Talk track and script get a shot list, then the creator records each line.
+
+const STORY_MODES = {
+  storyline: {
+    label: "Storyline",
+    intro: "Write what happens, in order. Rollcut finds the clip for each moment, stitches them with a line of text each and writes the description.",
+    placeholder: "Lex's first day in Tokyo: we land exhausted after 14 hours → his first train ride, glued to the window → walking through Shibuya like he owns it → passed out at the hotel.",
+    go: "Make story video",
+  },
+  talk: {
+    label: "Talk track",
+    intro: "The points you want to make, roughly. Rollcut writes the voiceover in your voice, finds a clip for every line, then you record it line by line. Captions follow your words.",
+    placeholder: "- are dogs scared of flying? Lex is wearing a PetPace monitor around the world\n- airport: zero stress, more relaxed than me\n- security: walks through the detector alone\n- take-off is the worst, shivering; calms down on my lap\n- landing a bit, then back to normal\n- PetPace shows how he's really doing, code LEXPOODLE40",
+    go: "Write it & find the clips",
+  },
+  script: {
+    label: "Script",
+    intro: "Your exact words. Rollcut keeps them as written, splits them into lines, finds a clip for every line, then you record it line by line. Captions follow your words.",
+    placeholder: "Are dogs afraid of flying? I'm flying Lex 42,000 kilometres around the world…",
+    go: "Find the clips",
+  },
+};
+
+function storyMode() {
+  return document.querySelector("#story-mode input:checked")?.value ?? "storyline";
+}
+
+function renderStoryMode() {
+  const m = STORY_MODES[storyMode()];
+  $("#story-intro").textContent = m.intro;
+  $("#story-label").textContent = m.label;
+  $("#story-form").storyline.placeholder = m.placeholder;
+  $("#story-go").textContent = m.go;
+  $("#story-length").hidden = storyMode() !== "storyline";
+  $("#story-partner").hidden = storyMode() === "storyline";
+  $("#story-form").partnerId.replaceChildren(h("option", { value: "" }, "None"), ...(state.partners ?? []).map((p) => h("option", { value: p.id }, p.name)));
+}
+$("#story-mode").addEventListener("change", renderStoryMode);
+renderStoryMode();
 
 $("#story-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const f = e.currentTarget;
-  withBusy(f.querySelector("button[type=submit]"), "Finding the clips… (about a minute)", async () => {
-    await api("/api/story", { method: "POST", body: { storyline: f.storyline.value, seconds: Number(f.seconds.value) } });
+  const mode = storyMode();
+  if (mode === "storyline") {
+    return withBusy($("#story-go"), "Finding the clips… (about a minute)", async () => {
+      await api("/api/story", { method: "POST", body: { storyline: f.storyline.value, seconds: Number(f.seconds.value) } });
+      await refreshRenders();
+      closeSubpages();
+      showTab("review");
+      banner("Making your story video. It shows up on Review in a minute or two.", "ok");
+    });
+  }
+  withBusy($("#story-go"), mode === "talk" ? "Writing & finding clips… (1–2 min)" : "Finding the clips… (1–2 min)", async () => {
+    state.draft = await api("/api/story/drafts", { method: "POST", body: { mode, text: f.storyline.value, partnerId: f.partnerId.value } });
+    try { localStorage.setItem("rollcut.draft", state.draft.id); } catch {}
+    renderDraft();
+    $("#story-draft").scrollIntoView({ behavior: "smooth" });
+  });
+});
+
+/** The shot list: each spoken line with its clip (or what's missing), and recording. */
+function renderDraft() {
+  const d = state.draft;
+  const box = $("#story-draft");
+  box.hidden = !d;
+  if (!d) return;
+  const missing = d.lines.filter((l) => !l.clipId).length;
+  const recorded = d.lines.filter((l) => l.recorded).length;
+  const clipOptions = state.clips.filter((c) => c.status === "ready" && c.height >= c.width);
+  box.replaceChildren(
+    h("div", { class: "d-sec-head" }, h("span", {}, d.title || "Your story")),
+    h("p", { class: "muted" },
+      `${d.lines.length} lines · ${d.lines.length - missing} with a clip${missing ? ` · ${missing} need footage` : ""} · ${recorded} recorded`),
+    ...d.lines.map((l, i) =>
+      h("div", { class: `draft-line ${l.clipId ? "" : "missing"}` },
+        l.clipId ? h("img", { class: "draft-thumb", src: `/media/thumb/${l.clipId}`, alt: "" }) : h("div", { class: "draft-thumb ph" }, "?"),
+        h("div", { class: "draft-body" },
+          h("p", { class: "draft-text" }, l.text),
+          !l.clipId ? h("p", { class: "draft-missing" }, `Needs: ${l.missing || "a clip"}`) : null,
+          h("select", { class: "draft-clip", onchange: async (e) => {
+            state.draft = await api(`/api/story/drafts/${d.id}/lines/${i}`, { method: "PATCH", body: { clipId: e.target.value } });
+            renderDraft();
+          } },
+            h("option", { value: "", selected: !l.clipId }, l.clipId ? "Change clip…" : "Pick a clip…"),
+            ...clipOptions.map((c) => h("option", { value: c.id }, `${c.scene || "clip"} · ${c.capturedAt ? c.capturedAt.slice(0, 10) : ""} · ${Math.round(c.duration)}s`))),
+          h("div", { class: "draft-actions" },
+            h("button", { class: `btn small ${l.recorded ? "" : "primary"}`, type: "button", onclick: () => recordLine(i) }, l.recorded ? "Re-record" : "Record"),
+            l.recorded ? h("button", { class: "btn small", type: "button", onclick: () => new Audio(`/api/story/drafts/${d.id}/lines/${i}/audio?t=${Date.now()}`).play() }, `Play · ${l.audioSeconds?.toFixed(1)}s`) : null,
+          ),
+        ),
+      ),
+    ),
+    h("div", { class: "draft-final" },
+      h("button", { class: "btn primary", type: "button", disabled: !!missing || recorded < d.lines.length, onclick: (e) => makeFromDraft(e.currentTarget, true) },
+        recorded < d.lines.length ? `Record all lines (${recorded}/${d.lines.length})` : "Make video with my voice"),
+      h("button", { class: "btn", type: "button", disabled: !!missing, onclick: (e) => makeFromDraft(e.currentTarget, false) }, "Captions only, no voice"),
+    ),
+  );
+}
+
+async function makeFromDraft(btn, voice) {
+  await withBusy(btn, "Making…", async () => {
+    await api(`/api/story/drafts/${state.draft.id}/render`, { method: "POST", body: { voice } });
     await refreshRenders();
     closeSubpages();
     showTab("review");
     banner("Making your story video. It shows up on Review in a minute or two.", "ok");
   });
-});
+}
+
+/** Teleprompter: the line big on screen while it records; Stop uploads it. */
+async function recordLine(i) {
+  const d = state.draft;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  } catch {
+    return banner("Rollcut needs the microphone to record. Allow it in your browser and try again.");
+  }
+  const type = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find((t) => window.MediaRecorder?.isTypeSupported?.(t)) ?? "";
+  const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+  const chunks = [];
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  const prompter = h("div", { class: "prompter" },
+    h("p", { class: "prompter-hint" }, `Line ${i + 1} of ${d.lines.length} · recording`),
+    h("p", { class: "prompter-text" }, d.lines[i].text),
+    h("button", { class: "round no prompter-stop", type: "button", "aria-label": "Stop" }, h("span", {}, "Stop")),
+  );
+  document.body.append(prompter);
+  const stopped = new Promise((resolve) => (rec.onstop = resolve));
+  prompter.querySelector(".prompter-stop").addEventListener("click", () => rec.state !== "inactive" && rec.stop());
+  rec.start();
+  await stopped;
+  stream.getTracks().forEach((t) => t.stop());
+  prompter.remove();
+  const blob = new Blob(chunks, { type: rec.mimeType || type || "audio/webm" });
+  const ext = (rec.mimeType || type).includes("mp4") ? "m4a" : "webm";
+  const form = new FormData();
+  form.append("file", blob, `line-${i}.${ext}`);
+  try {
+    state.draft = await api(`/api/story/drafts/${d.id}/lines/${i}/audio`, { method: "POST", body: form });
+    renderDraft();
+  } catch (err) {
+    banner(err.message);
+  }
+}
+
+// Pick up an unfinished story where it was left.
+(async () => {
+  let id;
+  try { id = localStorage.getItem("rollcut.draft"); } catch {}
+  if (!id) return;
+  state.draft = await api(`/api/story/drafts/${id}`).catch(() => null);
+  if (state.draft) {
+    for (const r of document.querySelectorAll("#story-mode input")) r.checked = r.value === state.draft.mode;
+    renderStoryMode();
+    renderDraft();
+  }
+})();
 
 $("#btn-story-empty").addEventListener("click", () => {
   showTab("settings");
@@ -1106,6 +1255,9 @@ async function refreshPartners() {
   state.partners = await api("/api/partners");
   const n = state.partners.length;
   $("#sum-partners").textContent = n ? `${n}` : "";
+  const picked = $("#story-form").partnerId.value;
+  renderStoryMode();
+  $("#story-form").partnerId.value = picked;
   const form = $("#partner-form");
   $("#partners").replaceChildren(
     ...state.partners.map((p) =>

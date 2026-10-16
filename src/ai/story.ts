@@ -3,7 +3,7 @@ import { store } from "../store.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { structured } from "./director.ts";
 import { provenCaptions } from "./research.ts";
-import type { Clip, Overlay, Segment, VideoPlan } from "../types.ts";
+import type { Clip, DraftLine, Overlay, Segment, StoryDraft, VideoPlan } from "../types.ts";
 
 /**
  * Story videos: the creator writes a storyline, the AI finds a clip (and the best part of it) for
@@ -13,8 +13,8 @@ import type { Clip, Overlay, Segment, VideoPlan } from "../types.ts";
 /** How many clips the AI looks through (one frame each + their best moments). */
 const CANDIDATES = 40;
 
-export async function planStory(storyline: string, targetSeconds: number): Promise<VideoPlan> {
-  const { petName, handle, story, scenes } = store.settings();
+/** The recent clips the AI chooses from, shown as one frame each plus their best moments. */
+async function clipCandidates(): Promise<{ shown: Clip[]; content: Anthropic.Beta.BetaContentBlockParam[] }> {
   const time = (c: Clip) => Date.parse(c.capturedAt ?? c.importedAt) || 0;
   const pool = store
     .clips()
@@ -47,6 +47,12 @@ export async function planStory(storyline: string, targetSeconds: number): Promi
     content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: jpg.toString("base64") } });
   }
   if (shown.length < 2) throw new Error("Couldn't read enough clips to build a story.");
+  return { shown, content };
+}
+
+export async function planStory(storyline: string, targetSeconds: number): Promise<VideoPlan> {
+  const { petName, handle, story, scenes } = store.settings();
+  const { shown, content } = await clipCandidates();
 
   // Proven hooks from TikTok research (a few per situation), so the story's hook stands on one too.
   const proven = scenes.flatMap((sc) => provenCaptions(sc).slice(0, 3));
@@ -151,5 +157,178 @@ export async function planStory(storyline: string, targetSeconds: number): Promi
     plannedBy: "claude",
     concept: storyline.slice(0, 300),
     scene: scene && scenes.includes(scene) ? scene : undefined,
+  };
+}
+
+/** Spoken words per second, for a line's length before it's recorded. */
+const WORDS_PER_SECOND = 2.6;
+export const estimateSeconds = (text: string) => Math.max(1.6, text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + 0.4);
+
+/**
+ * A voiceover story: a script used word for word, or a talk track (rough points) turned into a
+ * spoken script in the creator's voice. Each spoken line gets the clip that shows it best, or a
+ * note of what footage is missing. The creator then records the lines.
+ */
+export async function planVoiceDraft(
+  mode: "script" | "talk",
+  source: string,
+  partner?: { name: string; handle?: string; about: string; mustInclude?: string },
+): Promise<Omit<StoryDraft, "id" | "createdAt" | "source" | "mode" | "partnerId">> {
+  const { petName, handle, story, scenes } = store.settings();
+  const { shown, content } = await clipCandidates();
+  const proven = scenes.flatMap((sc) => provenCaptions(sc).slice(0, 3));
+  content.push({
+    type: "text",
+    text:
+      (mode === "script"
+        ? `The creator's VOICEOVER SCRIPT, to be used WORD FOR WORD:\n"""${source}"""\n\n` +
+          `Split it into spoken lines in order (one sentence or a natural phrase each, about 2–6 seconds spoken). ` +
+          `Don't change, add or drop any words.`
+        : `The creator's TALK TRACK (rough points of what they want to say):\n"""${source}"""\n\n` +
+          `Write the voiceover they'll read, in their voice: natural spoken English, first person, short sentences, ` +
+          `covering every point in order. The first line is a hook that stops the scroll. Split it into spoken lines ` +
+          `(about 2–6 seconds each, 6–14 lines).` +
+          (proven.length
+            ? `\nFor the hook, build on the pattern of one of these proven TikTok hooks:\n` +
+              proven.map((c, i) => `${i + 1}. "${c.text}"`).join("\n")
+            : "")) +
+      `\n\nFor each line pick the clip above that best shows what's being said, and the part of it to use (start/end ` +
+      `seconds inside the clip). The part should last about as long as the line takes to say (~${WORDS_PER_SECOND} words ` +
+      `per second), so prefer clips long enough. A clip may be reused for different parts only if nothing else fits. ` +
+      `If NO clip shows a line (e.g. a product screen or a moment that wasn't filmed), set clip to -1 and describe the ` +
+      `shot that's needed in "missing".` +
+      (partner
+        ? `\n\nThis is a paid collaboration with ${partner.name}${partner.handle ? ` (${partner.handle})` : ""}: ${partner.about}`
+        : "") +
+      `\n\nAlso write the post description (in the creator's voice, about this video, tied into the bigger journey` +
+      `${partner ? `, mentioning ${partner.handle || partner.name}${partner.mustInclude ? ` and including exactly: ${partner.mustInclude}` : ""}, ending with "#ad"` : ", ending with a question"}; ` +
+      `no hashtags) and exactly 3 hashtags without # (one 1M–5M posts, one 50K–100K, one ~10K).` +
+      (story ? `\nThe account's story: ${story}` : "") +
+      `\nThe pet is ${petName}${handle ? `, account ${handle}` : ""}.`,
+  });
+  const out = await structured<{
+    title: string;
+    basedOn: number;
+    lines: { text: string; clip: number; start: number; end: number; missing: string }[];
+    postCaption: string;
+    hashtags: string[];
+  }>({
+    system:
+      "You edit voiceover videos for a creator who travels the world with their dog: you match every spoken line to " +
+      "the footage that really shows it, and you never pretend a clip shows something it doesn't.",
+    content,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["title", "basedOn", "lines", "postCaption", "hashtags"],
+      properties: {
+        title: { type: "string" },
+        basedOn: { type: "integer", description: "Number of the proven hook the first line builds on, or -1" },
+        lines: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["text", "clip", "start", "end", "missing"],
+            properties: {
+              text: { type: "string", description: "The spoken words of this line" },
+              clip: { type: "integer", description: "The clip's number, or -1 if none shows this line" },
+              start: { type: "number" },
+              end: { type: "number" },
+              missing: { type: "string", description: "If clip is -1: the shot this line needs. Otherwise empty." },
+            },
+          },
+        },
+        postCaption: { type: "string" },
+        hashtags: { type: "array", items: { type: "string" } },
+      },
+    },
+    effort: "medium",
+  });
+  const lines: DraftLine[] = out.lines
+    .filter((l) => l.text.trim())
+    .map((l) => {
+      const clip = shown[l.clip - 1];
+      if (!clip) return { text: l.text.trim(), missing: l.missing.trim() || "a clip that shows this" };
+      const start = Math.max(0, Math.min(l.start, clip.duration - 0.5));
+      return { text: l.text.trim(), clipId: clip.id, start, end: Math.max(start + 0.5, Math.min(l.end, clip.duration)) };
+    });
+  if (!lines.length) throw new Error("Couldn't turn that into spoken lines. Try again with a bit more text.");
+  const firstScene = shown.find((c) => c.id === lines.find((l) => l.clipId)?.clipId)?.scene;
+  const b = mode === "talk" ? proven[out.basedOn - 1] : undefined;
+  return {
+    title: out.title,
+    lines,
+    postCaption: out.postCaption,
+    hashtags: out.hashtags.map((h) => h.replace(/^#/, "")).slice(0, 3),
+    basedOn: b ? { text: b.text, views: b.views, url: b.url } : undefined,
+    scene: firstScene && scenes.includes(firstScene) ? firstScene : undefined,
+  };
+}
+
+/** Short subtitle chunks (a few words each), timed across the line's length in proportion to their length. */
+export function captionChunks(text: string, start: number, seconds: number, maxWords = 5): Overlay[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const chunks: string[] = [];
+  for (let i = 0; i < words.length; i += maxWords) chunks.push(words.slice(i, i + maxWords).join(" "));
+  const total = chunks.reduce((n, c) => n + c.length, 0) || 1;
+  let t = start;
+  return chunks.map((c) => {
+    const len = (seconds * c.length) / total;
+    const o: Overlay = { text: c, start: t, end: t + len, at: "caption" };
+    t += len;
+    return o;
+  });
+}
+
+/**
+ * Turn a draft into a video plan: each line lasts as long as its recording (or its estimated
+ * reading time), the clip part fits that length, captions follow the words, and the recordings
+ * go on the timeline as the voiceover.
+ */
+export function planFromDraft(draft: StoryDraft, withVoice: boolean): VideoPlan {
+  const missing = draft.lines.filter((l) => !l.clipId);
+  if (missing.length) throw new Error(`${missing.length} line(s) have no clip yet: ${missing.map((l) => `"${l.text.slice(0, 40)}"`).join(", ")}`);
+  if (withVoice && draft.lines.some((l) => !l.audio)) throw new Error("Record every line first, or make it with captions only.");
+  const segments: Segment[] = [];
+  const overlays: Overlay[] = [];
+  const voiceover: { file: string; start: number }[] = [];
+  let t = 0;
+  for (const line of draft.lines) {
+    const clip = store.clip(line.clipId!);
+    if (!clip || clip.status !== "ready") throw new Error(`A clip for "${line.text.slice(0, 40)}" is no longer in the library.`);
+    const want = (withVoice ? line.audioSeconds ?? estimateSeconds(line.text) : estimateSeconds(line.text)) + 0.25;
+    let start = line.start ?? 0;
+    let speed = 1;
+    let part = want;
+    if (clip.duration >= want) {
+      if (start + want > clip.duration) start = clip.duration - want;
+    } else {
+      // Too short: use all of it, slowed down (at most to half speed).
+      start = 0;
+      part = clip.duration;
+      speed = Math.max(0.5, clip.duration / want);
+    }
+    segments.push({ clipId: clip.id, start, end: start + part, speed });
+    const length = part / speed;
+    if (withVoice && line.audio) voiceover.push({ file: line.audio, start: t + 0.1 });
+    overlays.push(...captionChunks(line.text, t + 0.1, Math.max(0.8, length - 0.2)));
+    t += length;
+  }
+  const first = draft.lines[0].text;
+  return {
+    template: "auto",
+    plannedBy: "claude",
+    format: "story",
+    title: draft.title,
+    hook: first,
+    overlays,
+    segments,
+    voiceover: withVoice ? voiceover : undefined,
+    postCaption: draft.postCaption,
+    hashtags: draft.hashtags,
+    basedOn: draft.basedOn,
+    scene: draft.scene,
+    concept: draft.source.slice(0, 300),
   };
 }

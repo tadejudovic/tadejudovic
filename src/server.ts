@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft } from "./generate.ts";
 import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
@@ -21,7 +21,7 @@ import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, login, loginPage, logout, requireAuth, signedInAs } from "./auth.ts";
 import { aiOutOfCredit, monthlyLimit, spendThisMonth } from "./ai/budget.ts";
-import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, TemplateId, VideoPlan } from "./types.ts";
+import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, StoryDraft, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -327,10 +327,11 @@ app.post("/api/reset", (req, res) => {
   if (req.body?.confirm !== "start over") return res.status(400).json({ error: "Confirmation missing." });
   clearWaitingWork();
   for (const a of [...store.albums()]) store.removeAlbum(a.id);
+  for (const d of [...store.drafts()]) store.removeDraft(d.id);
   for (const r of [...store.renders()]) deleteRender(r.id);
   for (const c of [...store.clips()]) deleteClip(c.id);
   // Anything left behind (half-finished downloads, old previews).
-  for (const dir of [config.mediaDir, config.thumbsDir, config.rendersDir, config.tmpDir]) {
+  for (const dir of [config.mediaDir, config.thumbsDir, config.rendersDir, config.tmpDir, path.join(config.dataDir, "voice")]) {
     for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
   }
   store.updateAuto({ lastBatchDate: undefined });
@@ -693,6 +694,56 @@ app.post(
     res.json(await makeStoryVideo(String(req.body?.storyline ?? "").slice(0, 2000), seconds));
   }),
 );
+
+// ---- Voiceover stories --------------------------------------------------------------
+
+app.post(
+  "/api/story/drafts",
+  h(async (req, res) => {
+    const mode = req.body?.mode === "talk" ? "talk" : "script";
+    const partnerId = typeof req.body?.partnerId === "string" && req.body.partnerId ? req.body.partnerId : undefined;
+    res.json(draftView(await createVoiceDraft(mode, String(req.body?.text ?? "").slice(0, 5000), partnerId)));
+  }),
+);
+
+app.get("/api/story/drafts/:id", (req, res) => {
+  const d = store.draft(String(req.params.id));
+  if (!d) return res.sendStatus(404);
+  res.json(draftView(d));
+});
+
+app.get("/api/story/drafts/:id/lines/:i/audio", (req, res) => {
+  const line = store.draft(String(req.params.id))?.lines[Number(req.params.i)];
+  if (!line?.audio || !fs.existsSync(line.audio)) return res.sendStatus(404);
+  res.sendFile(line.audio);
+});
+
+const draftView = (d: StoryDraft) => ({ ...d, lines: d.lines.map(({ audio, ...l }) => ({ ...l, recorded: Boolean(audio) })) });
+
+app.post(
+  "/api/story/drafts/:id/lines/:i/audio",
+  upload.single("file"),
+  h(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No recording received." });
+    res.json(draftView(await saveLineRecording(String(req.params.id), Number(req.params.i), req.file.path)));
+  }),
+);
+
+app.patch("/api/story/drafts/:id/lines/:i", (req, res) => {
+  try {
+    res.json(draftView(setLineClip(String(req.params.id), Number(req.params.i), String(req.body?.clipId ?? ""))));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+app.post("/api/story/drafts/:id/render", (req, res) => {
+  try {
+    res.json(renderDraft(String(req.params.id), req.body?.voice !== false));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
 
 app.post(
   "/api/renders/:id/caption",

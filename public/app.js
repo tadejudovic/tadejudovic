@@ -678,7 +678,7 @@ function detailsBody(r) {
   }) }, "Apply to this video");
   const styleEdit = h("div", { class: "d-style", hidden: true },
     h("span", { class: "d-label" }, "Size"), segControl("textSize", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]]),
-    h("span", { class: "d-label" }, "Look"), segControl("textStyle", [["yellow", "Yellow"], ["classic", "White"], ["box", "Box"], ["plain", "Plain"]]),
+    h("span", { class: "d-label" }, "Look"), segControl("textStyle", [["yellowbox", "Yellow box"], ["yellow", "Yellow"], ["classic", "White"], ["box", "Box"], ["plain", "Plain"]]),
     h("span", { class: "d-label" }, "Font"), fontSelect,
     applyLook,
   );

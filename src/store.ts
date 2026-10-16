@@ -63,6 +63,8 @@ export interface Settings {
   story: string;
   /** Set once the yellow CapCut look became the default (keeps later manual choices). */
   lookV2?: boolean;
+  /** Set once the yellow box became the default. */
+  lookV3?: boolean;
 }
 
 /** Videos in a round made from the daily mix. */
@@ -81,7 +83,7 @@ const DEFAULT_SETTINGS: Settings = {
   petName: "Lex",
   handle: "",
   fontId: "montserrat",
-  textStyle: "yellow",
+  textStyle: "yellowbox",
   textSize: "medium",
   captionAudience: "mix",
   dailyMix: { fun: 2, educational: 2, inspirational: 2 },
@@ -128,6 +130,12 @@ function load(): DB {
       if (db.settings.textStyle === "classic") db.settings.textStyle = "yellow";
       if (db.settings.fontId === "tiktok-sans") db.settings.fontId = "montserrat";
       db.settings.lookV2 = true;
+    }
+    // One-time switch to the yellow box (black Montserrat on a yellow block), the creator's chosen default.
+    if (!db.settings.lookV3) {
+      db.settings.textStyle = "yellowbox";
+      db.settings.fontId = "montserrat";
+      db.settings.lookV3 = true;
     }
     db.albums ??= [];
     db.partners ??= [];

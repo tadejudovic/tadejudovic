@@ -136,7 +136,7 @@ app.put("/api/settings", (req, res) => {
       ...(typeof petName === "string" && petName.trim() ? { petName: petName.trim().slice(0, 40) } : {}),
       ...(typeof handle === "string" ? { handle: handle.trim().slice(0, 40) } : {}),
       ...(fontOk ? { fontId } : {}),
-      ...(["yellow", "classic", "box", "plain"].includes(textStyle) ? { textStyle } : {}),
+      ...(["yellowbox", "yellow", "classic", "box", "plain"].includes(textStyle) ? { textStyle } : {}),
       ...(["small", "medium", "large"].includes(textSize) ? { textSize } : {}),
       ...(["pets", "mix", "everyone"].includes(captionAudience) ? { captionAudience } : {}),
       ...(typeof story === "string" ? { story: story.trim().slice(0, 2000) } : {}),
@@ -532,7 +532,7 @@ function parseOptions(body: any): RenderOptions {
   const fontId = typeof body?.fontId === "string" && listFonts().some((f) => f.id === body.fontId) ? body.fontId : settings.fontId;
   return {
     keepOriginalAudio: body?.keepOriginalAudio !== false,
-    textStyle: ["yellow", "classic", "box", "plain"].includes(body?.textStyle) ? body.textStyle : settings.textStyle,
+    textStyle: ["yellowbox", "yellow", "classic", "box", "plain"].includes(body?.textStyle) ? body.textStyle : settings.textStyle,
     textSize: ["small", "medium", "large"].includes(body?.textSize) ? body.textSize : settings.textSize,
     fontId,
     musicFile,

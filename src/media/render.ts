@@ -1,3 +1,4 @@
+import opentype from "opentype.js";
 import fs from "node:fs";
 import path from "node:path";
 import { config, canDecode4K } from "../config.ts";
@@ -83,7 +84,24 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
   const lines = wrap(clean, opts.maxChars);
   const lineH = Math.round(opts.size * 1.24);
   const top = opts.yTop ?? Math.round(H * opts.yFrac - (lines.length * lineH) / 2);
+  // Box styles: one solid block behind all the lines, sized to the widest one.
+  const block = opts.style === "yellowbox" ? "0xF5C400" : opts.style === "box" ? "white" : null;
+  if (block) {
+    const widths = lines.map((l) => textWidth(opts.font, l, opts.size));
+    const padX = Math.round(opts.size * 0.55);
+    const padY = Math.round(opts.size * 0.38);
+    const w = Math.min(W - 40, Math.round(Math.max(...widths)) + padX * 2);
+    const h = Math.round((lines.length - 1) * lineH + opts.size * 1.08) + padY * 2;
+    const box = [
+      `drawbox=x=${Math.round((W - w) / 2)}:y=${top - padY}:w=${w}:h=${h}:color=${block}@1:t=fill`,
+      opts.enable ? `enable='${opts.enable}'` : "",
+    ].filter(Boolean).join(":");
+    const ink = textFilters(text, { ...opts, style: "ink" as RenderOptions["textStyle"] });
+    return { filters: [box, ...ink.filters], height: ink.height };
+  }
   const style = {
+    ink: "fontcolor=0x111111",
+    yellowbox: "",
     classic: "fontcolor=white:borderw=7:bordercolor=black@0.95:shadowcolor=black@0.45:shadowx=0:shadowy=4",
     box: "fontcolor=black:box=1:boxcolor=white@0.97:boxborderw=18",
     plain: "fontcolor=white:shadowcolor=black@0.7:shadowx=0:shadowy=3",
@@ -326,4 +344,18 @@ async function finalize(
     ...SINGLE_THREAD,
     out,
   ]);
+}
+
+const fonts = new Map<string, opentype.Font | null>();
+/** How wide a line of text is drawn, in pixels (estimated if the font can't be read). */
+export function textWidth(fontFile: string, text: string, size: number): number {
+  if (!fonts.has(fontFile)) {
+    try {
+      fonts.set(fontFile, opentype.loadSync(fontFile));
+    } catch {
+      fonts.set(fontFile, null);
+    }
+  }
+  const font = fonts.get(fontFile);
+  return font ? font.getAdvanceWidth(text, size) : text.length * size * 0.62;
 }

@@ -273,7 +273,7 @@ export interface RenderOptions {
   fontId: string;
 }
 
-export type TextStyle = "yellow" | "classic" | "box" | "plain";
+export type TextStyle = "yellowbox" | "yellow" | "classic" | "box" | "plain";
 export type TextSize = "small" | "medium" | "large";
 /** Who the on-screen text is written for. */
 export type CaptionAudience = "pets" | "mix" | "everyone";

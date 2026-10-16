@@ -75,6 +75,10 @@ test("shot directions in a talk track are read and never spoken", async () => {
   assert.deepEqual(shots, ["lying at the gate", "security check"]);
   assert.match(marked, /\{SHOT: lying at the gate\} He's calmer than me\. \{SHOT: security check\} He walks alone, 24\/7 @petpace https:\/\/x\.co\/a/);
   assert.equal(stripShots("{SHOT: gate} He's calm [gate] now /plane"), "He's calm now");
+  // A whole line after a slash is a shot for the words that follow.
+  const one = parseShots("I'm flying my dog 42,000 kilometres around the world.\n\n/ Lex inside airplane \nHonestly, things don't always go to plan.");
+  assert.deepEqual(one.shots, ["Lex inside airplane"]);
+  assert.equal(one.marked, "I'm flying my dog 42,000 kilometres around the world.\n\n{SHOT: Lex inside airplane}\nHonestly, things don't always go to plan.");
 });
 
 test("cloned voice: made from samples, then reads the lines that weren't recorded", async () => {

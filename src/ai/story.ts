@@ -14,25 +14,36 @@ import type { Clip, DraftLine, Overlay, Segment, StoryDraft, VideoPlan } from ".
 const CANDIDATES = 40;
 
 /**
- * Shot directions inside the creator's text: "[lying at the gate]" or "/security". They say which
- * footage to show for the words that follow, and are never spoken or shown as text.
+ * Shot directions inside the creator's text, for the words that follow them; never spoken:
+ * a line starting with a slash ("/ Lex inside the airplane"), a word after a slash ("/security")
+ * or anything in brackets ("[lying at the gate]").
  */
+const SHOT_LINE_RE = /^[ \t]*\/[ \t]*([^\s/][^\n]{0,120}?)[ \t]*$/gm;
 const SHOT_RE = /\[([^\[\]\n]{1,80})\]|(^|\s)\/([a-z][\w-]{1,40})/gi;
 
 export function parseShots(source: string): { marked: string; shots: string[] } {
   const shots: string[] = [];
-  const marked = source.replace(SHOT_RE, (_m, bracket: string | undefined, lead: string | undefined, slash: string | undefined) => {
-    const shot = (bracket ?? slash ?? "").replace(/[-_]+/g, " ").trim();
-    if (!shot) return _m;
+  const mark = (raw: string) => {
+    const shot = raw.replace(/[-_]+/g, " ").trim();
     shots.push(shot);
-    return `${lead ?? ""}{SHOT: ${shot}}`;
-  });
+    return `{SHOT: ${shot}}`;
+  };
+  const marked = source
+    .replace(SHOT_LINE_RE, (_m, line: string) => mark(line))
+    .replace(SHOT_RE, (m, bracket: string | undefined, lead: string | undefined, slash: string | undefined) =>
+      (bracket ?? slash)?.trim() ? `${lead ?? ""}${mark(bracket ?? slash!)}` : m,
+    );
   return { marked, shots };
 }
 
 /** The spoken words without any shot directions left in them. */
 export function stripShots(text: string): string {
-  return text.replace(/\{SHOT:[^}]*\}/gi, " ").replace(SHOT_RE, (_m, _b, lead: string | undefined) => lead ?? " ").replace(/\s+/g, " ").trim();
+  return text
+    .replace(/\{SHOT:[^}]*\}/gi, " ")
+    .replace(SHOT_LINE_RE, " ")
+    .replace(SHOT_RE, (_m, _b, lead: string | undefined) => lead ?? " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 const STOP = new Set("the and for with that this from have has was were are his her him she they them you your our out into over just like about what when then than there here very really more most some lex dog dogs".split(" "));

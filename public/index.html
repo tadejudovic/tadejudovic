@@ -258,22 +258,21 @@
       <div class="subpage" id="sp-story" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Story video</h2></header>
         <div class="sp-body">
-        <div class="seg" id="story-mode">
-          <label><input type="radio" name="storyMode" value="storyline" checked />Storyline</label>
-          <label><input type="radio" name="storyMode" value="talk" />Talk track</label>
-          <label><input type="radio" name="storyMode" value="script" />Script</label>
-        </div>
-        <p class="sp-intro" id="story-intro"></p>
-        <div id="my-voice" class="voice-card" hidden></div>
+        <p class="sp-intro">Write what you'll say. To pick the footage, start a line with <b>/</b> and describe the scene; it goes with the words after it and is never spoken. Lines without a scene get the best-matching clip automatically.</p>
+        <div id="my-voice" class="voice-card"></div>
         <form id="story-form" class="grid-form">
-          <label class="wide"><span id="story-label">Storyline</span> <textarea name="storyline" rows="8" maxlength="5000"></textarea></label>
-          <label id="story-length">Length
-            <select name="seconds"><option value="15">15s</option><option value="20" selected>20s</option><option value="30">30s</option></select>
-          </label>
-          <label id="story-partner" hidden>Brand partner (optional)
+          <label class="wide">Voiceover <textarea name="storyline" rows="10" maxlength="5000" placeholder="I'm flying my dog 42,000 kilometres around the world, and honestly, things don't always go to plan.
+
+/ Lex inside airplane
+Take-off is the worst part. He shivers, then falls asleep on my lap.
+
+/ Lex walking through the airport
+At the airport? Zero stress. More relaxed than me."></textarea></label>
+          <label class="wide check"><input type="checkbox" name="rough" /> These are rough notes: write the voiceover for me</label>
+          <label class="wide">Brand partner (optional)
             <select name="partnerId"><option value="">None</option></select>
           </label>
-          <div class="wide"><button class="btn primary" type="submit" id="story-go">Make story video</button></div>
+          <div class="wide"><button class="btn primary" type="submit" id="story-go">Find the clips</button></div>
         </form>
         <div id="story-draft" class="story-draft" hidden></div>
         </div>

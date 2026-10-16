@@ -1047,61 +1047,20 @@ $("#sheet").addEventListener("click", (e) => e.target.id === "sheet" && closeShe
 document.addEventListener("keydown", (e) => e.key === "Escape" && !$("#sheet").hidden && closeSheet());
 
 // ---- Story videos -------------------------------------------------------------------
-// Storyline: what happens → clips + short text. Talk track: rough points → a spoken script.
-// Script: exact words. Talk track and script get a shot list, then the creator records each line.
+// One input: plain text is the voiceover, a line starting with "/" is the scene for the words after
+// it. Rollcut finds a clip for every line (the asked-for scene, or the best match), then the creator
+// records the lines or lets their cloned voice read them.
 
-const STORY_MODES = {
-  storyline: {
-    label: "Storyline",
-    intro: "Write what happens, in order. Rollcut finds the clip for each moment, stitches them with a line of text each and writes the description.",
-    placeholder: "Lex's first day in Tokyo: we land exhausted after 14 hours → his first train ride, glued to the window → walking through Shibuya like he owns it → passed out at the hotel.",
-    go: "Make story video",
-  },
-  talk: {
-    label: "Talk track",
-    intro: "The points you want to make, roughly. Rollcut writes the voiceover in your voice and finds a clip for every line by itself. Want a specific shot? Put it in [brackets] or after a slash (/security) before the words it goes with. Then record the lines, or let your cloned voice read them.",
-    placeholder: "- are dogs scared of flying? Lex is wearing a PetPace monitor around the world\n- [lying calmly at the gate] airport: zero stress, more relaxed than me\n- /security walks through the detector alone\n- take-off is the worst, shivering; calms down on my lap\n- landing a bit, then back to normal\n- PetPace shows how he's really doing, code LEXPOODLE40",
-    go: "Write it & find the clips",
-  },
-  script: {
-    label: "Script",
-    intro: "Your exact words. Rollcut keeps them as written, splits them into lines and finds a clip for every line. Want a specific shot? Put it in [brackets] or after a slash (/security) before the words it goes with; it's never spoken. Then record the lines, or let your cloned voice read them.",
-    placeholder: "[Lex on the plane seat] Are dogs afraid of flying? I'm flying Lex 42,000 kilometres around the world…",
-    go: "Find the clips",
-  },
-};
-
-function storyMode() {
-  return document.querySelector("#story-mode input:checked")?.value ?? "storyline";
-}
-
+/** Fills the brand partner picker (called again when partners change). */
 function renderStoryMode() {
-  const m = STORY_MODES[storyMode()];
-  $("#story-intro").textContent = m.intro;
-  $("#story-label").textContent = m.label;
-  $("#story-form").storyline.placeholder = m.placeholder;
-  $("#story-go").textContent = m.go;
-  $("#story-length").hidden = storyMode() !== "storyline";
-  $("#story-partner").hidden = storyMode() === "storyline";
-  $("#my-voice").hidden = storyMode() === "storyline";
   $("#story-form").partnerId.replaceChildren(h("option", { value: "" }, "None"), ...(state.partners ?? []).map((p) => h("option", { value: p.id }, p.name)));
 }
-$("#story-mode").addEventListener("change", renderStoryMode);
 renderStoryMode();
 
 $("#story-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const f = e.currentTarget;
-  const mode = storyMode();
-  if (mode === "storyline") {
-    return withBusy($("#story-go"), "Finding the clips… (about a minute)", async () => {
-      await api("/api/story", { method: "POST", body: { storyline: f.storyline.value, seconds: Number(f.seconds.value) } });
-      await refreshRenders();
-      closeSubpages();
-      showTab("review");
-      banner("Making your story video. It shows up on Review in a minute or two.", "ok");
-    });
-  }
+  const mode = f.rough.checked ? "talk" : "script";
   withBusy($("#story-go"), mode === "talk" ? "Writing & finding clips… (1–2 min)" : "Finding the clips… (1–2 min)", async () => {
     state.draft = await api("/api/story/drafts", { method: "POST", body: { mode, text: f.storyline.value, partnerId: f.partnerId.value } });
     try { localStorage.setItem("rollcut.draft", state.draft.id); } catch {}
@@ -1279,8 +1238,7 @@ refreshVoice();
   if (!id) return;
   state.draft = await api(`/api/story/drafts/${id}`).catch(() => null);
   if (state.draft) {
-    for (const r of document.querySelectorAll("#story-mode input")) r.checked = r.value === state.draft.mode;
-    renderStoryMode();
+    $("#story-form").rough.checked = state.draft.mode === "talk";
     renderDraft();
   }
 })();

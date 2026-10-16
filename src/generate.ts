@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { cloneVoice, deleteVoice, speak } from "./voice/elevenlabs.ts";
 import { config } from "./config.ts";
+import { localDate } from "./dailyLimit.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
@@ -137,18 +138,31 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
 }
 
 /** The kind of each video in a round: fun, educational, inspirational, fun, … as far as the mix allows. */
-export function mixSequence(mix: DailyMix, n: number): PostFormat[] {
-  const left: [PostFormat, number][] = [["fun", mix.fun ?? 0], ["tips", mix.educational ?? 0], ["inspire", mix.inspirational ?? 0]];
+export function mixSequence(mix: DailyMix, n: number, made: Partial<Record<PostFormat, number>> = {}): PostFormat[] {
+  const want: [PostFormat, number][] = [["fun", mix.fun ?? 0], ["tips", mix.educational ?? 0], ["inspire", mix.inspirational ?? 0]];
+  const kinds = want.filter(([, w]) => w > 0);
+  if (!kinds.length) return Array(n).fill("fun");
+  // Each next video is the kind furthest behind its share of the day, counting what was already
+  // made today: rounds are often just one or two videos, and must not all start with "fun".
+  const have = new Map<PostFormat, number>(kinds.map(([k]) => [k, made[k] ?? 0]));
   const out: PostFormat[] = [];
-  while (out.length < n && left.some(([, k]) => k > 0)) {
-    for (const entry of left) {
-      if (out.length < n && entry[1] > 0) {
-        out.push(entry[0]);
-        entry[1]--;
-      }
-    }
+  while (out.length < n) {
+    let best = kinds[0];
+    for (const k of kinds) if (have.get(k[0])! / k[1] < have.get(best[0])! / best[1]) best = k;
+    out.push(best[0]);
+    have.set(best[0], have.get(best[0])! + 1);
   }
-  while (out.length < n) out.push("fun");
+  return out;
+}
+
+/** Videos made today by kind (rejected ones count too: they were that kind's chance). */
+export function madeTodayByKind(): Partial<Record<PostFormat, number>> {
+  const today = localDate(new Date());
+  const out: Partial<Record<PostFormat, number>> = {};
+  for (const r of store.renders()) {
+    if (localDate(new Date(r.createdAt)) !== today || !r.plan.format || r.plan.format === "story" || r.plan.collab) continue;
+    out[r.plan.format] = (out[r.plan.format] ?? 0) + 1;
+  }
   return out;
 }
 
@@ -228,7 +242,7 @@ export async function plan(
       captionAudience === "everyone" ? "everyone" : captionAudience === "pets" ? "pets" : i % 2 === 0 ? "everyone" : "pets";
     // The daily mix: fun, educational and inspirational candidates, alternating so a round always
     // has at least one of each (the creator keeps the best of each kind).
-    const kinds = mixSequence(store.settings().dailyMix, chosen.length);
+    const kinds = mixSequence(store.settings().dailyMix, chosen.length, madeTodayByKind());
     const askedThisRound = new Set<string>();
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {

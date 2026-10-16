@@ -162,10 +162,15 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
       return { renders: [], skipped: "daily video limit reached" };
     }
     // Pick up anything added to the albums since the last check, and let it finish analyzing.
+    // Listing a big album takes a while: only wait for it when there's nothing to make videos from yet.
     if (store.albums().length) {
-      roundStage = "Checking your albums…";
       lastSync = Date.now();
-      await syncAll();
+      if (usableClips() >= enoughToStart()) {
+        syncAll().catch((err) => console.warn("[scheduler] album check failed:", (err as Error).message));
+      } else {
+        roundStage = "Bringing in more footage from your albums…";
+        await syncAll();
+      }
     }
     if (usableClips() < enoughToStart()) {
       roundStage = "Waiting for clips to be sorted into your situations…";

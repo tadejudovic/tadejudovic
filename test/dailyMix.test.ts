@@ -27,3 +27,19 @@ test("a round alternates kinds so every kind gets a candidate first", () => {
   assert.deepEqual(mixSequence({ fun: 3, educational: 1, inspirational: 0 }, 4), ["fun", "tips", "fun", "fun"]);
   assert.deepEqual(mixSequence({ fun: 0, educational: 0, inspirational: 0 }, 2), ["fun", "fun"]);
 });
+
+test("small rounds don't all start with fun: the kind furthest behind today goes first", () => {
+  const mix = { fun: 2, educational: 2, inspirational: 2 };
+  assert.deepEqual(mixSequence(mix, 1, { fun: 1 }), ["tips"]);
+  assert.deepEqual(mixSequence(mix, 1, { fun: 1, tips: 1 }), ["inspire"]);
+  assert.deepEqual(mixSequence(mix, 2, { fun: 2, tips: 1 }), ["inspire", "tips"]);
+  // One-video rounds all day: fun, educational, inspirational in turn.
+  const made: Record<string, number> = {};
+  const seq = [];
+  for (let i = 0; i < 6; i++) {
+    const [k] = mixSequence(mix, 1, made);
+    seq.push(k);
+    made[k] = (made[k] ?? 0) + 1;
+  }
+  assert.deepEqual(seq, ["fun", "tips", "inspire", "fun", "tips", "inspire"]);
+});

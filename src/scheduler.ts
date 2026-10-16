@@ -1,6 +1,6 @@
 import { config } from "./config.ts";
 import { store } from "./store.ts";
-import { importBudget, syncAll } from "./albums.ts";
+import { footageNeeded, importBudget, syncAll } from "./albums.ts";
 import { plan, queueRender, isPortrait, onTopic, postsDueForStats, refreshPostStats } from "./generate.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { syncProfiles } from "./postMatch.ts";
@@ -98,7 +98,7 @@ async function runDue({ afterReview = false } = {}) {
     // slots, so as soon as imports finish and there's room for more, take the next ones waiting.
     ingestQueue.pending === 0 &&
     Date.now() - lastTopUp > TOP_UP_EVERY_MS &&
-    store.albums().some((a) => (a.waiting ?? 0) > 0) &&
+    store.albums().some((a) => (a.waiting ?? 0) > 0 || ((a.tooOld ?? 0) > 0 && footageNeeded() > 0)) &&
     importBudget() > 0
   ) {
     lastTopUp = Date.now();
@@ -182,7 +182,7 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     }
     // Each clip is used once (a rejected video hands its clips back), so a round only draws on unused footage.
     const pool = ready.filter((c) => c.uses === 0);
-    if (!pool.length) throw new Error("Every clip has been used. New footage is imported as it's needed.");
+    if (!pool.length) throw new Error("Every clip has been used. Older footage from your albums is being imported now; the next round starts as soon as it's sorted.");
 
     const { fontId, textStyle, textSize } = store.settings();
     const options: RenderOptions = { keepOriginalAudio: true, textStyle, textSize, fontId };

@@ -321,6 +321,8 @@ export interface AlbumSource {
   /** Whether the whole album could be listed, and why not if it couldn't. */
   listingComplete?: boolean;
   listingError?: string;
+  /** Older videos (before the date range) imported because the range was used up. */
+  reachedBack?: number;
 }
 
 /** A text-overlay format that is currently performing on TikTok. */

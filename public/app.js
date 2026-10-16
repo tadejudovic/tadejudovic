@@ -521,7 +521,7 @@ function outOfClipsText(strict, st) {
     waiting
       ? `${waiting} more are waiting in your albums and are being imported (up to 150 a day)${state.albums?.[0]?.importPaused ? `, on hold: ${state.albums[0].importPaused}` : ""}.`
       : tooOld
-        ? `${tooOld} older videos in your albums are outside the date range: set an album to "all videos" in Settings → Google Photos albums to use them.`
+        ? `Older videos from your albums (${tooOld} outside the date range) are being brought in now, newest first.`
         : "New videos in your albums are picked up every few hours.",
   );
   return parts.join(" ");
@@ -1101,7 +1101,10 @@ function editorText() {
   const walk = (n) => {
     for (const c of n.childNodes) {
       if (c.nodeType === Node.TEXT_NODE) out += c.textContent.replace(/\u00a0/g, " ");
-      else if (c.classList?.contains("shot-chip")) out += `\n/ ${c.dataset.shot}\n`;
+      else if (c.classList?.contains("shot-chip")) {
+        const shot = c.dataset.shot ?? draftText(c);
+        if (shot) out += `\n/ ${shot}\n`;
+      }
       else if (c.nodeName === "BR") out += "\n";
       else {
         if (/^(DIV|P)$/.test(c.nodeName) && out && !out.endsWith("\n")) out += "\n";
@@ -1152,85 +1155,133 @@ function insertAtCaret(node) {
   lastRange = r.cloneRange();
 }
 
-/** The "/query" being typed right before the caret, if any. */
-function slashQuery() {
+/** A "/" just typed at the start of a word, right before the caret. */
+function justTypedSlash() {
   const sel = getSelection();
   if (!sel.rangeCount || !sel.isCollapsed) return null;
   const node = sel.anchorNode;
-  if (node?.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
+  if (node?.nodeType !== Node.TEXT_NODE || !editor.contains(node) || node.parentElement.closest(".shot-chip")) return null;
   const before = node.textContent.slice(0, sel.anchorOffset);
-  const m = before.match(/(?:^|[\s\u00a0])\/([^/\n]{0,60})$/);
-  if (!m) return null;
-  return { node, start: sel.anchorOffset - m[1].length - 1, end: sel.anchorOffset, query: m[1].replace(/\u00a0/g, " ") };
+  return /(^|[\s\u00a0])\/$/.test(before) ? { node, at: sel.anchorOffset - 1 } : null;
 }
 
-let suggest = null; // { q, options, active }
+/** The chip being typed (the caret is inside it), if any. */
+function draftChip() {
+  const sel = getSelection();
+  const n = sel.rangeCount ? sel.anchorNode : null;
+  const el = n && (n.nodeType === Node.TEXT_NODE ? n.parentElement : n);
+  const chip = el?.closest?.(".shot-chip.drafting");
+  return chip && editor.contains(chip) ? chip : null;
+}
+const draftText = (chip) => chip.textContent.replace(/[\u200b\u00a0]/g, " ").replace(/\s+/g, " ").trim();
+
+function caretInto(node, offset) {
+  const r = document.createRange();
+  r.setStart(node, offset);
+  r.collapse(true);
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+}
+
+/** Typing "/" starts a chip right there; what's typed next goes inside it. */
+function startDraftChip({ node, at }) {
+  const rest = node.splitText(at);
+  rest.textContent = rest.textContent.slice(1); // drop the typed "/"
+  const text = document.createTextNode("\u200b");
+  const chip = h("span", { class: "shot-chip drafting" }, text);
+  rest.before(chip);
+  caretInto(text, 1);
+  showSuggest(chip);
+}
+
+let suggest = null; // { chip, options, active }
 
 function hideSuggest() {
   suggest = null;
   $("#vo-suggest").hidden = true;
 }
 
-function showSuggest() {
-  const q = slashQuery();
-  if (!q) return hideSuggest();
-  const needle = q.query.trim().toLowerCase();
+function showSuggest(chip = draftChip()) {
+  if (!chip) return hideSuggest();
+  const typed = draftText(chip);
+  const needle = typed.toLowerCase();
   const matches = shotTags().filter((t) => !needle || t.toLowerCase().includes(needle)).slice(0, 6);
   const options = [...matches];
-  if (needle && !matches.some((t) => t.toLowerCase() === needle)) options.push(q.query.trim());
-  const active = suggest && suggest.active < options.length ? suggest.active : 0;
-  suggest = { q, options, active };
+  if (needle && !matches.some((t) => t.toLowerCase() === needle)) options.push(typed);
+  const active = suggest?.chip === chip && suggest.active < options.length ? suggest.active : 0;
+  suggest = { chip, options, active };
   const box = $("#vo-suggest");
   box.hidden = false;
   box.replaceChildren(
     ...(options.length
       ? options.map((t, i) =>
-          h("button", { type: "button", class: `vo-opt ${i === active ? "on" : ""}`, onpointerdown: (e) => { e.preventDefault(); commitChip(t); } },
+          h("button", { type: "button", class: `vo-opt ${i === active ? "on" : ""}`, onpointerdown: (e) => { e.preventDefault(); commitChip(chip, t); } },
             h("span", { class: "shot-chip small" }, h("span", { class: "shot-chip-slash" }, "/"), h("span", {}, t)),
             i === options.length - 1 && !matches.includes(t) ? h("span", { class: "muted" }, " new scene") : null))
-      : [h("p", { class: "muted vo-hint" }, "Type the scene you want, e.g. Lex inside airplane, then press Enter.")]),
+      : [h("p", { class: "muted vo-hint" }, "Type the scene, e.g. Lex inside airplane, then press Enter.")]),
   );
 }
 
-function commitChip(shot) {
-  const q = suggest?.q ?? slashQuery();
-  if (!q || !shot.trim()) return hideSuggest();
-  const range = document.createRange();
-  range.setStart(q.node, q.start);
-  range.setEnd(q.node, Math.min(q.end, q.node.textContent.length));
-  range.deleteContents();
-  const chip = chipEl(shot.trim());
-  const space = document.createTextNode("\u00a0");
-  range.insertNode(space);
-  range.insertNode(chip);
-  const r = document.createRange();
-  r.setStart(space, 1);
-  r.collapse(true);
-  const sel = getSelection();
-  sel.removeAllRanges();
-  sel.addRange(r);
+/** Finish the chip being typed: a fixed chip with this scene, the caret right after it. */
+function commitChip(chip, shot = draftText(chip)) {
   hideSuggest();
+  if (!chip.isConnected) return;
+  if (!shot.trim()) return chip.remove();
+  const done = chipEl(shot.trim());
+  const space = document.createTextNode("\u00a0");
+  chip.replaceWith(done, space);
+  caretInto(space, 1);
+  lastRange = getSelection().getRangeAt(0).cloneRange();
 }
 
-editor.addEventListener("input", showSuggest);
-editor.addEventListener("blur", () => setTimeout(hideSuggest, 150));
+/** Escape: keep what was typed as plain words, slash included. */
+function cancelChip(chip) {
+  hideSuggest();
+  const text = document.createTextNode(`/${chip.textContent.replace(/\u200b/g, "")}`);
+  chip.replaceWith(text);
+  caretInto(text, text.length);
+}
+
+editor.addEventListener("input", () => {
+  const slash = justTypedSlash();
+  if (slash) return startDraftChip(slash);
+  const chip = draftChip();
+  // Backspaced the whole scene away: the chip goes too.
+  if (chip && !chip.textContent.replace(/\u200b/g, "")) {
+    chip.remove();
+    return hideSuggest();
+  }
+  showSuggest(chip);
+});
+editor.addEventListener("blur", () =>
+  setTimeout(() => {
+    if (editor.contains(document.activeElement) || document.activeElement === editor) return;
+    for (const c of editor.querySelectorAll(".shot-chip.drafting")) commitChip(c);
+    hideSuggest();
+  }, 150));
 editor.addEventListener("keydown", (e) => {
-  if (!suggest) return;
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+  const chip = draftChip();
+  if (!chip) return;
+  if ((e.key === "ArrowDown" || e.key === "ArrowUp") && suggest?.options.length) {
     e.preventDefault();
-    const n = suggest.options.length || 1;
+    const n = suggest.options.length;
     suggest.active = (suggest.active + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
-    showSuggest();
+    showSuggest(chip);
   } else if (e.key === "Enter" || e.key === "Tab") {
     e.preventDefault();
-    commitChip(suggest.options[suggest.active] ?? suggest.q.query);
-  } else if (e.key === "Escape") hideSuggest();
-});
-// Phone keyboards don't always send Enter as a key: catch the new-line itself.
-editor.addEventListener("beforeinput", (e) => {
-  if (suggest && (e.inputType === "insertParagraph" || e.inputType === "insertLineBreak")) {
+    commitChip(chip, suggest?.options[suggest.active] ?? draftText(chip));
+  } else if (e.key === "Escape") {
     e.preventDefault();
-    commitChip(suggest.options[suggest.active] ?? suggest.q.query);
+    cancelChip(chip);
+  }
+});
+// Phone keyboards don't always send Enter as a key: catch the new line itself.
+editor.addEventListener("beforeinput", (e) => {
+  const chip = draftChip();
+  if (chip && (e.inputType === "insertParagraph" || e.inputType === "insertLineBreak")) {
+    e.preventDefault();
+    commitChip(chip, suggest?.options[suggest.active] ?? draftText(chip));
   }
 });
 editor.addEventListener("paste", (e) => {
@@ -1570,7 +1621,7 @@ async function refreshAlbums() {
               ? `Sees the newest ${a.itemsSeen} items only: Google wouldn't load the rest of this big album${a.listingError ? ` (${a.listingError})` : ""}.`
               : `${a.itemsSeen} items in the album.`) : null,
           a.tooOld || a.waiting ? h("div", { class: "muted" },
-            [a.tooOld ? `${a.tooOld} older item(s) left out` : "", a.waiting ? `${a.waiting} more being imported (up to 150 a day)${a.importPaused ? `, on hold: ${a.importPaused}` : ""}` : ""].filter(Boolean).join(" · ")) : null,
+            [a.reachedBack ? `${a.reachedBack} older video(s) brought in because the date range was used up` : "", a.tooOld ? `${a.tooOld} older item(s) not imported yet; more come in when the date range runs out` : "", a.waiting ? `${a.waiting} more being imported (up to 150 a day)${a.importPaused ? `, on hold: ${a.importPaused}` : ""}` : ""].filter(Boolean).join(" · ")) : null,
           a.lastError ? h("div", { class: "err" }, a.lastError) : null,
           a.skipped && Object.keys(a.skipped).length
             ? h("div", { class: "muted", title: "What Google returned for items that weren't recognized as videos" },

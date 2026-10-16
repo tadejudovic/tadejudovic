@@ -747,3 +747,5 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .vo-saved { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .vo-saved-title { font-size: 12px; margin-right: 4px; }
 .voice-card > div { display: grid; gap: 6px; }
+.shot-chip.drafting { padding-right: 9px; user-select: text; white-space: pre-wrap; border-style: dashed; outline: none; }
+.shot-chip.drafting::before { content: "/"; color: #6366f1; font-weight: 800; }

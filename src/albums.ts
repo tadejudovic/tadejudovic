@@ -4,6 +4,7 @@ import { config } from "./config.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { albumUrlFrom, fetchAlbum, isAlbumUrl, openVideo, saveResponse } from "./google/sharedAlbum.ts";
 import { enqueueClip, deleteClip, SkipItem } from "./library.ts";
+import { onTopic } from "./generate.ts";
 import type { AlbumSource, Clip } from "./types.ts";
 
 /** New albums only import recent videos: a live album that auto-adds every video of the pet can hold years of them. */
@@ -34,6 +35,19 @@ export function importPause(): string | undefined {
   if (config.claude.enabled && !aiAvailable()) return "AI credit ran out";
   if (freeDiskBytes() < MIN_FREE_BYTES) return "the server's disk is nearly full";
   return undefined;
+}
+
+/**
+ * Usable footage the next five rounds still need. When an album's date range is used up, older
+ * videos are imported (newest first) only as far as this, since a whole album can be years of
+ * video and the disk holds a few hundred clips.
+ */
+const ROUNDS_AHEAD = 5;
+const SPARE_CLIPS = 2;
+export function footageNeeded(): number {
+  const unused = store.clips().filter((c) => c.status === "ready" && c.uses === 0 && !c.disliked && c.height >= c.width && onTopic(c)).length;
+  const inFlight = store.clips().filter((c) => c.status === "importing" || c.status === "analyzing").length;
+  return Math.max(0, store.auto().dailyCount * ROUNDS_AHEAD + SPARE_CLIPS - unused - inFlight);
 }
 
 export function importBudget(): number {
@@ -159,8 +173,17 @@ export async function syncAlbum(id: string, { reread = false } = {}): Promise<{ 
     const cutoff = days > 0 ? Date.now() - days * 86400_000 : 0;
     const recent = unseen.filter((it) => !it.takenAt || it.takenAt >= cutoff);
     const newestFirst = recent.sort((a, b) => (b.takenAt ?? 0) - (a.takenAt ?? 0));
-    const fresh = newestFirst.slice(0, importBudget());
-    store.updateAlbum(id, { tooOld: unseen.length - recent.length, waiting: recent.length - fresh.length });
+    const budget = importBudget();
+    const inRange = newestFirst.slice(0, budget);
+    // The date range is used up: reach back into older videos, newest first, as far as the next rounds need.
+    const older = unseen.filter((it) => it.takenAt && it.takenAt < cutoff).sort((a, b) => (b.takenAt ?? 0) - (a.takenAt ?? 0));
+    const reach = inRange.length < recent.length ? 0 : Math.min(older.length, budget - inRange.length, Math.max(0, footageNeeded() - inRange.length));
+    const fresh = [...inRange, ...older.slice(0, reach)];
+    store.updateAlbum(id, {
+      tooOld: older.length - reach,
+      waiting: recent.length - inRange.length,
+      reachedBack: (store.album(id)!.reachedBack ?? 0) + reach,
+    });
     for (const item of fresh) {
       enqueueClip({
         source: "shared_album",

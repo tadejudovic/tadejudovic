@@ -42,6 +42,8 @@ export interface Settings {
    * the dog as the punchline) or "mix" (alternating, so the account reaches beyond dog lovers).
    */
   captionAudience: CaptionAudience;
+  /** The creator's cloned voice (ElevenLabs), for voiceovers they don't record themselves. */
+  voice?: { id: string; createdAt: string; sampleSeconds: number };
   /**
    * What followers ask most, with the creator's own answers. Educational videos each answer one of
    * these; the answers are the only source for specifics (brands, airlines, places, rules).

@@ -1,33 +1,46 @@
+import fs from "node:fs";
 import { store, newId } from "./store.ts";
 import { config } from "./config.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { albumUrlFrom, fetchAlbum, isAlbumUrl, openVideo, saveResponse } from "./google/sharedAlbum.ts";
 import { enqueueClip, deleteClip, SkipItem } from "./library.ts";
-import { onTopic } from "./generate.ts";
 import type { AlbumSource, Clip } from "./types.ts";
 
 /** New albums only import recent videos: a live album that auto-adds every video of the pet can hold years of them. */
 export const DEFAULT_RECENT_DAYS = 30;
 /**
- * Clips are imported as they're needed: enough usable footage for the next five rounds plus a
- * couple spare, so rounds can rotate situations and pick the strongest moments, and fast
- * reviewing never waits on imports. The rest of the album waits until reviews use these up.
- * (Items left waiting aren't marked seen, so later checks pick them up.)
+ * Everything in an album's date range is imported and sorted, newest first, so rounds and story
+ * videos can choose from all of the footage, not only the latest few dozen clips. Imports are
+ * spread out (a daily cap keeps the AI cost and the server's load even) and stop while the data
+ * disk is nearly full. (Items left waiting aren't marked seen, so later checks pick them up.)
  */
-const ROUNDS_AHEAD = 5;
-const SPARE_CLIPS = 2;
 /** At most this many album clips are imported (and analyzed by the AI, ~$0.001 each) per day. */
-export const MAX_IMPORTS_PER_DAY = 80;
-export function importBudget(): number {
+export const MAX_IMPORTS_PER_DAY = 150;
+/** Imports pause when the data disk has less than this free (renders and recordings need room too). */
+const MIN_FREE_BYTES = 1.5 * 1024 ** 3;
+
+export function freeDiskBytes(): number {
+  try {
+    const s = fs.statfsSync(config.dataDir);
+    return s.bavail * s.bsize;
+  } catch {
+    return Infinity;
+  }
+}
+
+/** Why album imports are on hold right now, if they are. */
+export function importPause(): string | undefined {
   // Without AI credit new clips can't be sorted, so don't download more until it's back.
-  if (config.claude.enabled && !aiAvailable()) return 0;
-  // Only footage that can actually be used counts: off-topic clips (beach, random) don't stop the
-  // importer from looking further through the album for airport/plane clips.
-  const unused = store.clips().filter((c) => c.status === "ready" && c.uses === 0 && !c.disliked && c.height >= c.width && onTopic(c)).length;
-  const inFlight = store.clips().filter((c) => c.status === "importing" || c.status === "analyzing").length;
+  if (config.claude.enabled && !aiAvailable()) return "AI credit ran out";
+  if (freeDiskBytes() < MIN_FREE_BYTES) return "the server's disk is nearly full";
+  return undefined;
+}
+
+export function importBudget(): number {
+  if (importPause()) return 0;
   const today = new Date().toDateString();
   const importedToday = store.clips().filter((c) => c.source === "shared_album" && new Date(c.importedAt).toDateString() === today).length;
-  return Math.max(0, Math.min(store.auto().dailyCount * ROUNDS_AHEAD + SPARE_CLIPS - unused - inFlight, MAX_IMPORTS_PER_DAY - importedToday));
+  return Math.max(0, MAX_IMPORTS_PER_DAY - importedToday);
 }
 
 export function addAlbum(pasted: string, recentDays = DEFAULT_RECENT_DAYS): AlbumSource {

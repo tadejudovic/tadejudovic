@@ -182,6 +182,8 @@ export interface DailyMix {
 /** One spoken line of a voiceover story: its words, the clip shown, and the creator's recording. */
 export interface DraftLine {
   text: string;
+  /** The footage the creator asked for with [..] or /word in their text. */
+  shot?: string;
   clipId?: string;
   start?: number;
   end?: number;
@@ -190,6 +192,8 @@ export interface DraftLine {
   /** The recorded line (m4a) and its length. */
   audio?: string;
   audioSeconds?: number;
+  /** Recorded by the creator, or read by their cloned voice. */
+  audioBy?: "me" | "clone";
 }
 
 /** A voiceover story waiting for its recording: built from a script (word for word) or a talk track (rewritten). */

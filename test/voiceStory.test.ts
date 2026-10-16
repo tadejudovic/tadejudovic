@@ -68,3 +68,55 @@ test("a line without footage stops the render and says which", () => {
   store.saveDraft({ id: "d2", createdAt: new Date().toISOString(), mode: "talk", source: "x", title: "t", lines: [{ text: "PetPace app screen", missing: "the PetPace app" }], postCaption: "", hashtags: [] });
   assert.throws(() => renderDraft("d2", false), /no clip yet/);
 });
+
+test("shot directions in a talk track are read and never spoken", async () => {
+  const { parseShots, stripShots } = await import("../src/ai/story.ts");
+  const { marked, shots } = parseShots("[lying at the gate] He's calmer than me. /security-check He walks alone, 24/7 @petpace https://x.co/a");
+  assert.deepEqual(shots, ["lying at the gate", "security check"]);
+  assert.match(marked, /\{SHOT: lying at the gate\} He's calmer than me\. \{SHOT: security check\} He walks alone, 24\/7 @petpace https:\/\/x\.co\/a/);
+  assert.equal(stripShots("{SHOT: gate} He's calm [gate] now /plane"), "He's calm now");
+});
+
+test("cloned voice: made from samples, then reads the lines that weren't recorded", async () => {
+  const { createVoice, speakDraft } = await import("../src/generate.ts");
+  config.elevenlabs.key = "test-key";
+  const calls: { url: string; method: string; body?: string }[] = [];
+  const tts = path.join(config.tmpDir, "tts-src.mp3");
+  ff("-f", "lavfi", "-i", "sine=frequency=500:duration=1.5", "-c:a", "libmp3lame", tts);
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    calls.push({ url: String(url), method: init.method ?? "GET", body: typeof init.body === "string" ? init.body : undefined });
+    if (String(url).endsWith("/voices/add")) return new Response(JSON.stringify({ voice_id: "v1" }));
+    if (String(url).includes("/text-to-speech/v1")) return new Response(fs.readFileSync(tts));
+    return new Response("{}");
+  }) as typeof fetch;
+  try {
+    const short = path.join(config.tmpDir, "short.wav");
+    ff("-f", "lavfi", "-i", "sine=frequency=200:duration=10", short);
+    await assert.rejects(createVoice([short]), /at least 30 seconds/);
+    const sample = path.join(config.tmpDir, "sample.wav");
+    ff("-f", "lavfi", "-i", "sine=frequency=200:duration=40", sample);
+    assert.equal((await createVoice([sample])).sampleSeconds, 40);
+    assert.equal(store.settings().voice?.id, "v1");
+    assert.equal(fs.existsSync(sample), false); // uploads are cleaned up
+
+    store.saveDraft({
+      id: "d3", createdAt: new Date().toISOString(), mode: "talk", source: "x", title: "t",
+      lines: [{ text: "Hello there.", clipId: "airport", start: 0, end: 3 }, { text: "Second line.", clipId: "plane", start: 0, end: 3 }],
+      postCaption: "", hashtags: [],
+    });
+    const raw = path.join(config.tmpDir, "mine.wav");
+    ff("-f", "lavfi", "-i", "sine=frequency=700:duration=2", raw);
+    await saveLineRecording("d3", 0, raw);
+    const d = await speakDraft("d3");
+    assert.equal(d.lines[0].audioBy, "me"); // the creator's own recording is kept
+    assert.equal(d.lines[1].audioBy, "clone");
+    assert.ok(Math.abs(d.lines[1].audioSeconds! - 1.5) < 0.3);
+    const tCalls = calls.filter((c) => c.url.includes("/text-to-speech/"));
+    assert.equal(tCalls.length, 1);
+    assert.equal(JSON.parse(tCalls[0].body!).text, "Second line.");
+  } finally {
+    globalThis.fetch = realFetch;
+    config.elevenlabs.key = "";
+  }
+});

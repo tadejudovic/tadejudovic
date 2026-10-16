@@ -518,7 +518,7 @@ function outOfClipsText(strict, st) {
   if (other || skipped) parts.push(`${[other && `${other} are from other moments`, skipped && `${skipped} are edited, duplicates, landscape or rejected`].filter(Boolean).join(", ")}.`);
   parts.push(
     waiting
-      ? `${waiting} more are waiting in your albums and come in as they're needed.`
+      ? `${waiting} more are waiting in your albums and are being imported (up to 150 a day)${state.albums?.[0]?.importPaused ? `, on hold: ${state.albums[0].importPaused}` : ""}.`
       : tooOld
         ? `${tooOld} older videos in your albums are outside the date range: set an album to "all videos" in Settings → Google Photos albums to use them.`
         : "New videos in your albums are picked up every few hours.",
@@ -1059,14 +1059,14 @@ const STORY_MODES = {
   },
   talk: {
     label: "Talk track",
-    intro: "The points you want to make, roughly. Rollcut writes the voiceover in your voice, finds a clip for every line, then you record it line by line. Captions follow your words.",
-    placeholder: "- are dogs scared of flying? Lex is wearing a PetPace monitor around the world\n- airport: zero stress, more relaxed than me\n- security: walks through the detector alone\n- take-off is the worst, shivering; calms down on my lap\n- landing a bit, then back to normal\n- PetPace shows how he's really doing, code LEXPOODLE40",
+    intro: "The points you want to make, roughly. Rollcut writes the voiceover in your voice and finds a clip for every line by itself. Want a specific shot? Put it in [brackets] or after a slash (/security) before the words it goes with. Then record the lines, or let your cloned voice read them.",
+    placeholder: "- are dogs scared of flying? Lex is wearing a PetPace monitor around the world\n- [lying calmly at the gate] airport: zero stress, more relaxed than me\n- /security walks through the detector alone\n- take-off is the worst, shivering; calms down on my lap\n- landing a bit, then back to normal\n- PetPace shows how he's really doing, code LEXPOODLE40",
     go: "Write it & find the clips",
   },
   script: {
     label: "Script",
-    intro: "Your exact words. Rollcut keeps them as written, splits them into lines, finds a clip for every line, then you record it line by line. Captions follow your words.",
-    placeholder: "Are dogs afraid of flying? I'm flying Lex 42,000 kilometres around the world…",
+    intro: "Your exact words. Rollcut keeps them as written, splits them into lines and finds a clip for every line. Want a specific shot? Put it in [brackets] or after a slash (/security) before the words it goes with; it's never spoken. Then record the lines, or let your cloned voice read them.",
+    placeholder: "[Lex on the plane seat] Are dogs afraid of flying? I'm flying Lex 42,000 kilometres around the world…",
     go: "Find the clips",
   },
 };
@@ -1083,6 +1083,7 @@ function renderStoryMode() {
   $("#story-go").textContent = m.go;
   $("#story-length").hidden = storyMode() !== "storyline";
   $("#story-partner").hidden = storyMode() === "storyline";
+  $("#my-voice").hidden = storyMode() === "storyline";
   $("#story-form").partnerId.replaceChildren(h("option", { value: "" }, "None"), ...(state.partners ?? []).map((p) => h("option", { value: p.id }, p.name)));
 }
 $("#story-mode").addEventListener("change", renderStoryMode);
@@ -1127,6 +1128,7 @@ function renderDraft() {
         l.clipId ? h("img", { class: "draft-thumb", src: `/media/thumb/${l.clipId}`, alt: "" }) : h("div", { class: "draft-thumb ph" }, "?"),
         h("div", { class: "draft-body" },
           h("p", { class: "draft-text" }, l.text),
+          l.shot ? h("p", { class: "draft-shot" }, `Your shot: ${l.shot}`) : null,
           !l.clipId ? h("p", { class: "draft-missing" }, `Needs: ${l.missing || "a clip"}`) : null,
           h("select", { class: "draft-clip", onchange: async (e) => {
             state.draft = await api(`/api/story/drafts/${d.id}/lines/${i}`, { method: "PATCH", body: { clipId: e.target.value } });
@@ -1136,17 +1138,28 @@ function renderDraft() {
             ...clipOptions.map((c) => h("option", { value: c.id }, `${c.scene || "clip"} · ${c.capturedAt ? c.capturedAt.slice(0, 10) : ""} · ${Math.round(c.duration)}s`))),
           h("div", { class: "draft-actions" },
             h("button", { class: `btn small ${l.recorded ? "" : "primary"}`, type: "button", onclick: () => recordLine(i) }, l.recorded ? "Re-record" : "Record"),
-            l.recorded ? h("button", { class: "btn small", type: "button", onclick: () => new Audio(`/api/story/drafts/${d.id}/lines/${i}/audio?t=${Date.now()}`).play() }, `Play · ${l.audioSeconds?.toFixed(1)}s`) : null,
+            l.recorded ? h("button", { class: "btn small", type: "button", onclick: () => new Audio(`/api/story/drafts/${d.id}/lines/${i}/audio?t=${Date.now()}`).play() }, `Play${l.audioBy === "clone" ? " (clone)" : ""} · ${l.audioSeconds?.toFixed(1)}s`) : null,
           ),
         ),
       ),
     ),
     h("div", { class: "draft-final" },
+      state.voice?.voice
+        ? h("button", { class: "btn", type: "button", onclick: (e) => speakDraft(e.currentTarget, recorded === d.lines.length) },
+            recorded === d.lines.length ? "Re-read every line in my cloned voice" : recorded ? "Read the other lines in my cloned voice" : "Read it in my cloned voice")
+        : null,
       h("button", { class: "btn primary", type: "button", disabled: !!missing || recorded < d.lines.length, onclick: (e) => makeFromDraft(e.currentTarget, true) },
         recorded < d.lines.length ? `Record all lines (${recorded}/${d.lines.length})` : "Make video with my voice"),
       h("button", { class: "btn", type: "button", disabled: !!missing, onclick: (e) => makeFromDraft(e.currentTarget, false) }, "Captions only, no voice"),
     ),
   );
+}
+
+async function speakDraft(btn, all) {
+  await withBusy(btn, "Reading the lines… (about 30s)", async () => {
+    state.draft = await api(`/api/story/drafts/${state.draft.id}/speak`, { method: "POST", body: { all } });
+    renderDraft();
+  });
 }
 
 async function makeFromDraft(btn, voice) {
@@ -1159,35 +1172,48 @@ async function makeFromDraft(btn, voice) {
   });
 }
 
-/** Teleprompter: the line big on screen while it records; Stop uploads it. */
-async function recordLine(i) {
-  const d = state.draft;
+/** Teleprompter: the text big on screen while the microphone records; resolves with the recording on Stop. */
+async function recordAudio(hint, text, minSeconds = 0) {
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
   } catch {
-    return banner("Rollcut needs the microphone to record. Allow it in your browser and try again.");
+    banner("Rollcut needs the microphone to record. Allow it in your browser and try again.");
+    return null;
   }
   const type = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find((t) => window.MediaRecorder?.isTypeSupported?.(t)) ?? "";
   const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
   const chunks = [];
   rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  const timer = h("span", {}, "0:00");
   const prompter = h("div", { class: "prompter" },
-    h("p", { class: "prompter-hint" }, `Line ${i + 1} of ${d.lines.length} · recording`),
-    h("p", { class: "prompter-text" }, d.lines[i].text),
+    h("p", { class: "prompter-hint" }, hint, " · ", timer),
+    h("p", { class: `prompter-text ${text.length > 200 ? "long" : ""}` }, text),
     h("button", { class: "round no prompter-stop", type: "button", "aria-label": "Stop" }, h("span", {}, "Stop")),
   );
   document.body.append(prompter);
+  const began = Date.now();
+  const tick = setInterval(() => {
+    const t = Math.floor((Date.now() - began) / 1000);
+    timer.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}${minSeconds && t < minSeconds ? ` (keep going to ${minSeconds}s)` : ""}`;
+  }, 250);
   const stopped = new Promise((resolve) => (rec.onstop = resolve));
   prompter.querySelector(".prompter-stop").addEventListener("click", () => rec.state !== "inactive" && rec.stop());
-  rec.start();
+  rec.start(1000);
   await stopped;
+  clearInterval(tick);
   stream.getTracks().forEach((t) => t.stop());
   prompter.remove();
-  const blob = new Blob(chunks, { type: rec.mimeType || type || "audio/webm" });
-  const ext = (rec.mimeType || type).includes("mp4") ? "m4a" : "webm";
+  const mime = rec.mimeType || type || "audio/webm";
+  return { blob: new Blob(chunks, { type: mime }), ext: mime.includes("mp4") ? "m4a" : "webm" };
+}
+
+async function recordLine(i) {
+  const d = state.draft;
+  const r = await recordAudio(`Line ${i + 1} of ${d.lines.length} · recording`, d.lines[i].text);
+  if (!r) return;
   const form = new FormData();
-  form.append("file", blob, `line-${i}.${ext}`);
+  form.append("file", r.blob, `line-${i}.${r.ext}`);
   try {
     state.draft = await api(`/api/story/drafts/${d.id}/lines/${i}/audio`, { method: "POST", body: form });
     renderDraft();
@@ -1195,6 +1221,56 @@ async function recordLine(i) {
     banner(err.message);
   }
 }
+
+// ---- The creator's cloned voice ---------------------------------------------------------
+
+const VOICE_PASSAGE =
+  "Hi, it's me. I travel the world with my dog, and people always ask me the same things. Is flying stressful for him? " +
+  "Honestly, he's usually calmer than I am. We've done airports, trains, buses and boats, and every trip teaches us something new. " +
+  "The first flight was the scariest. I packed way too much, I triple-checked every document, and he just fell asleep under the seat. " +
+  "Now we have a routine: a long walk before the airport, a quiet corner at the gate, and his favourite blanket in the bag. " +
+  "Would I do it again? Absolutely. Seeing the world with him is the best decision I ever made. " +
+  "So if you're nervous about travelling with your dog, start small, stay calm, and trust them a little more. They often surprise you. " +
+  "Okay, that's enough from me. Let's go somewhere new!";
+
+async function refreshVoice() {
+  state.voice = await api("/api/voice").catch(() => null);
+  const box = $("#my-voice");
+  const v = state.voice;
+  if (!v) return box.replaceChildren();
+  box.replaceChildren(
+    h("div", { class: "row-title" }, "My voice"),
+    !v.enabled
+      ? h("p", { class: "muted" }, "To let Rollcut read your voiceovers in your own voice, add an ElevenLabs API key (ELEVENLABS_API_KEY) on Render. You can always record the lines yourself.")
+      : v.voice
+        ? h("p", { class: "muted" }, `Your cloned voice is ready (made ${v.voice.createdAt.slice(0, 10)} from ${v.voice.sampleSeconds}s of you talking). Stories get a "Read it in my cloned voice" button.`)
+        : h("p", { class: "muted" }, "Read a short passage out loud (about a minute, in a quiet room, the way you talk in your videos). Rollcut makes a copy of your voice from it that can read any voiceover."),
+    v.enabled
+      ? h("div", { class: "draft-actions" },
+          h("button", { class: `btn small ${v.voice ? "" : "primary"}`, type: "button", onclick: (e) => makeVoice(e.currentTarget) }, v.voice ? "Make it again" : "Make my voice"),
+          v.voice ? h("button", { class: "btn small", type: "button", onclick: async () => {
+            if (!confirm("Remove your cloned voice?")) return;
+            await api("/api/voice", { method: "DELETE" });
+            refreshVoice();
+            renderDraft();
+          } }, "Remove") : null)
+      : null,
+  );
+}
+
+async function makeVoice(btn) {
+  const r = await recordAudio("Read this out loud · recording", VOICE_PASSAGE, 45);
+  if (!r) return;
+  const form = new FormData();
+  form.append("files", r.blob, `voice.${r.ext}`);
+  await withBusy(btn, "Making your voice…", async () => {
+    await api("/api/voice", { method: "POST", body: form });
+    await refreshVoice();
+    renderDraft();
+    banner("Your voice is ready. Stories can now be read in it.", "ok");
+  });
+}
+refreshVoice();
 
 // Pick up an unfinished story where it was left.
 (async () => {
@@ -1333,8 +1409,8 @@ async function refreshAlbums() {
                   const waiting = now?.waiting ?? 0;
                   banner(
                     r.error ? `Saved, but reading the album failed: ${r.error}`
-                    : r.newItems ? `Importing ${r.newItems} video(s) now${waiting ? `; ${waiting} more come in as rounds need them (up to 80 a day)` : ""}.`
-                    : waiting ? `Saved. ${waiting} video(s) are now in range; they come in as rounds need them (up to 80 a day).`
+                    : r.newItems ? `Importing ${r.newItems} video(s) now${waiting ? `; ${waiting} more follow (up to 150 a day)` : ""}.`
+                    : waiting ? `Saved. ${waiting} video(s) are now in range; they're being imported (up to 150 a day).`
                     : "Saved. No new videos in that range.",
                     r.error ? undefined : "ok",
                   );
@@ -1350,7 +1426,7 @@ async function refreshAlbums() {
               ? `Sees the newest ${a.itemsSeen} items only: Google wouldn't load the rest of this big album${a.listingError ? ` (${a.listingError})` : ""}.`
               : `${a.itemsSeen} items in the album.`) : null,
           a.tooOld || a.waiting ? h("div", { class: "muted" },
-            [a.tooOld ? `${a.tooOld} older item(s) left out` : "", a.waiting ? `${a.waiting} more waiting; imported as new rounds need them` : ""].filter(Boolean).join(" · ")) : null,
+            [a.tooOld ? `${a.tooOld} older item(s) left out` : "", a.waiting ? `${a.waiting} more being imported (up to 150 a day)${a.importPaused ? `, on hold: ${a.importPaused}` : ""}` : ""].filter(Boolean).join(" · ")) : null,
           a.lastError ? h("div", { class: "err" }, a.lastError) : null,
           a.skipped && Object.keys(a.skipped).length
             ? h("div", { class: "muted", title: "What Google returned for items that weren't recognized as videos" },

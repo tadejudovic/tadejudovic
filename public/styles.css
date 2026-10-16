@@ -727,3 +727,7 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .prompter-stop { background: #dc2626 !important; color: #fff !important; border-color: #dc2626 !important; }
 .prompter-stop span { color: #fff; position: static; }
 #story-mode label { white-space: nowrap; }
+.voice-card { display: grid; gap: 6px; padding: 12px 14px; margin-bottom: 12px; background: #fff; border: 1px solid #e4e4e7; border-radius: 14px; }
+.voice-card .muted { margin: 0; font-size: 13px; }
+.draft-shot { margin: 0; font-size: 12px; color: #4f46e5; font-weight: 600; }
+.prompter-text.long { font-size: 21px; line-height: 1.45; text-align: left; overflow-y: auto; max-height: 62vh; }

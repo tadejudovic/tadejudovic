@@ -22,6 +22,8 @@ services:
         sync: false # comma-separated Google accounts allowed in; nobody else can sign in
       - key: APIFY_TOKEN
         sync: false # optional: apify.com API token; caption research then searches TikTok with real view counts
+      - key: ELEVENLABS_API_KEY
+        sync: false # optional: elevenlabs.io API key; clones your voice to read story voiceovers
       - key: APP_URL
         value: https://studio.lexintheair.com
       - key: MEMORY_MB

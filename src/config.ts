@@ -48,6 +48,11 @@ export const config = {
     /** Reads a public Instagram post's numbers (plays, likes, comments). */
     instagramActor: process.env.APIFY_INSTAGRAM_ACTOR ?? "apify~instagram-scraper",
   },
+  /** ElevenLabs (elevenlabs.io) API key: clones the creator's voice and reads voiceovers in it. */
+  elevenlabs: {
+    key: process.env.ELEVENLABS_API_KEY ?? "",
+    model: process.env.ELEVENLABS_MODEL ?? "eleven_multilingual_v2",
+  },
   fontFile: findFont(),
   output: { width: 1080, height: 1920, fps: 30 },
 };

@@ -13,15 +13,74 @@ import type { Clip, DraftLine, Overlay, Segment, StoryDraft, VideoPlan } from ".
 /** How many clips the AI looks through (one frame each + their best moments). */
 const CANDIDATES = 40;
 
-/** The recent clips the AI chooses from, shown as one frame each plus their best moments. */
-async function clipCandidates(): Promise<{ shown: Clip[]; content: Anthropic.Beta.BetaContentBlockParam[] }> {
+/**
+ * Shot directions inside the creator's text: "[lying at the gate]" or "/security". They say which
+ * footage to show for the words that follow, and are never spoken or shown as text.
+ */
+const SHOT_RE = /\[([^\[\]\n]{1,80})\]|(^|\s)\/([a-z][\w-]{1,40})/gi;
+
+export function parseShots(source: string): { marked: string; shots: string[] } {
+  const shots: string[] = [];
+  const marked = source.replace(SHOT_RE, (_m, bracket: string | undefined, lead: string | undefined, slash: string | undefined) => {
+    const shot = (bracket ?? slash ?? "").replace(/[-_]+/g, " ").trim();
+    if (!shot) return _m;
+    shots.push(shot);
+    return `${lead ?? ""}{SHOT: ${shot}}`;
+  });
+  return { marked, shots };
+}
+
+/** The spoken words without any shot directions left in them. */
+export function stripShots(text: string): string {
+  return text.replace(/\{SHOT:[^}]*\}/gi, " ").replace(SHOT_RE, (_m, _b, lead: string | undefined) => lead ?? " ").replace(/\s+/g, " ").trim();
+}
+
+const STOP = new Set("the and for with that this from have has was were are his her him she they them you your our out into over just like about what when then than there here very really more most some lex dog dogs".split(" "));
+const words = (t: string) => new Set(t.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w)));
+const clipText = (c: Clip) =>
+  [c.scene, c.ai?.summary, ...(c.ai?.tags ?? []), c.note, ...(c.ai?.moments ?? []).map((m) => m.description)].filter(Boolean).join(" ");
+function relevance(c: Clip, query: Set<string>): number {
+  let n = 0;
+  for (const w of words(clipText(c))) if (query.has(w) || [...query].some((q) => q.length >= 5 && (w.startsWith(q) || q.startsWith(w)))) n++;
+  return n;
+}
+
+/**
+ * The clips the AI chooses from, shown as one frame each plus their best moments: for every shot
+ * the creator asked for, the clips that match it best; then the clips that fit the text; then
+ * unused and recent footage.
+ */
+async function clipCandidates(text = "", shots: string[] = []): Promise<{ shown: Clip[]; content: Anthropic.Beta.BetaContentBlockParam[] }> {
   const time = (c: Clip) => Date.parse(c.capturedAt ?? c.importedAt) || 0;
-  const pool = store
+  const all = store
     .clips()
     .filter((c) => c.status === "ready" && c.kind === "video" && c.height >= c.width && !c.disliked && !c.edited && !c.duplicateOf)
     // Unused footage first, then the most recent.
-    .sort((a, b) => (a.uses > 0 ? 1 : 0) - (b.uses > 0 ? 1 : 0) || time(b) - time(a))
-    .slice(0, CANDIDATES);
+    .sort((a, b) => (a.uses > 0 ? 1 : 0) - (b.uses > 0 ? 1 : 0) || time(b) - time(a));
+  const picked = new Set<Clip>();
+  for (const shot of shots) {
+    const q = words(shot);
+    all
+      .map((c) => ({ c, r: relevance(c, q) }))
+      .filter((x) => x.r > 0)
+      .sort((x, y) => y.r - x.r)
+      .slice(0, 4)
+      .forEach((x) => picked.add(x.c));
+  }
+  const q = words(text);
+  if (q.size) {
+    all
+      .map((c) => ({ c, r: relevance(c, q) }))
+      .filter((x) => x.r > 0)
+      .sort((x, y) => y.r - x.r)
+      .slice(0, Math.max(0, CANDIDATES * 0.6 - picked.size))
+      .forEach((x) => picked.add(x.c));
+  }
+  for (const c of all) {
+    if (picked.size >= CANDIDATES) break;
+    picked.add(c);
+  }
+  const pool = [...picked].slice(0, CANDIDATES);
   if (pool.length < 2) throw new Error("A story needs at least two clips in your library.");
 
   const content: Anthropic.Beta.BetaContentBlockParam[] = [];
@@ -52,7 +111,7 @@ async function clipCandidates(): Promise<{ shown: Clip[]; content: Anthropic.Bet
 
 export async function planStory(storyline: string, targetSeconds: number): Promise<VideoPlan> {
   const { petName, handle, story, scenes } = store.settings();
-  const { shown, content } = await clipCandidates();
+  const { shown, content } = await clipCandidates(storyline);
 
   // Proven hooks from TikTok research (a few per situation), so the story's hook stands on one too.
   const proven = scenes.flatMap((sc) => provenCaptions(sc).slice(0, 3));
@@ -175,16 +234,17 @@ export async function planVoiceDraft(
   partner?: { name: string; handle?: string; about: string; mustInclude?: string },
 ): Promise<Omit<StoryDraft, "id" | "createdAt" | "source" | "mode" | "partnerId">> {
   const { petName, handle, story, scenes } = store.settings();
-  const { shown, content } = await clipCandidates();
+  const { marked, shots } = parseShots(source);
+  const { shown, content } = await clipCandidates(source, shots);
   const proven = scenes.flatMap((sc) => provenCaptions(sc).slice(0, 3));
   content.push({
     type: "text",
     text:
       (mode === "script"
-        ? `The creator's VOICEOVER SCRIPT, to be used WORD FOR WORD:\n"""${source}"""\n\n` +
+        ? `The creator's VOICEOVER SCRIPT, to be used WORD FOR WORD:\n"""${marked}"""\n\n` +
           `Split it into spoken lines in order (one sentence or a natural phrase each, about 2–6 seconds spoken). ` +
           `Don't change, add or drop any words.`
-        : `The creator's TALK TRACK (rough points of what they want to say):\n"""${source}"""\n\n` +
+        : `The creator's TALK TRACK (rough points of what they want to say):\n"""${marked}"""\n\n` +
           `Write the voiceover they'll read, in their voice: natural spoken English, first person, short sentences, ` +
           `covering every point in order. The first line is a hook that stops the scroll. Split it into spoken lines ` +
           `(about 2–6 seconds each, 6–14 lines).` +
@@ -192,6 +252,11 @@ export async function planVoiceDraft(
             ? `\nFor the hook, build on the pattern of one of these proven TikTok hooks:\n` +
               proven.map((c, i) => `${i + 1}. "${c.text}"`).join("\n")
             : "")) +
+      (shots.length
+        ? `\n\n{SHOT: …} marks are the creator's directions for the footage, NOT words to say: every line after a ` +
+          `mark (until the next mark) must use a clip that really shows that shot; set "shot" on those lines to it. ` +
+          `If no clip shows it, set clip to -1 and "missing" to that shot. Lines without a direction: pick yourself.`
+        : "") +
       `\n\nFor each line pick the clip above that best shows what's being said, and the part of it to use (start/end ` +
       `seconds inside the clip). The part should last about as long as the line takes to say (~${WORDS_PER_SECOND} words ` +
       `per second), so prefer clips long enough. A clip may be reused for different parts only if nothing else fits. ` +
@@ -209,7 +274,7 @@ export async function planVoiceDraft(
   const out = await structured<{
     title: string;
     basedOn: number;
-    lines: { text: string; clip: number; start: number; end: number; missing: string }[];
+    lines: { text: string; clip: number; start: number; end: number; missing: string; shot: string }[];
     postCaption: string;
     hashtags: string[];
   }>({
@@ -229,13 +294,14 @@ export async function planVoiceDraft(
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["text", "clip", "start", "end", "missing"],
+            required: ["text", "clip", "start", "end", "missing", "shot"],
             properties: {
               text: { type: "string", description: "The spoken words of this line" },
               clip: { type: "integer", description: "The clip's number, or -1 if none shows this line" },
               start: { type: "number" },
               end: { type: "number" },
               missing: { type: "string", description: "If clip is -1: the shot this line needs. Otherwise empty." },
+              shot: { type: "string", description: "The creator's shot direction for this line, or empty" },
             },
           },
         },
@@ -246,12 +312,13 @@ export async function planVoiceDraft(
     effort: "medium",
   });
   const lines: DraftLine[] = out.lines
-    .filter((l) => l.text.trim())
+    .map((l) => ({ ...l, text: stripShots(l.text), shot: l.shot.trim() || undefined }))
+    .filter((l) => l.text)
     .map((l) => {
       const clip = shown[l.clip - 1];
-      if (!clip) return { text: l.text.trim(), missing: l.missing.trim() || "a clip that shows this" };
+      if (!clip) return { text: l.text, shot: l.shot, missing: l.missing.trim() || l.shot || "a clip that shows this" };
       const start = Math.max(0, Math.min(l.start, clip.duration - 0.5));
-      return { text: l.text.trim(), clipId: clip.id, start, end: Math.max(start + 0.5, Math.min(l.end, clip.duration)) };
+      return { text: l.text, shot: l.shot, clipId: clip.id, start, end: Math.max(start + 0.5, Math.min(l.end, clip.duration)) };
     });
   if (!lines.length) throw new Error("Couldn't turn that into spoken lines. Try again with a bit more text.");
   const firstScene = shown.find((c) => c.id === lines.find((l) => l.clipId)?.clipId)?.scene;

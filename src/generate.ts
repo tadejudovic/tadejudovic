@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { cloneVoice, deleteVoice, speak } from "./voice/elevenlabs.ts";
 import { config } from "./config.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { store, newId } from "./store.ts";
@@ -502,7 +503,7 @@ export async function createVoiceDraft(mode: "script" | "talk", source: string, 
 const voiceDir = () => path.join(config.dataDir, "voice");
 
 /** Save a recorded line: converted to AAC, silence at the start and end trimmed, length measured. */
-export async function saveLineRecording(draftId: string, index: number, uploaded: string): Promise<StoryDraft> {
+export async function saveLineRecording(draftId: string, index: number, uploaded: string, by: "me" | "clone" = "me"): Promise<StoryDraft> {
   const d = store.draft(draftId);
   if (!d?.lines[index]) throw new Error("Unknown line.");
   fs.mkdirSync(voiceDir(), { recursive: true });
@@ -523,8 +524,56 @@ export async function saveLineRecording(draftId: string, index: number, uploaded
   }
   const old = d.lines[index].audio;
   if (old) fs.rmSync(old, { force: true });
-  d.lines[index] = { ...d.lines[index], audio: out, audioSeconds: Math.round(duration * 100) / 100 };
+  d.lines[index] = { ...d.lines[index], audio: out, audioSeconds: Math.round(duration * 100) / 100, audioBy: by };
   return store.saveDraft(d);
+}
+
+/**
+ * Clone the creator's voice from recorded samples (a minute or two of them talking). Replaces any
+ * voice made before.
+ */
+export async function createVoice(uploaded: string[]): Promise<{ sampleSeconds: number }> {
+  const samples: string[] = [];
+  let seconds = 0;
+  try {
+    fs.mkdirSync(voiceDir(), { recursive: true });
+    for (const [i, file] of uploaded.entries()) {
+      const out = path.join(voiceDir(), `sample-${Date.now()}-${i}.m4a`);
+      await run("ffmpeg", ["-y", "-v", "error", "-i", file, "-af", "loudnorm=I=-16:TP=-1.5", "-ac", "1", "-ar", "44100", "-c:a", "aac", "-b:a", "160k", out]);
+      samples.push(out);
+      seconds += (await probe(out)).duration || 0;
+    }
+    if (seconds < 30) throw new Error(`That's ${Math.round(seconds)} seconds of talking. Record at least 30 seconds (1–2 minutes sounds best).`);
+    const old = store.settings().voice;
+    const id = await cloneVoice(`${store.settings().handle || store.settings().petName} creator`, samples);
+    store.updateSettings({ voice: { id, createdAt: new Date().toISOString(), sampleSeconds: Math.round(seconds) } });
+    if (old) await deleteVoice(old.id);
+    return { sampleSeconds: Math.round(seconds) };
+  } finally {
+    for (const f of [...uploaded, ...samples]) fs.rmSync(f, { force: true });
+  }
+}
+
+export async function removeVoice() {
+  const v = store.settings().voice;
+  if (v) await deleteVoice(v.id);
+  store.updateSettings({ voice: undefined });
+}
+
+/** Read a story's lines in the creator's cloned voice: the ones not recorded yet, or all of them. */
+export async function speakDraft(draftId: string, all = false): Promise<StoryDraft> {
+  const voice = store.settings().voice;
+  if (!voice) throw new Error("Make your voice first (Story video → My voice).");
+  let d = store.draft(draftId);
+  if (!d) throw new Error("Unknown story.");
+  fs.mkdirSync(config.tmpDir, { recursive: true });
+  for (const [i, line] of d.lines.entries()) {
+    if (line.audio && !all) continue;
+    const tmp = path.join(config.tmpDir, `tts-${draftId}-${i}-${Date.now()}.mp3`);
+    await speak(voice.id, line.text, tmp);
+    d = await saveLineRecording(draftId, i, tmp, "clone");
+  }
+  return d;
 }
 
 /** Show a different clip for a line (or one for a line that had none). */

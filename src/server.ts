@@ -11,8 +11,9 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft } from "./generate.ts";
-import { addAlbum, forgetItem, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice } from "./generate.ts";
+import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
+import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { apifyEnabled, platformOf } from "./ai/tiktokSearch.ts";
@@ -80,6 +81,7 @@ app.get("/api/diagnostics", (_req, res) => {
     }).filter(Boolean),
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     queuePending: ingestQueue.pending,
+    imports: { paused: importPause(), freeDiskGb: Math.round((freeDiskBytes() / 1024 ** 3) * 10) / 10 },
     clips: {
       byStatus: count(clips, (c) => c.status),
       byScene: count(clips.filter((c) => c.status === "ready"), (c) => c.scene ?? "unsorted"),
@@ -289,7 +291,8 @@ app.get(
 // ---- Shared albums --------------------------------------------------------
 
 app.get("/api/albums", (_req, res) => {
-  res.json(store.albums().map(({ seen, ...a }) => ({ ...a, seenCount: seen.length })));
+  const paused = importPause();
+  res.json(store.albums().map(({ seen, ...a }) => ({ ...a, seenCount: seen.length, importPaused: paused })));
 });
 
 app.post(
@@ -726,6 +729,37 @@ app.post(
   h(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No recording received." });
     res.json(draftView(await saveLineRecording(String(req.params.id), Number(req.params.i), req.file.path)));
+  }),
+);
+
+app.post(
+  "/api/story/drafts/:id/speak",
+  h(async (req, res) => {
+    res.json(draftView(await speakDraft(String(req.params.id), req.body?.all === true)));
+  }),
+);
+
+// ---- The creator's cloned voice --------------------------------------------------------
+
+app.get("/api/voice", (_req, res) => {
+  res.json({ enabled: voiceCloningEnabled(), voice: store.settings().voice ?? null });
+});
+
+app.post(
+  "/api/voice",
+  upload.array("files", 5),
+  h(async (req, res) => {
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    if (!files.length) return res.status(400).json({ error: "No recording received." });
+    res.json(await createVoice(files.map((f) => f.path)));
+  }),
+);
+
+app.delete(
+  "/api/voice",
+  h(async (_req, res) => {
+    await removeVoice();
+    res.json({ ok: true });
   }),
 );
 

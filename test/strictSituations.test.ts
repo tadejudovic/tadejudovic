@@ -22,16 +22,10 @@ test("only clips from the creator's situations are used automatically", () => {
   store.updateSettings({ onlySituations: true });
 });
 
-test("off-topic clips don't stop the importer from looking for on-topic ones", () => {
-  for (let i = 0; i < 10; i++) store.addClip({ ...base, id: `b${i}`, scene: "other" });
-  // 1 usable airport clip; 5 rounds of 4 + 2 spare => 21 more to find, despite 11 beach clips.
-  assert.equal(importBudget(), 21);
-});
-
 test("imports are capped per day", () => {
   const today = new Date().toISOString();
-  for (let i = 0; i < 78; i++) store.addClip({ ...base, id: `t${i}`, scene: "other", importedAt: today });
-  assert.equal(importBudget(), 2); // 80 per day, 78 already imported today
+  for (let i = 0; i < 148; i++) store.addClip({ ...base, id: `t${i}`, scene: "other", importedAt: today });
+  assert.equal(importBudget(), 2); // 150 per day, 148 already imported today
 });
 
 test("videos that are already edits (text on them) are never used automatically", () => {

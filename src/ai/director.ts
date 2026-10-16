@@ -316,8 +316,15 @@ const DIRECT_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["text", "start", "end"],
-        properties: { text: { type: "string" }, start: { type: "number" }, end: { type: "number" } },
+        required: ["text", "start", "end", "y", "pointX", "pointY"],
+        properties: {
+          text: { type: "string" },
+          start: { type: "number" },
+          end: { type: "number" },
+          y: { type: "number", description: "Vertical center of the text, 0 (top) to 1 (bottom); -1 for the usual place" },
+          pointX: { type: "number", description: "Arrow target, 0 (left) to 1 (right) in the frame; -1 for no arrow" },
+          pointY: { type: "number", description: "Arrow target, 0 (top) to 1 (bottom) in the frame; -1 for no arrow" },
+        },
       },
     },
     postCaption: {
@@ -391,11 +398,18 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `almost didn't let ${petName} on", "Stop doing this before a flight with your dog", "Nobody warned us about ` +
     `security", "I wish someone told me this before our first flight". Never a bland title like "Tips for flying ` +
     `with a dog".` +
-    `\n\nOn screen: overlays back to back on the output timeline. The hook first, then the teaching beats, each ` +
-    `shown ~3s; for a list, each overlay repeats the earlier points and adds the next (" / " between them) so it ` +
-    `builds up; the last overlay stays to the end. Each line under ~8 words, concrete and useful. Only facts that ` +
-    `hold for most airlines and countries; no specific rules, fees or legal requirements you aren't sure of. ` +
-    `The video must be long enough to read everything: at least 12s.` +
+    `\n\nON SCREEN, the way top creators do it:` +
+    `\n- The hook is one overlay that stays at the top for the WHOLE video (start 0, end = the video's length, y -1).` +
+    `\n- Then each point is its own overlay, shown alone (never repeating earlier points), one after another, each ` +
+    `~2.5–3.5s, the last one staying to the end: e.g. "1. Kato backpack", "2. PetPace health tracker", "3. A ton of ` +
+    `documents". Short: up to ~5 words, numbered when it's a list. A light, funny last point is great if it fits ` +
+    `("4. Optional: a patient owner").` +
+    `\n- Place each point lower in the frame, next to what it's about, with y (0.35–0.8), never over ${petName}'s ` +
+    `face. If the thing it names is visible in the footage while it's on screen (the bag, the harness, the tracker, ` +
+    `the documents, the seat), point an arrow at it: pointX/pointY = where it is in the frame (0..1 from the left / ` +
+    `top), judged from the frames above at that moment. No arrow (-1) when it isn't visible.` +
+    `\n- Only facts that hold for most airlines and countries; no specific rules, fees or legal requirements you ` +
+    `aren't sure of. The video must be long enough to read everything: at least 12s.` +
     `\n\nIT HAS TO MAKE SENSE TO A STRANGER WITH THE SOUND OFF, reading only the text on screen:` +
     `\n- The points deliver exactly what the hook promises, and say how they connect to it. If the hook says ` +
     `"don't do X first" or "do this before X", the list is what to do first, introduced that way (e.g. the first ` +
@@ -610,7 +624,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       `doing that people will recognize. Then write the single on-screen line that makes it land. Formats are tools, ` +
       `not rules: use a trending structure only if it genuinely fits this footage, otherwise write something original.` +
       `\n\nThe finished video should be ${ctx.minSeconds}–${ctx.maxSeconds}s (sum of (end-start)/speed), starting right ` +
-      `on the action and ending where it can loop. Play footage at real speed (1). Slow motion only for one short ` +
+      `on the action and ending where it can loop. Overlays use y -1 and no arrow (pointX/pointY -1) unless the ` +
+      `format below says otherwise. Play footage at real speed (1). Slow motion only for one short ` +
       `payoff moment that's better slowed down (a jump, a head tilt, a reaction), never to make the video longer; if ` +
       `the clip is short, use all of it at speed 1 (it's replayed to give time to read). Overlay text: under ~14 words, no hashtags, no emoji; " / " starts ` +
       `a new line (e.g. "me: quick bath / ${ctx.petName}:").` +
@@ -638,7 +653,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     title: string;
     basedOn: number;
     segments: { start: number; end: number; speed: number }[];
-    overlays: Overlay[];
+    overlays: { text: string; start: number; end: number; y: number; pointX: number; pointY: number }[];
     postCaption: string;
     hashtags: string[];
   }>({
@@ -657,15 +672,28 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     .map((s) => validateSegment({ clipId: clip.id, start: s.start, end: s.end, speed: s.speed }, new Map([[clip.id, clip]])))
     .filter((s): s is Segment => s !== null);
   if (!segments.length) throw new Error("The director returned no usable part of the clip.");
+  const lengthOf = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+  // The text was timed for the AI's own cut: when slow motion is removed or the clip replayed, the
+  // timing is stretched to the final length so every line still gets its share.
+  const planned = lengthOf(segments);
   segments = fillByRepeating(limitSlowMotion(segments), ctx.minSeconds);
-  const total = segments.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
-  const overlays = r.overlays
+  const total = lengthOf(segments);
+  const k = planned > 0 ? total / planned : 1;
+  const frac = (v: number) => (v >= 0 && v <= 1 ? v : undefined);
+  const overlays: Overlay[] = r.overlays
     .filter((o) => o.text.trim())
-    .map((o) => ({
-      text: o.text.trim(),
-      start: Math.max(0, Math.min(o.start, total - 0.5)),
-      end: o.end >= total - 0.3 ? total + 1 : Math.max(o.start + 0.5, Math.min(o.end, total)),
-    }));
+    .map((o) => {
+      const y = frac(o.y);
+      const px = frac(o.pointX);
+      const py = frac(o.pointY);
+      return {
+        text: o.text.trim(),
+        start: Math.max(0, Math.min(o.start * k, total - 0.5)),
+        end: o.end >= planned - 0.3 ? total + 1 : Math.max(o.start * k + 0.5, Math.min(o.end * k, total)),
+        ...(y !== undefined ? { y: Math.max(0.1, Math.min(0.85, y)) } : {}),
+        ...(px !== undefined && py !== undefined ? { pointTo: { x: px, y: py } } : {}),
+      };
+    });
   return {
     template: "auto",
     title: r.title,

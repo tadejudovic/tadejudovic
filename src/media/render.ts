@@ -1,4 +1,5 @@
 import opentype from "opentype.js";
+import { writeArrow } from "./arrow.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { config, canDecode4K } from "../config.ts";
@@ -268,11 +269,47 @@ async function finalize(
   // One text size per position for the whole video: if any overlay there is a list of three or more
   // lines (tips), all of them are set a little smaller, so the text never changes size mid-video.
   const smaller = new Set(overlays.filter((o) => o.text.split(/\s+\/\s+/).length >= 3).map((o) => o.at ?? ""));
+  const arrows: { file: string; start: number; end: number }[] = [];
   for (const [i, o] of overlays.entries()) {
-    // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
-    const above = placed.filter((p) => (p.o.at ?? "") === (o.at ?? "") && p.o.start < o.end && o.start < p.o.end);
-    const offset = above.length ? Math.max(...above.map((p) => p.bottom)) + 24 : 0;
     const px = smaller.has(o.at ?? "") ? Math.round(textPx(options) * 0.82) : textPx(options);
+    const enable = `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`;
+    // Placed by the AI next to what it's about (educational points), maybe with an arrow pointing at it.
+    if (o.y !== undefined) {
+      const draw = (y: number) =>
+        textFilters(o.text, { yFrac: y, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
+      let y = o.y;
+      let { filters: f, height } = draw(y);
+      // An arrow needs room to read as one: if the thing is right next to the text, move the text away from it.
+      if (o.pointTo) {
+        const ty = o.pointTo.y * H;
+        const top = H * y - height / 2;
+        const bottom = top + height;
+        const gap = ty > bottom ? ty - bottom : top - ty;
+        if (gap >= 0 && gap < 200) {
+          y = Math.max(0.1, Math.min(0.85, y + ((ty > bottom ? -1 : 1) * (200 - gap)) / H));
+          ({ filters: f, height } = draw(y));
+        }
+      }
+      filters.push(...f);
+      if (o.pointTo) {
+        const top = Math.round(H * y - height / 2);
+        const bottom = top + height;
+        const to = { x: o.pointTo.x * W, y: o.pointTo.y * H };
+        const below = to.y > bottom;
+        const pad = Math.round(px * 0.38) + 14;
+        const from = { x: W / 2 + Math.max(-220, Math.min(220, (to.x - W / 2) * 0.5)), y: below ? bottom + pad : top - pad };
+        // Stop just short of the thing, so the tip points at it instead of covering it.
+        const d = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+        const tip = { x: to.x - ((to.x - from.x) / d) * 30, y: to.y - ((to.y - from.y) / d) * 30 };
+        const file = path.join(tmp, `arrow${i}.png`);
+        if (!(below ? to.y > top : to.y < top) || !writeArrow(file, W, H, from, tip)) continue;
+        arrows.push({ file, start: o.start, end: o.end });
+      }
+      continue;
+    }
+    // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
+    const above = placed.filter((p) => o.y === undefined && p.o.y === undefined && (p.o.at ?? "") === (o.at ?? "") && p.o.start < o.end && o.start < p.o.end);
+    const offset = above.length ? Math.max(...above.map((p) => p.bottom)) + 24 : 0;
     const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
     const { filters: f, height } = textFilters(o.text, {
       yFrac,
@@ -281,7 +318,7 @@ async function finalize(
       maxChars: charsFor(px, 24),
       style: options.textStyle,
       font,
-      enable: `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`,
+      enable,
       tmp,
       key: `ov${i}`,
     });
@@ -331,13 +368,19 @@ async function finalize(
   ]);
 
   const vf = filters.length ? filters.join(",") : "null";
+  // Arrows are images laid over the text-drawn frame, each only while its point is on screen.
+  const graph = arrows.length
+    ? `[0:v]${vf}[t0];` +
+      arrows.map((a, i) => `[t${i}][${i + 2}:v]overlay=0:0:enable='between(t,${a.start.toFixed(2)},${a.end.toFixed(2)})'[t${i + 1}]`).join(";")
+    : "";
   await run("ffmpeg", [
     "-y", "-v", "error",
     "-an", "-threads", "1",
     "-i", input,
     "-i", audio,
-    "-map", "0:v:0", "-map", "1:a:0",
-    "-vf", vf,
+    ...arrows.flatMap((a) => ["-i", a.file]),
+    "-map", arrows.length ? `[t${arrows.length}]` : "0:v:0", "-map", "1:a:0",
+    ...(arrows.length ? ["-filter_complex", graph] : ["-vf", vf]),
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-profile:v", "high", "-pix_fmt", "yuv420p",
     ...LEAN_X264,
     "-c:a", "copy",

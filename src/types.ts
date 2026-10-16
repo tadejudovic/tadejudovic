@@ -126,6 +126,10 @@ export interface Overlay {
   end: number;
   /** "caption": subtitles in the lower part of the frame (voiceover videos), instead of the hook position. */
   at?: "caption";
+  /** Where the text block's center sits (0 top … 1 bottom), instead of the usual position. */
+  y?: number;
+  /** A red arrow from the text to this point of the frame (0..1 from the left / top). */
+  pointTo?: { x: number; y: number };
 }
 
 export type TemplateId = "auto" | "text_overlay" | "quick_cuts" | "single_moment" | "pov_story" | "then_vs_now";

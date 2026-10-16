@@ -638,7 +638,12 @@ function detailsBody(r) {
   const fullCaption = () => [plan.postCaption, plan.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
 
   // Headline: the text on the video, editable in place (re-makes the video).
-  const headline = h("h2", { class: "d-title" }, overlay);
+  // Shown as the viewer reads it: a list that builds up on screen appears once (its last, full
+  // state), and " / " is a line break.
+  const texts = plan.overlays?.length ? plan.overlays.map((o) => o.text) : [plan.hook || plan.title];
+  const screens = texts.filter((t, i) => !(texts[i + 1] && texts[i + 1].startsWith(t)));
+  const headline = h("h2", { class: "d-title" },
+    ...screens.map((t) => h("div", { class: "d-screen" }, ...t.split(" / ").flatMap((line, i) => (i ? [h("br"), line] : [line])))));
   const editText = h("div", { class: "d-edit", hidden: true });
   const textInput = h("textarea", { rows: 2 }, overlay);
   editText.append(

@@ -370,6 +370,16 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `builds up; the last overlay stays to the end. Each line under ~8 words, concrete and useful. Only facts that ` +
     `hold for most airlines and countries; no specific rules, fees or legal requirements you aren't sure of. ` +
     `The video must be long enough to read everything: at least 12s.` +
+    `\n\nIT HAS TO MAKE SENSE TO A STRANGER WITH THE SOUND OFF, reading only the text on screen:` +
+    `\n- The points deliver exactly what the hook promises, and say how they connect to it. If the hook says ` +
+    `"don't do X first" or "do this before X", the list is what to do first, introduced that way (e.g. the first ` +
+    `list overlay starts "Check first:"). A hook that sets up a question gets its answer on screen.` +
+    `\n- Every point is a complete piece of advice someone could act on, usually starting with a verb: "Book ` +
+    `early: only 1–2 pets per cabin", "Measure the space under the seat", "Check the pet rules on every ` +
+    `connecting flight". Never a bare noun phrase ("Same pet rules on every connection") or shorthand only you ` +
+    `understand.` +
+    `\n- Before answering, read the overlays in order as someone who has never seen this account. If any line ` +
+    `needs the post description to make sense, or the hook and the points don't fit together, rewrite them.` +
     `\n\nPost description: expand the lesson in a few sentences, connect it to ${petName}'s journey, and end with ` +
     `a question that invites people to share their own experience. Ignore the one-line overlay limit above; the ` +
     `proven captions are where the HOOK comes from: build the hook on the pattern or wording of one of them (adapted ` +

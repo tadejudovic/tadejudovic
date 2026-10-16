@@ -265,12 +265,14 @@ async function finalize(
   const overlays = overlaysFor(plan, duration);
   const filters: string[] = [];
   const placed: { o: Overlay; bottom: number }[] = [];
+  // One text size per position for the whole video: if any overlay there is a list of three or more
+  // lines (tips), all of them are set a little smaller, so the text never changes size mid-video.
+  const smaller = new Set(overlays.filter((o) => o.text.split(/\s+\/\s+/).length >= 3).map((o) => o.at ?? ""));
   for (const [i, o] of overlays.entries()) {
     // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
     const above = placed.filter((p) => (p.o.at ?? "") === (o.at ?? "") && p.o.start < o.end && o.start < p.o.end);
     const offset = above.length ? Math.max(...above.map((p) => p.bottom)) + 24 : 0;
-    // A list of three or more lines (tips) is set a little smaller so every point fits.
-    const px = o.text.split(/\s+\/\s+/).length >= 3 ? Math.round(textPx(options) * 0.82) : textPx(options);
+    const px = smaller.has(o.at ?? "") ? Math.round(textPx(options) * 0.82) : textPx(options);
     const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
     const { filters: f, height } = textFilters(o.text, {
       yFrac,

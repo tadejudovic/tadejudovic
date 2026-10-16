@@ -229,9 +229,9 @@ export async function planVideos(opts: {
     template: opts.template,
     plannedBy: "claude" as const,
     hashtags: v.hashtags.map((h) => h.replace(/^#/, "")),
-    segments: v.segments
+    segments: limitSlowMotion(v.segments
       .map((s) => validateSegment(s, byId))
-      .filter((s): s is Segment => s !== null),
+      .filter((s): s is Segment => s !== null)),
   })).filter((v) => v.segments.length > 0);
 }
 
@@ -240,6 +240,32 @@ function clampMoment(m: Moment, duration: number): Moment | null {
   const end = Math.max(0, Math.min(m.end, duration));
   if (end - start < 0.5) return null;
   return { ...m, start, end, score: Math.max(0, Math.min(1, m.score)) };
+}
+
+/**
+ * Slow motion is an effect for one short payoff moment (a jump, a reaction), never a way to make a
+ * video longer: at most one segment of up to 2.5s of footage is slowed, the rest plays at real speed.
+ */
+export function limitSlowMotion(segments: Segment[]): Segment[] {
+  let used = false;
+  return segments.map((s) => {
+    if ((s.speed ?? 1) >= 1) return s;
+    if (!used && s.end - s.start <= 2.5) {
+      used = true;
+      return { ...s, speed: Math.max(0.5, s.speed ?? 1) };
+    }
+    return { ...s, speed: 1 };
+  });
+}
+
+/** Too short for the text to be read: play the footage again (videos loop anyway) rather than slow it down. */
+export function fillByRepeating(segments: Segment[], minSeconds: number): Segment[] {
+  const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+  const once = len(segments);
+  if (!segments.length || once <= 0) return segments;
+  const out = [...segments];
+  for (let pass = 0; pass < 3 && len(out) < minSeconds - 0.5; pass++) out.push(...segments.map((s) => ({ ...s, speed: 1 })));
+  return out;
 }
 
 function validateSegment(s: Segment, clips: Map<string, Clip>): Segment | null {
@@ -278,7 +304,7 @@ const DIRECT_SCHEMA = {
         properties: {
           start: { type: "number" },
           end: { type: "number" },
-          speed: { type: "number", description: "1 normal; 0.5 slow-mo for a payoff; up to 1.5" },
+          speed: { type: "number", description: "1 (real speed) almost always; 0.5–0.8 only for one short payoff moment; up to 1.5" },
         },
       },
     },
@@ -584,7 +610,9 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       `doing that people will recognize. Then write the single on-screen line that makes it land. Formats are tools, ` +
       `not rules: use a trending structure only if it genuinely fits this footage, otherwise write something original.` +
       `\n\nThe finished video should be ${ctx.minSeconds}–${ctx.maxSeconds}s (sum of (end-start)/speed), starting right ` +
-      `on the action and ending where it can loop. Overlay text: under ~14 words, no hashtags, no emoji; " / " starts ` +
+      `on the action and ending where it can loop. Play footage at real speed (1). Slow motion only for one short ` +
+      `payoff moment that's better slowed down (a jump, a head tilt, a reaction), never to make the video longer; if ` +
+      `the clip is short, use all of it at speed 1 (it's replayed to give time to read). Overlay text: under ~14 words, no hashtags, no emoji; " / " starts ` +
       `a new line (e.g. "me: quick bath / ${ctx.petName}:").` +
       (ctx.trends.length
         ? `\n\nText formats currently working for pet accounts (optional inspiration):\n` +
@@ -625,10 +653,11 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     effort: "medium",
   });
 
-  const segments: Segment[] = r.segments
+  let segments: Segment[] = r.segments
     .map((s) => validateSegment({ clipId: clip.id, start: s.start, end: s.end, speed: s.speed }, new Map([[clip.id, clip]])))
     .filter((s): s is Segment => s !== null);
   if (!segments.length) throw new Error("The director returned no usable part of the clip.");
+  segments = fillByRepeating(limitSlowMotion(segments), ctx.minSeconds);
   const total = segments.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
   const overlays = r.overlays
     .filter((o) => o.text.trim())

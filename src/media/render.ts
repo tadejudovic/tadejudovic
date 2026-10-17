@@ -86,6 +86,8 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
   const lineH = Math.round(opts.size * 1.24);
   const top = opts.yTop ?? Math.round(H * opts.yFrac - (lines.length * lineH) / 2);
   // Box styles: one solid block behind all the lines, sized to the widest one.
+  // No style given (older videos, other entry points): the yellow box, the default look.
+  if (!opts.style) opts = { ...opts, style: "yellowbox" };
   const block = opts.style === "yellowbox" ? "0xF5C400" : opts.style === "box" ? "white" : null;
   if (block) {
     const widths = lines.map((l) => textWidth(opts.font, l, opts.size));

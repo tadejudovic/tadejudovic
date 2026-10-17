@@ -65,8 +65,10 @@ export interface Settings {
   lookV2?: boolean;
   /** Set once the yellow box became the default. */
   lookV3?: boolean;
+  lookV4?: boolean;
   /** Set once videos waiting for review or posting were re-made in the yellow box. */
   yellowBoxRemade?: boolean;
+  yellowBoxRemadeV2?: boolean;
   /** Set once all videos were deleted for a fresh start. */
   freshStartV1?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */
@@ -138,10 +140,11 @@ function load(): DB {
       db.settings.lookV2 = true;
     }
     // One-time switch to the yellow box (black Montserrat on a yellow block), the creator's chosen default.
-    if (!db.settings.lookV3) {
+    if (!db.settings.lookV4) {
       db.settings.textStyle = "yellowbox";
       db.settings.fontId = "montserrat";
       db.settings.lookV3 = true;
+      db.settings.lookV4 = true;
     }
     db.albums ??= [];
     db.partners ??= [];

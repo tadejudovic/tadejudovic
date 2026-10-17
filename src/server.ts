@@ -82,6 +82,11 @@ app.get("/api/diagnostics", (_req, res) => {
     }).filter(Boolean),
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     queuePending: ingestQueue.pending,
+    look: {
+      setting: store.settings().textStyle,
+      font: store.settings().fontId,
+      videosByStyle: count(renders, (r) => r.options?.textStyle ?? "none"),
+    },
     imports: { paused: importPause(), freeDiskGb: Math.round((freeDiskBytes() / 1024 ** 3) * 10) / 10 },
     clips: {
       byStatus: count(clips, (c) => c.status),
@@ -1063,7 +1068,7 @@ app.post("/api/resume", (_req, res) => {
 
 // The yellow box is the look for every video: ones made before it became the default, still waiting
 // for review or for posting, are re-made in it once (same footage, text and music).
-if (!paused && !store.settings().yellowBoxRemade) {
+if (!paused && !store.settings().yellowBoxRemadeV2) {
   let n = 0;
   for (const r of store.renders()) {
     if (r.status !== "done" || r.options.textStyle === "yellowbox" || r.posts?.length || r.plan.voiceover?.length) continue;
@@ -1074,7 +1079,7 @@ if (!paused && !store.settings().yellowBoxRemade) {
     deleteRender(r.id);
     n++;
   }
-  store.updateSettings({ yellowBoxRemade: true });
+  store.updateSettings({ yellowBoxRemade: true, yellowBoxRemadeV2: true });
   if (n) console.log(`[look] re-making ${n} video(s) in the yellow box`);
 }
 

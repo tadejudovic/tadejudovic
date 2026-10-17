@@ -646,8 +646,10 @@ function detailsBody(r) {
     ...screens.map((t) => h("div", { class: "d-screen" }, ...t.split(" / ").flatMap((line, i) => (i ? [h("br"), line] : [line])))));
   const editText = h("div", { class: "d-edit", hidden: true });
   const textInput = h("textarea", { rows: 2 }, overlay);
+  textInput.rows = Math.min(8, Math.max(2, (plan.overlays?.length ?? 1) + 1));
   editText.append(
     textInput,
+    h("p", { class: "muted d-edit-hint" }, "One line per piece of text. The first line stays at the top; the others appear one after another in different spots. Add or remove lines and the video gets longer or shorter to fit."),
     h("div", { class: "d-edit-actions" },
       h("button", { class: "btn small", onclick: () => (editText.hidden = true) }, "Cancel"),
       h("button", { class: "btn small primary", onclick: (e) => withBusy(e.currentTarget, "Making…", async () => {

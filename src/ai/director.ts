@@ -1,3 +1,4 @@
+import { spreadPoints } from "../overlayLayout.ts";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
@@ -423,7 +424,8 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `~2.5–3.5s, the last one staying to the end: e.g. "1. Kato backpack", "2. PetPace health tracker", "3. A ton of ` +
     `documents". Short: up to ~5 words, numbered when it's a list. A light, funny last point is great if it fits ` +
     `("4. Optional: a patient owner").` +
-    `\n- Place each point lower in the frame, next to what it's about, with y (0.35–0.8), never over ${petName}'s ` +
+    `\n- Place each point in a DIFFERENT part of the frame from the one before (vary y between 0.35 and 0.8), next to ` +
+    `what it's about, never over ${petName}'s ` +
     `face.` +
     `\n- An arrow ONLY when the exact object the point names is clearly visible in the footage while the point is ` +
     `on screen (e.g. the backpack Lex sits in, the tracker on his collar): say what you see in pointAt and where it ` +
@@ -718,6 +720,11 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
         ...(px !== undefined && py !== undefined ? { pointTo: { x: px, y: py } } : {}),
       };
     });
+  // Educational: the hook stays on top the whole video and the points are spread over the frame.
+  if (ctx.format === "tips" && overlays.length >= 3) {
+    overlays[0] = { ...overlays[0], start: 0, end: total + 1, y: undefined };
+    overlays.splice(0, overlays.length, ...spreadPoints(overlays));
+  }
   return {
     template: "auto",
     title: r.title,

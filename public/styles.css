@@ -751,3 +751,4 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .shot-chip.drafting { padding-right: 9px; user-select: text; white-space: pre-wrap; border-style: dashed; outline: none; }
 .shot-chip.drafting::before { content: "/"; color: #6366f1; font-weight: 800; }
 .d-title .d-screen + .d-screen { margin-top: 10px; }
+.d-edit-hint { margin: 6px 0 0; font-size: 12px; }

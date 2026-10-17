@@ -14,6 +14,7 @@ import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, ma
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
+import { layoutPoints, lengthenFootage, readingSeconds } from "./overlayLayout.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { apifyEnabled, platformOf } from "./ai/tiktokSearch.ts";
@@ -802,17 +803,36 @@ app.post("/api/renders/:id/rerender", (req, res) => {
   if (!r) return res.sendStatus(404);
   if (!r.plan.segments.every((s) => store.clip(s.clipId))) return res.status(400).json({ error: "A source clip was deleted." });
   const b = req.body ?? {};
-  // Overlay edits arrive as a list of texts matching the existing overlays (or a single hook).
-  const texts: string[] | undefined = Array.isArray(b.overlays) ? b.overlays.map(String) : undefined;
-  const overlays = r.plan.overlays?.length
-    ? r.plan.overlays.map((o, i) => ({ ...o, text: texts?.[i] ?? (i === 0 && typeof b.hook === "string" ? b.hook : o.text) }))
-    : undefined;
-  const next = sanitizePlan({
+  // Overlay edits arrive as the lines of text, one per piece of text on the video.
+  const texts: string[] | undefined = Array.isArray(b.overlays) ? b.overlays.map((t: unknown) => String(t).trim()).filter(Boolean) : undefined;
+  let segments = r.plan.segments;
+  let overlays = r.plan.overlays;
+  if (texts?.length) {
+    const old = r.plan.overlays ?? [];
+    const total = segments.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+    if (texts.length === old.length) {
+      // Same pieces of text, reworded: same timing and places.
+      overlays = old.map((o, i) => ({ ...o, text: texts[i] }));
+    } else {
+      // Lines added or removed: lay the text out again (hook on top, the points one after another in
+      // different spots), with the footage made long enough to read it all.
+      const need = texts.length > 1 ? readingSeconds(texts.length - 1) : total;
+      if (need > total + 0.3) segments = lengthenFootage(segments, need, (id) => store.clip(id)?.duration ?? 0);
+      const length = segments.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+      overlays = texts.length > 1 ? layoutPoints(texts, length) : [{ text: texts[0], start: 0, end: length + 1 }];
+    }
+  } else if (overlays?.length && typeof b.hook === "string") {
+    overlays = overlays.map((o, i) => (i === 0 ? { ...o, text: b.hook } : o));
+  }
+  // Only the edited parts need checking; everything else (kind, voiceover, collab…) is kept as it was.
+  const clean = sanitizePlan({ ...r.plan, segments, overlays });
+  const next: VideoPlan = {
     ...r.plan,
-    overlays,
+    segments: clean.segments,
+    overlays: clean.overlays,
     hook: overlays?.[0]?.text ?? (typeof b.hook === "string" ? b.hook : texts?.[0] ?? r.plan.hook),
-    postCaption: typeof b.postCaption === "string" ? b.postCaption : r.plan.postCaption,
-  });
+    postCaption: typeof b.postCaption === "string" ? b.postCaption.slice(0, 2200) : r.plan.postCaption,
+  };
   // The new version keeps the clips taken, even if the old one was rejected and had handed them back.
   if (r.usesReturned) {
     store.updateRender(r.id, { review: "pending" });
@@ -874,7 +894,16 @@ function sanitizePlan(p: VideoPlan): VideoPlan {
     overlays: Array.isArray(p.overlays)
       ? p.overlays
           .slice(0, 6)
-          .map((o) => ({ text: str(o?.text, 160), start: clamp(Number(o?.start) || 0, 0, 120), end: clamp(Number(o?.end) || 0, 0, 121) }))
+          .map((o) => ({
+            text: str(o?.text, 160),
+            start: clamp(Number(o?.start) || 0, 0, 120),
+            end: clamp(Number(o?.end) || 0, 0, 121),
+            ...(o?.at === "caption" ? { at: "caption" as const } : {}),
+            ...(Number.isFinite(o?.y) ? { y: clamp(Number(o!.y), 0.05, 0.95) } : {}),
+            ...(o?.pointTo && Number.isFinite(o.pointTo.x) && Number.isFinite(o.pointTo.y)
+              ? { pointTo: { x: clamp(o.pointTo.x, 0, 1), y: clamp(o.pointTo.y, 0, 1) } }
+              : {}),
+          }))
           .filter((o) => o.text && o.end > o.start)
       : undefined,
     hook: str(p.hook, 120),

@@ -53,10 +53,15 @@ export function reviewFeedback(limit = 15): ReviewFeedback {
     .flatMap((r) => (r.posts ?? []).filter((p) => p.stats).map((p) => ({ r, p })))
     .sort((a, b) => b.p.stats!.views - a.p.stats!.views);
   const ranked = posted.length > 10 ? [...posted.slice(0, 6), ...posted.slice(-4)] : posted;
+  // Lessons from before the fresh start come after the newer ones.
+  const past = store.settings().pastFeedback;
   return {
-    kept: reviewed.filter((r) => r.review === "approved").slice(0, limit).map(item),
-    rejected: reviewed.filter((r) => r.review === "rejected").slice(0, limit).map((r) => ({ ...item(r), reason: r.rejectReason })),
-    performance: ranked.map(({ r, p }) => ({ ...item(r), platform: p.platform, ...p.stats! })),
+    kept: [...reviewed.filter((r) => r.review === "approved").map(item), ...(past?.kept ?? [])].slice(0, limit),
+    rejected: [
+      ...reviewed.filter((r) => r.review === "rejected").map((r) => ({ ...item(r), reason: r.rejectReason, note: r.rejectNote })),
+      ...(past?.rejected ?? []),
+    ].slice(0, limit),
+    performance: [...ranked.map(({ r, p }) => ({ ...item(r), platform: p.platform, ...p.stats! })), ...(past?.performance ?? [])].slice(0, 12),
   };
 }
 

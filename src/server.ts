@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { layoutPoints, lengthenFootage, readingSeconds } from "./overlayLayout.ts";
@@ -606,6 +606,7 @@ app.patch("/api/renders/:id", (req, res) => {
   store.updateRender(r.id, {
     ...(review ? { review, reviewedAt: new Date().toISOString(), rejectReason: review === "rejected" ? reason ?? r.rejectReason : undefined } : {}),
     ...(review === undefined && reason && r.review === "rejected" ? { rejectReason: reason } : {}),
+    ...(typeof b.rejectNote === "string" && (r.review === "rejected" || review === "rejected") ? { rejectNote: b.rejectNote.trim().slice(0, 500) || undefined } : {}),
     ...(b.downloaded === true ? { downloaded: true } : {}),
     plan: { ...r.plan, ...planPatch },
   });
@@ -933,6 +934,29 @@ function parseDates(v: unknown): (string | undefined)[] {
 }
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
+
+// ---- One-time fresh start (asked for by the creator) -------------------------
+//
+// Every made video is deleted and the footage is free to use again; the clips themselves stay.
+// What was learned from reviews and post stats is kept for the AI. From here: 3 videos a day,
+// one fun, one educational, one inspirational.
+if (!store.settings().freshStartV1 && !store.renders().length && !store.clips().length) {
+  store.updateSettings({ freshStartV1: true }); // a new install: nothing to clear
+} else if (!store.settings().freshStartV1) {
+  const learned = reviewFeedback(30);
+  const n = store.renders().length;
+  for (const r of store.renders()) deleteRender(r.id);
+  for (const c of store.clips()) if (c.uses) store.updateClip(c.id, { uses: 0 });
+  store.updateSettings({
+    freshStartV1: true,
+    yellowBoxRemade: true,
+    pastFeedback: learned,
+    dailyMix: { fun: 1, educational: 1, inspirational: 1 },
+    maxVideosPerDay: 3,
+  });
+  store.updateAuto({ dailyCount: 3, lastBatchDate: undefined });
+  console.log(`[fresh start] deleted ${n} video(s); clips kept and free to use again; 3 a day from now`);
+}
 
 // ---- Startup recovery -----------------------------------------------------
 //

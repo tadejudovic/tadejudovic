@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem, DailyMix, StoryDraft } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem, DailyMix, StoryDraft, ReviewFeedback } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -67,6 +67,10 @@ export interface Settings {
   lookV3?: boolean;
   /** Set once videos waiting for review or posting were re-made in the yellow box. */
   yellowBoxRemade?: boolean;
+  /** Set once all videos were deleted for a fresh start. */
+  freshStartV1?: boolean;
+  /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */
+  pastFeedback?: ReviewFeedback;
 }
 
 /** Videos in a round made from the daily mix. */

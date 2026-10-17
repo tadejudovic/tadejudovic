@@ -932,13 +932,27 @@ function decide(dir) {
 $("#stack-why").addEventListener("click", (e) => {
   const reason = e.target.dataset?.reason;
   if (!reason || !stack.whyFor) return;
-  api(`/api/renders/${stack.whyFor}`, { method: "PATCH", body: { rejectReason: reason } }).catch((err) => banner(err.message));
+  // "Something else": say what, in a few words.
+  if (reason === "other") {
+    $("#why-note").hidden = false;
+    $("#why-text").focus();
+    return;
+  }
+  sendWhy(reason);
+});
+$("#why-send").addEventListener("click", () => sendWhy("other", $("#why-text").value.trim()));
+
+function sendWhy(reason, note = "") {
+  if (!stack.whyFor) return;
+  api(`/api/renders/${stack.whyFor}`, { method: "PATCH", body: { rejectReason: reason, ...(note ? { rejectNote: note } : {}) } }).catch((err) => banner(err.message));
+  $("#why-note").hidden = true;
+  $("#why-text").value = "";
   stack.whyFor = null;
   renderStack();
   renderBatch();
   renderRenders();
   renderHomeState();
-});
+}
 
 $("#stack-undo").addEventListener("click", async () => {
   const id = stack.history.pop();

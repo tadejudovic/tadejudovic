@@ -752,3 +752,6 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .shot-chip.drafting::before { content: "/"; color: #6366f1; font-weight: 800; }
 .d-title .d-screen + .d-screen { margin-top: 10px; }
 .d-edit-hint { margin: 6px 0 0; font-size: 12px; }
+.why-note { width: 100%; display: grid; gap: 8px; margin-top: 4px; }
+.why-note[hidden] { display: none; }
+.why-note textarea { font: inherit; font-size: 15px; padding: 10px 12px; border: 1.5px solid #d4d4d8; border-radius: 12px; resize: vertical; }

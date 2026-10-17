@@ -253,6 +253,8 @@ export interface Render {
   batch?: string;
   review: ReviewStatus;
   rejectReason?: RejectReason;
+  /** The creator's own words on what they didn't like. */
+  rejectNote?: string;
   reviewedAt?: string;
   /** The video file was downloaded. */
   downloaded?: boolean;
@@ -390,7 +392,7 @@ export interface FeedbackItem {
 
 export interface ReviewFeedback {
   kept: FeedbackItem[];
-  rejected: (FeedbackItem & { reason?: RejectReason })[];
+  rejected: (FeedbackItem & { reason?: RejectReason; note?: string })[];
   /** Posted videos with real stats, best first. */
   performance?: (FeedbackItem & { platform: Platform; views: number; likes?: number; shares?: number; saves?: number })[];
 }

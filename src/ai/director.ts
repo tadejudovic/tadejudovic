@@ -516,7 +516,8 @@ export function feedbackText(f: ReviewFeedback | undefined): string {
     `and write more like what they kept and less like what they rejected (don't copy the kept lines).` +
     (f.kept.length ? `\nKept:\n${f.kept.map(line).join("\n")}` : "") +
     (f.rejected.length
-      ? `\nRejected:\n${f.rejected.map((x) => `${line(x)}: ${REASON_TEXT[x.reason ?? "other"]}`).join("\n")}`
+      ? `\nRejected:\n${f.rejected.map((x) => `${line(x)}: ${x.note ? `in their words: "${x.note}"` : REASON_TEXT[x.reason ?? "other"]}`).join("\n")}` +
+        (f.rejected.some((x) => x.note) ? `\nTheir own words are the most precise feedback you get: take them literally.` : "")
       : "")
   );
 }

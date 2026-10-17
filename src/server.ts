@@ -1037,6 +1037,23 @@ app.post("/api/resume", (_req, res) => {
   res.json({ ok: true });
 });
 
+// The yellow box is the look for every video: ones made before it became the default, still waiting
+// for review or for posting, are re-made in it once (same footage, text and music).
+if (!paused && !store.settings().yellowBoxRemade) {
+  let n = 0;
+  for (const r of store.renders()) {
+    if (r.status !== "done" || r.options.textStyle === "yellowbox" || r.posts?.length || r.plan.voiceover?.length) continue;
+    if (r.review !== "pending" && r.review !== "approved") continue;
+    if (!r.plan.segments.every((s) => store.clip(s.clipId)?.status === "ready")) continue;
+    const fresh = queueRender(r.plan, { ...r.options, textStyle: "yellowbox", fontId: "montserrat" }, r.batch, { countUse: false });
+    if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
+    deleteRender(r.id);
+    n++;
+  }
+  store.updateSettings({ yellowBoxRemade: true });
+  if (n) console.log(`[look] re-making ${n} video(s) in the yellow box`);
+}
+
 startScheduler();
 
 // Public by default only when the password gate is on.

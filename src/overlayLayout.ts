@@ -11,14 +11,14 @@ export const POINT_Y = [0.62, 0.42, 0.72, 0.5, 0.66, 0.46];
 
 /** Seconds needed to read a hook and `points` points one after another. */
 export function readingSeconds(points: number): number {
-  return points <= 0 ? 4 : 2.2 + 2.8 * points;
+  return points <= 0 ? 4 : 2.5 + 3.2 * points;
 }
 
 export function layoutPoints(texts: string[], total: number): Overlay[] {
   const [hook, ...points] = texts;
   const out: Overlay[] = [{ text: hook, start: 0, end: total + 1 }];
   if (!points.length) return out;
-  const first = Math.min(2.2, total * 0.2);
+  const first = Math.min(2.5, total * 0.2);
   const per = (total - first) / points.length;
   points.forEach((text, i) =>
     out.push({

@@ -256,7 +256,7 @@ export async function plan(
             // Fun posts alternate audiences per the setting; teaching and inspiring speak to everyone.
             audience: kind === "fun" ? audienceFor(i) : captionAudience === "pets" ? "pets" : "everyone",
             format: kind,
-            ...(kind === "tips" ? { faq, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
+            ...(kind === "tips" ? { faq, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);

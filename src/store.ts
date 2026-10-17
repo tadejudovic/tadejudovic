@@ -65,6 +65,8 @@ export interface Settings {
   lookV2?: boolean;
   /** Set once the yellow box became the default. */
   lookV3?: boolean;
+  /** Set once videos waiting for review or posting were re-made in the yellow box. */
+  yellowBoxRemade?: boolean;
 }
 
 /** Videos in a round made from the daily mix. */

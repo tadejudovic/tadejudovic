@@ -433,7 +433,9 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `clearly visible (documents that aren't shown, an idea, a tip), pointAt is empty, no arrow (-1), and the point ` +
     `just sits in a clear part of the frame.` +
     `\n- Only facts that hold for most airlines and countries; no specific rules, fees or legal requirements you ` +
-    `aren't sure of. The video must be long enough to read everything: at least 12s.` +
+    `aren't sure of.` +
+    `\n- Length: whatever the lesson needs to be read comfortably, usually 15–30s: the hook alone for ~2.5s, then ` +
+    `~3–4s per point. Don't pad it, and don't rush it.` +
     `\n\nIT HAS TO MAKE SENSE TO A STRANGER WITH THE SOUND OFF, reading only the text on screen:` +
     `\n- The points deliver exactly what the hook promises, and say how they connect to it. If the hook says ` +
     `"don't do X first" or "do this before X", the list is what to do first, introduced that way (e.g. the first ` +

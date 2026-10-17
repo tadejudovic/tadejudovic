@@ -154,7 +154,7 @@ function renderSummaries() {
   const a = state.auto;
   set("sum-videos", a ? `${a.enabled ? `${a.dailyCount} per round` : "Off"} · max ${s.settings.maxVideosPerDay}/day` : "");
   const size = { small: "Small", medium: "Medium", large: "Large" }[s.settings.textSize] ?? "Medium";
-  const style = { yellow: "Yellow", classic: "Outline", box: "Box", plain: "Plain" }[s.settings.textStyle] ?? "";
+  const style = { yellowbox: "Yellow box", yellow: "Yellow", classic: "Outline", box: "Box", plain: "Plain" }[s.settings.textStyle] ?? "";
   set("sum-look", `${style} · ${size}`);
   set("sum-scenes", s.tiktokSearch ? `${s.settings.scenes.length} situations` : "Apify not connected");
   set("sum-profile", s.settings.handle || s.settings.petName || "");

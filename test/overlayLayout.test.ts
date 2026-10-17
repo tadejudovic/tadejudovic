@@ -19,7 +19,7 @@ test("more text makes the footage longer: the clip runs on, then replays", () =>
   assert.equal(longClip.length, 1);
   assert.ok(Math.abs(longClip[0].end - need) < 1e-9);
   const shortClip = lengthenFootage([{ clipId: "a", start: 0, end: 6, speed: 1 }], need, () => 7);
-  const len = shortClip.reduce((a, s) => a + (s.end - s.start) / s.speed, 0);
+  const len = shortClip.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
   assert.ok(len >= need - 0.3);
   assert.ok(shortClip.every((s) => s.speed === 1));
 });

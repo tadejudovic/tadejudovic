@@ -166,6 +166,11 @@ export interface VideoPlan {
   format?: PostFormat;
   /** The follower question an educational video answers. */
   faq?: string;
+  /** Educational: the theme (destination, airline, gear) and the specific topic, so it isn't repeated. */
+  pillar?: EduPillar;
+  topic?: string;
+  /** Who the text speaks to (fun and inspirational alternate between the two). */
+  audience?: "pets" | "everyone";
   /** Set when the AI couldn't write this video and a no-AI fallback was used: why. */
   aiNote?: string;
   /** Voiceover lines on the output timeline (story videos with the creator's voice). */
@@ -236,6 +241,9 @@ export interface Partner {
 export type RenderStatus = "queued" | "rendering" | "done" | "error";
 export type ReviewStatus = "pending" | "approved" | "rejected";
 /** Why the creator swiped a video away: what to change next time. */
+/** Educational themes, in rotation: how to get to a place, airlines, what we travel with. */
+export type EduPillar = "destination" | "airline" | "gear";
+
 export type RejectReason = "text" | "clip" | "edit" | "other";
 
 export interface Render {

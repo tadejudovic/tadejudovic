@@ -10,7 +10,7 @@ import { directClip, planVideos, writeCaption, type DirectContext } from "./ai/d
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
-import type { Clip, DailyMix, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
+import type { Clip, DailyMix, EduPillar, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
@@ -171,6 +171,55 @@ export function madeTodayByKind(): Partial<Record<PostFormat, number>> {
   return out;
 }
 
+/** Educational themes in rotation, and which follower questions belong to each. */
+export const PILLARS: EduPillar[] = ["destination", "airline", "gear"];
+const PILLAR_FAQ: Record<EduPillar, RegExp> = {
+  destination: /where|destination|requirement|countr|travel(ed)? to|get to|fly to/i,
+  airline: /airline/i,
+  gear: /bag|carrier|backpack|pack|gear|bring|tracker|accessor/i,
+};
+
+/** The theme furthest behind in recent educational videos (not one already used in this round). */
+export function nextPillar(skip = new Set<EduPillar>()): EduPillar {
+  const recent = store
+    .renders()
+    .filter((r) => r.plan.format === "tips" && r.plan.pillar)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 9);
+  const count = (p: EduPillar) => recent.filter((r) => r.plan.pillar === p).length;
+  const lastUsed = (p: EduPillar) => {
+    const i = recent.findIndex((r) => r.plan.pillar === p);
+    return i === -1 ? Infinity : i;
+  };
+  const options = PILLARS.filter((p) => !skip.has(p));
+  return (options.length ? options : PILLARS).sort((a, b) => count(a) - count(b) || lastUsed(b) - lastUsed(a))[0];
+}
+
+/** Topics of educational videos already made (and not rejected): never made again. */
+export function coveredTopics(): string[] {
+  const made = store
+    .renders()
+    .filter((r) => r.plan.format === "tips" && r.review !== "rejected")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((r) => r.plan.topic || r.plan.hook);
+  const before = (store.settings().pastFeedback?.kept ?? []).filter((k) => k.format === "tips").map((k) => k.text);
+  return [...new Set([...made, ...before].filter(Boolean))].slice(0, 40);
+}
+
+/**
+ * Fun and inspirational videos take turns: one for dog lovers, the next for everyone (a moment
+ * anyone recognizes, the dog part of it), unless the setting says otherwise.
+ */
+export function nextAudience(format: PostFormat): "pets" | "everyone" {
+  const { captionAudience } = store.settings();
+  if (captionAudience === "everyone" || captionAudience === "pets") return captionAudience;
+  const last = store
+    .renders()
+    .filter((r) => r.plan.format === format && r.plan.audience)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  return last?.plan.audience === "everyone" ? "pets" : "everyone";
+}
+
 /** Which situations suit which kind of question (footage that shows what the answer is about). */
 const QUESTION_FITS: [RegExp, RegExp][] = [
   [/bag|carrier/i, /seat|airplane|plane|gate/i],
@@ -184,8 +233,8 @@ const QUESTION_FITS: [RegExp, RegExp][] = [
  * The follower question an educational video should answer: the one answered least in the last
  * 30 days, preferring questions that suit the clip's situation.
  */
-export function nextQuestion(scene: string | undefined, skip = new Set<string>()): { q: string; a?: string } | undefined {
-  const faq = store.settings().faq.filter((f) => f.q && !skip.has(f.q));
+export function nextQuestion(scene: string | undefined, skip = new Set<string>(), pillar?: EduPillar): { q: string; a?: string } | undefined {
+  const faq = store.settings().faq.filter((f) => f.q && !skip.has(f.q) && (!pillar || PILLAR_FAQ[pillar].test(f.q)));
   if (!faq.length) return undefined;
   const recent = store.renders().filter((r) => r.plan.faq && Date.now() - Date.parse(r.createdAt) < 30 * 86400_000);
   const asked = (q: string) => recent.filter((r) => r.plan.faq === q).length;
@@ -241,30 +290,44 @@ export async function plan(
     };
     const overlays: { example: string }[] = [];
     const failures: string[] = [];
-    // "mix": every other video speaks to everyone, starting with the first.
     const { captionAudience } = store.settings();
-    const audienceFor = (i: number): "pets" | "everyone" =>
-      captionAudience === "everyone" ? "everyone" : captionAudience === "pets" ? "pets" : i % 2 === 0 ? "everyone" : "pets";
     // The daily mix: fun, educational and inspirational candidates, alternating so a round always
     // has at least one of each (the creator keeps the best of each kind).
     const kinds = mixSequence(store.settings().dailyMix, chosen.length, madeTodayByKind());
+    // Fun and inspirational take turns between dog lovers and everyone, across rounds and days.
+    const turn: Partial<Record<PostFormat, "pets" | "everyone">> = {};
+    const audiences = kinds.map((k) => {
+      const a = turn[k] ? (turn[k] === "everyone" ? "pets" : "everyone") : nextAudience(k);
+      if (captionAudience === "mix") turn[k] = a;
+      return a;
+    });
+    // Educational: a different theme for each, and nothing already covered.
+    const pillarsThisRound = new Set<EduPillar>();
+    const pillars = kinds.map((k) => {
+      if (k !== "tips") return undefined;
+      const p = nextPillar(pillarsThisRound);
+      pillarsThisRound.add(p);
+      return p;
+    });
+    const covered = coveredTopics();
     const askedThisRound = new Set<string>();
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {
         try {
           const kind = kinds[i] ?? "fun";
-          const faq = kind === "tips" ? nextQuestion(clip.scene, askedThisRound) : undefined;
+          const pillar = pillars[i];
+          const faq = kind === "tips" ? nextQuestion(clip.scene, askedThisRound, pillar) : undefined;
           if (faq) askedThisRound.add(faq.q);
           const p = await directClip(clip, {
             ...ctx,
             proven: provenCaptions(clip.scene),
-            // Fun posts alternate audiences per the setting; teaching and inspiring speak to everyone.
-            audience: kind === "fun" ? audienceFor(i) : captionAudience === "pets" ? "pets" : "everyone",
+            audience: kind === "tips" ? (captionAudience === "pets" ? "pets" : "everyone") : audiences[i],
             format: kind,
-            ...(kind === "tips" ? { faq, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { faq, pillar, covered, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);
+          if (p.topic) covered.unshift(p.topic);
           onPlan?.(p);
           return p;
         } catch (err) {

@@ -4,7 +4,7 @@ import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { TEMPLATES } from "../templates.ts";
-import type { PostFormat, Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
+import type { EduPillar, PostFormat, Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
 
 /**
  * The "AI director": Claude watches sampled frames of each clip once (cached on
@@ -298,7 +298,7 @@ function validateSegment(s: Segment, clips: Map<string, Clip>): Segment | null {
 const DIRECT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["concept", "title", "basedOn", "segments", "overlays", "postCaption", "hashtags"],
+  required: ["concept", "title", "topic", "basedOn", "segments", "overlays", "postCaption", "hashtags"],
   properties: {
     basedOn: {
       type: "integer",
@@ -307,6 +307,7 @@ const DIRECT_SCHEMA = {
         "there were no proven captions or truly none of them shaped the hook.",
     },
     concept: { type: "string", description: "One sentence: what the joke/feeling is and why it works for this footage" },
+    topic: { type: "string", description: "Educational videos: the specific topic in a few words. Otherwise empty." },
     title: { type: "string" },
     segments: {
       type: "array",
@@ -384,8 +385,38 @@ export interface DirectContext {
   format?: PostFormat;
   /** For an educational video: the follower question it answers, with the creator's answer. */
   faq?: { q: string; a?: string };
+  /** Educational: this video's theme, and the topics already covered (never repeated). */
+  pillar?: EduPillar;
+  covered?: string[];
   /** Make this a collab version for a brand partner. */
   collab?: { name: string; handle?: string; about: string; mustInclude?: string; note?: string };
+}
+
+const PILLAR_TEXT: Record<EduPillar, string> = {
+  destination:
+    "a DESTINATION: how we got Lex to a specific place (a country or city), what it took, what to know before " +
+    "going, e.g. \"How I flew my dog to Brazil\", \"What it takes to bring a dog to Japan\"",
+  airline:
+    "an AIRLINE: flying with a specific airline or choosing one, what the pet policy is like in practice, e.g. " +
+    "\"Flying LATAM with a dog\", \"The airline that let Lex sit on my lap\"",
+  gear:
+    "something WE TRAVEL WITH: the backpack/carrier, the health tracker, the documents, a travel essential, e.g. " +
+    "\"The backpack Lex has flown 42,000km in\", \"3 things I never fly without\"",
+};
+
+/** The educational theme for this video, and what's been covered already. */
+function pillarText(pillar: EduPillar | undefined, covered: string[]): string {
+  return (
+    (pillar
+      ? `\n\nTHEME FOR THIS VIDEO: ${PILLAR_TEXT[pillar]}. Specific names (places, airlines, brands, rules) only from ` +
+        `the creator's own answers or the account's story; otherwise stay with what you can see and general advice.`
+      : "") +
+    (covered.length
+      ? `\n\nALREADY COVERED in earlier videos (never make the same topic or angle again, pick something new):\n` +
+        covered.map((t) => `- ${t}`).join("\n")
+      : "") +
+    `\nSet "topic" to this video's specific topic in a few words (e.g. "Kato backpack", "flying Lex to Brazil").`
+  );
 }
 
 /** An educational video: a scroll-stopping hook, then a short teaching beat that builds up on screen. */
@@ -547,7 +578,13 @@ function provenText(proven: ProvenCaption[], scene?: string, audience: "pets" | 
 }
 
 /** How to aim the text: at dog lovers, or at everyone with the dog as the punchline. */
-function audienceText(audience: "pets" | "everyone" = "pets", petName: string): string {
+function audienceText(audience: "pets" | "everyone" = "pets", petName: string, format?: PostFormat): string {
+  if (format === "inspire")
+    return audience === "everyone"
+      ? `\n\nAUDIENCE for this video: EVERYONE. Make it about a feeling anyone has, not about dogs: taking the leap, ` +
+          `leaving the comfort zone, home being a person, saying yes to the trip, the people (and ${petName}) who come ` +
+          `along. ${petName} is part of the moment, but someone without a dog should feel it too.`
+      : `\n\nAUDIENCE for this video: dog lovers: what it means to see the world with your dog by your side.`;
   return audience === "everyone"
     ? `\n\nAUDIENCE for this video: EVERYONE, not just dog lovers. Write about the moment any person recognizes ` +
         `(travel stress, waiting in line, security, cramped seats, delays, the vibe of the day) so someone who doesn't ` +
@@ -660,8 +697,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
         ? `\n\nText formats currently working for pet accounts (optional inspiration):\n` +
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
-      (ctx.collab ? collabText(ctx.collab, ctx.petName) : audienceText(ctx.audience, ctx.petName)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) : ctx.format === "inspire" ? inspireText(ctx.petName) : "") +
+      (ctx.collab ? collabText(ctx.collab, ctx.petName) : ctx.format === "tips" ? "" : audienceText(ctx.audience, ctx.petName, ctx.format)) +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`
@@ -678,6 +715,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   const r = await structured<{
     concept: string;
     title: string;
+    topic: string;
     basedOn: number;
     segments: { start: number; end: number; speed: number }[];
     overlays: { text: string; start: number; end: number; y: number; pointAt: string; pointX: number; pointY: number }[];
@@ -737,6 +775,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     scene: clip.scene,
     ...(ctx.format ? { format: ctx.format } : {}),
     ...(ctx.format === "tips" && ctx.faq ? { faq: ctx.faq.q } : {}),
+    ...(ctx.format === "tips" ? { pillar: ctx.pillar, topic: r.topic?.trim() || undefined } : {}),
+    ...(ctx.audience && ctx.format !== "tips" && !ctx.collab ? { audience: ctx.audience } : {}),
     basedOn: (() => {
       const c = ctx.proven[r.basedOn - 1];
       return c ? { text: c.text, views: c.views, url: c.url } : undefined;

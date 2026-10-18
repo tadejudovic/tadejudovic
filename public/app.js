@@ -789,6 +789,13 @@ function detailsBody(r) {
       headline,
       h("span", { class: "d-actions" },
         h("button", { class: "d-link", onclick: () => { editText.hidden = !editText.hidden; if (!editText.hidden) textInput.focus(); } }, "Edit text"),
+        h("button", { class: "d-link", onclick: (e) => withBusy(e.currentTarget, "Reading…", async () => {
+          const res = await api(`/api/renders/${r.id}/proofread`, { method: "POST" });
+          if (!res.changed) return banner("The text reads fine as it is.", "ok");
+          closeSheet();
+          await refreshRenders();
+          banner("Fixed the text. Re-making the video now; it comes back in a minute or two.", "ok");
+        }) }, "Fix the text"),
         h("button", { class: "d-link", onclick: () => (styleEdit.hidden = !styleEdit.hidden) }, "Text style"),
         h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version"),
       ),

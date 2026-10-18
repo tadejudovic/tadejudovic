@@ -14,6 +14,7 @@ import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, ma
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, refreshDesigns } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
+import { proofreadText } from "./ai/director.ts";
 import { layoutPoints, lengthenFootage, readingSeconds } from "./overlayLayout.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
@@ -347,6 +348,24 @@ function clearVideos(): number {
   console.log(`[videos] deleted ${renders.length} video(s); clips kept and free to use again`);
   return renders.length;
 }
+
+/** Proofread a video's text as a stranger would and re-make it if anything didn't add up. */
+app.post(
+  "/api/renders/:id/proofread",
+  h(async (req, res) => {
+    const r = store.render(String(req.params.id));
+    if (!r) return res.sendStatus(404);
+    const old = r.plan.overlays ?? [];
+    if (!old.length) return res.json({ changed: false });
+    const fixed = await proofreadText(old.map((o) => o.text), store.settings().petName, r.plan.format);
+    if (fixed.every((t, i) => t === old[i].text)) return res.json({ changed: false });
+    const overlays = old.map((o, i) => ({ ...o, text: fixed[i] }));
+    const fresh = queueRender({ ...r.plan, overlays, hook: overlays[0].text }, r.options, r.batch, { countUse: false });
+    if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
+    deleteRender(r.id);
+    res.json({ changed: true, render: fresh });
+  }),
+);
 
 let refreshing = false;
 app.post("/api/videos/refresh-design", (_req, res) => {

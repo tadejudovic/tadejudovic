@@ -482,6 +482,11 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `early: only 1–2 pets per cabin", "Measure the space under the seat", "Check the pet rules on every ` +
     `connecting flight". Never a bare noun phrase ("Same pet rules on every connection") or shorthand only you ` +
     `understand.` +
+    `\n- Numbers add up: a hook that says "3 checks" has exactly 3 points, all of that kind. No "bonus" unless the ` +
+    `hook leaves room for it, and a bonus is still the same kind of thing.` +
+    `\n- A follower question in the hook is clearly theirs: "You always ask which airline we fly with" or "\"Which ` +
+    `airline do you fly with?\" Here's how we choose", never the creator asking it to themselves.` +
+    `\n- Clear subjects: write "your dog" or ${petName}'s name, not "his"/"their" that could mean anyone.` +
     `\n- Before answering, read the overlays in order as someone who has never seen this account. If any line ` +
     `needs the post description to make sense, or the hook and the points don't fit together, rewrite them.` +
     `\n\nPost description: expand the lesson in a few sentences, connect it to ${petName}'s journey, and end with ` +
@@ -672,6 +677,45 @@ export async function writeCaption(ctx: {
   return r.postCaption;
 }
 
+/**
+ * A proofread of a video's on-screen text, read in order as a stranger with the sound off would: if
+ * it doesn't add up (counts, pronouns, a hook the points don't answer, lines that need the caption),
+ * the lines are fixed, same number and order, so their timing and places stay. Small model, text only.
+ */
+export async function proofreadText(lines: string[], petName: string, kind?: string): Promise<string[]> {
+  if (!lines.length) return lines;
+  const r = await structured<{ ok: boolean; problem: string; lines: string[] }>({
+    system:
+      "You proofread the on-screen text of short vertical videos for a creator who travels the world with their dog. " +
+      "You are strict about whether it makes sense, and you keep the creator's voice and style.",
+    content: [
+      {
+        type: "text",
+        text:
+          `The text of a ${kind ?? ""} video about ${petName}, shown one piece after another (" / " is a line break):\n` +
+          lines.map((l, i) => `${i + 1}. ${l}`).join("\n") +
+          `\n\nRead it as a stranger with the sound off. Does it make sense as one message? Check: the points answer ` +
+          `the hook; any number in the hook matches the points; every point is the same kind of thing the hook ` +
+          `promises; who "he/his/their" means is clear (use "your dog" or ${petName}); a follower question reads as ` +
+          `theirs, not the creator asking themselves; no line needs other context. If it's fine, ok = true and return ` +
+          `the lines unchanged. If not, ok = false, say the problem in a few words, and return fixed lines: exactly ` +
+          `${lines.length}, same order and roles, each about as long as the original, no emoji, no hashtags.`,
+      },
+    ],
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["ok", "problem", "lines"],
+      properties: { ok: { type: "boolean" }, problem: { type: "string" }, lines: { type: "array", items: { type: "string" } } },
+    },
+    effort: "low",
+    model: config.claude.fastModel,
+  });
+  if (r.ok || r.lines.length !== lines.length || r.lines.some((l) => !l.trim())) return lines;
+  console.log(`[proofread] fixed the text (${r.problem}): ${lines.join(" | ")} → ${r.lines.join(" | ")}`);
+  return r.lines.map((l) => l.trim());
+}
+
 export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoPlan> {
   const frames = Math.max(4, Math.min(8, Math.ceil(clip.duration / 2)));
   const content: Anthropic.Beta.BetaContentBlockParam[] = [];
@@ -771,6 +815,11 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
         ...(px !== undefined && py !== undefined ? { pointTo: { x: px, y: py } } : {}),
       };
     });
+  // A last read as a stranger would: fix text that doesn't add up (keeps timing and places).
+  if (overlays.length) {
+    const fixed = await proofreadText(overlays.map((o) => o.text), ctx.petName, ctx.format ? KIND[ctx.format] : undefined).catch(() => null);
+    if (fixed) fixed.forEach((t, i) => (overlays[i] = { ...overlays[i], text: t }));
+  }
   // Educational: the hook stays on top the whole video and the points are spread over the frame.
   if (ctx.format === "tips" && overlays.length >= 3) {
     overlays[0] = { ...overlays[0], start: 0, end: total + 1, y: undefined };

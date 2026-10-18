@@ -142,7 +142,7 @@ export function clearOfSubject(top: number, height: number, pad: number, band?: 
   if (top + height + pad <= kt || top - pad >= kb) return top;
   const above = kt - 24 - pad - height;
   const below = kb + 24 + pad;
-  const fitsAbove = above - pad >= H * 0.05;
+  const fitsAbove = above - pad >= H * 0.08; // clear of the app's top bar
   const fitsBelow = below + height + pad <= H * 0.9;
   if (fitsAbove && (!fitsBelow || top - above <= below - top)) return above;
   if (fitsBelow) return below;

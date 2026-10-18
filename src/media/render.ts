@@ -130,6 +130,25 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
   return { filters, height: lines.length * lineH };
 }
 
+/**
+ * Where a text box of `height` (plus padding) can go so it stays off the subject (the dog, faces):
+ * its top, moved above or below the subject's band if it would cover it. Returns `top` unchanged
+ * when it's already clear or there's no room either side.
+ */
+export function clearOfSubject(top: number, height: number, pad: number, band?: { top: number; bottom: number }): number {
+  if (!band) return top;
+  const kt = band.top * H;
+  const kb = band.bottom * H;
+  if (top + height + pad <= kt || top - pad >= kb) return top;
+  const above = kt - 24 - pad - height;
+  const below = kb + 24 + pad;
+  const fitsAbove = above - pad >= H * 0.05;
+  const fitsBelow = below + height + pad <= H * 0.9;
+  if (fitsAbove && (!fitsBelow || top - above <= below - top)) return above;
+  if (fitsBelow) return below;
+  return top;
+}
+
 /** Escape a value for use inside single quotes in an ffmpeg filter graph. */
 const esc = (s: string) => s.replace(/\\/g, "/").replace(/'/g, "'\\''").replace(/:/g, "\\:");
 
@@ -296,6 +315,14 @@ async function finalize(
           ({ filters: f, height } = draw(y));
         }
       }
+      // Off the subject (the dog, faces).
+      if (plan.keepClear) {
+        const top = clearOfSubject(H * y - height / 2, height, boxPad, plan.keepClear);
+        if (top !== H * y - height / 2) {
+          y = Math.max(0.08, Math.min(0.9, (top + height / 2) / H));
+          ({ filters: f, height } = draw(y));
+        }
+      }
       // Never on top of other text on screen at the same time (e.g. a long hook): move below it.
       const clash = placed.filter((p) => p.o.start < o.end && o.start < p.end);
       const top0 = H * y - height / 2 - boxPad;
@@ -326,20 +353,20 @@ async function finalize(
     }
     // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
     const above = placed.filter((p) => p.o.y === undefined && (p.o.at ?? "") === (o.at ?? "") && p.o.start < o.end && o.start < p.end);
-    const base = Math.round(H * (o.at === "caption" ? CAPTION_Y : HOOK_Y));
+    let base = Math.round(H * (o.at === "caption" ? CAPTION_Y : HOOK_Y));
     const offset = above.length ? Math.max(...above.map((p) => p.bottom)) - base + 20 + boxPad : 0;
     const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
-    const { filters: f, height } = textFilters(o.text, {
-      yFrac,
-      yTop: Math.round(H * yFrac) + offset,
-      size: px,
-      maxChars: charsFor(px, 24),
-      style: options.textStyle,
-      font,
-      enable,
-      tmp,
-      key: `ov${i}`,
-    });
+    const drawAt = (top: number) =>
+      textFilters(o.text, { yFrac, yTop: top, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
+    let { filters: f, height } = drawAt(base + offset);
+    // The first text in its place (the hook) moves above or below the subject if it would cover it.
+    if (!offset && o.at !== "caption" && plan.keepClear) {
+      const top = Math.round(clearOfSubject(base, height, boxPad, plan.keepClear));
+      if (top !== base) {
+        base = top;
+        ({ filters: f, height } = drawAt(base));
+      }
+    }
     filters.push(...f);
     placed.push({ o, top: base + offset - boxPad, bottom: base + offset + height + boxPad, end: o.end });
   }

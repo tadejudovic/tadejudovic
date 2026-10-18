@@ -171,6 +171,8 @@ export interface VideoPlan {
   topic?: string;
   /** Who the text speaks to (fun and inspirational alternate between the two). */
   audience?: "pets" | "everyone";
+  /** The part of the frame (top to bottom, 0..1) where the subject is: Lex, faces. Text stays out of it. */
+  keepClear?: { top: number; bottom: number };
   /** Set when the AI couldn't write this video and a no-AI fallback was used: why. */
   aiNote?: string;
   /** Voiceover lines on the output timeline (story videos with the creator's voice). */

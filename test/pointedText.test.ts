@@ -35,3 +35,16 @@ test("educational points: hook stays on top, each point placed on its own with a
     for (const t of [2.5, 5]) execFileSync("ffmpeg", ["-y", "-v", "error", "-ss", String(t), "-i", out.file, "-frames:v", "1", "-vf", "scale=360:-1", path.join(process.env.LOOK_DIR, `pointed-${t}.png`)]);
   }
 });
+
+test("text boxes move off the subject: above it if there's room, otherwise below", async () => {
+  const { clearOfSubject } = await import("../src/media/render.ts");
+  const H = 1920;
+  // Subject in the middle: a box at the top is already clear.
+  assert.equal(clearOfSubject(0.17 * H, 120, 28, { top: 0.35, bottom: 0.8 }), 0.17 * H);
+  // Subject from the top down to the middle: the hook goes below it.
+  const t = clearOfSubject(0.17 * H, 120, 28, { top: 0.1, bottom: 0.55 });
+  assert.ok(t - 28 >= 0.55 * H);
+  // A point over the subject in the lower half moves above it.
+  const p = clearOfSubject(0.7 * H, 100, 28, { top: 0.6, bottom: 0.95 });
+  assert.ok(p + 100 + 28 <= 0.6 * H);
+});

@@ -298,7 +298,7 @@ function validateSegment(s: Segment, clips: Map<string, Clip>): Segment | null {
 const DIRECT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["concept", "title", "topic", "basedOn", "segments", "overlays", "postCaption", "hashtags"],
+  required: ["concept", "title", "topic", "subjectTop", "subjectBottom", "basedOn", "segments", "overlays", "postCaption", "hashtags"],
   properties: {
     basedOn: {
       type: "integer",
@@ -308,6 +308,13 @@ const DIRECT_SCHEMA = {
     },
     concept: { type: "string", description: "One sentence: what the joke/feeling is and why it works for this footage" },
     topic: { type: "string", description: "Educational videos: the specific topic in a few words. Otherwise empty." },
+    subjectTop: {
+      type: "number",
+      description:
+        "In the part of the clip used: how far down the frame the subject starts (0 = top, 1 = bottom). The subject " +
+        "is the dog and any faces or main action. Text is kept out of it.",
+    },
+    subjectBottom: { type: "number", description: "Where the subject ends, 0..1 from the top (larger than subjectTop)." },
     title: { type: "string" },
     segments: {
       type: "array",
@@ -688,7 +695,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       `doing that people will recognize. Then write the single on-screen line that makes it land. Formats are tools, ` +
       `not rules: use a trending structure only if it genuinely fits this footage, otherwise write something original.` +
       `\n\nThe finished video should be ${ctx.minSeconds}–${ctx.maxSeconds}s (sum of (end-start)/speed), starting right ` +
-      `on the action and ending where it can loop. Overlays use y -1 and no arrow (pointX/pointY -1) unless the ` +
+      `on the action and ending where it can loop. Text must never cover ${ctx.petName}, a face or the main action: ` +
+      `report where they are (subjectTop/subjectBottom) and keep any placed text outside that band. Overlays use y -1 and no arrow (pointX/pointY -1) unless the ` +
       `format below says otherwise. Play footage at real speed (1). Slow motion only for one short ` +
       `payoff moment that's better slowed down (a jump, a head tilt, a reaction), never to make the video longer; if ` +
       `the clip is short, use all of it at speed 1 (it's replayed to give time to read). Overlay text: under ~14 words, no hashtags, no emoji; " / " starts ` +
@@ -716,6 +724,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     concept: string;
     title: string;
     topic: string;
+    subjectTop: number;
+    subjectBottom: number;
     basedOn: number;
     segments: { start: number; end: number; speed: number }[];
     overlays: { text: string; start: number; end: number; y: number; pointAt: string; pointX: number; pointY: number }[];
@@ -777,6 +787,9 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     ...(ctx.format === "tips" && ctx.faq ? { faq: ctx.faq.q } : {}),
     ...(ctx.format === "tips" ? { pillar: ctx.pillar, topic: r.topic?.trim() || undefined } : {}),
     ...(ctx.audience && ctx.format !== "tips" && !ctx.collab ? { audience: ctx.audience } : {}),
+    ...(r.subjectBottom > r.subjectTop && r.subjectTop >= 0 && r.subjectBottom <= 1 && r.subjectBottom - r.subjectTop < 0.9
+      ? { keepClear: { top: r.subjectTop, bottom: r.subjectBottom } }
+      : {}),
     basedOn: (() => {
       const c = ctx.proven[r.basedOn - 1];
       return c ? { text: c.text, views: c.views, url: c.url } : undefined;

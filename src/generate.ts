@@ -325,7 +325,7 @@ export async function plan(
             proven: provenCaptions(clip.scene),
             audience: kind === "tips" ? (captionAudience === "pets" ? "pets" : "everyone") : audiences[i],
             format: kind,
-            ...(kind === "tips" ? { faq, pillar, covered, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { faq, pillar, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);

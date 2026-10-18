@@ -46,6 +46,8 @@ export interface Settings {
   voice?: { id: string; createdAt: string; sampleSeconds: number };
   /** Scenes the creator has asked for in voiceovers ("/ Lex inside airplane"), most recent first, to reuse. */
   shotTags?: string[];
+  /** The call to action at the end of educational videos (on screen) and in their description. */
+  cta: { site: string; overlay: string; caption: string };
   /**
    * What followers ask most, with the creator's own answers. Educational videos each answer one of
    * these; the answers are the only source for specifics (brands, airlines, places, rules).
@@ -99,6 +101,11 @@ const DEFAULT_SETTINGS: Settings = {
   textStyle: "yellowbox",
   textSize: "medium",
   captionAudience: "mix",
+  cta: {
+    site: "flywith.pet",
+    overlay: "Plan your pet's trip / at flywith.pet (link in bio)",
+    caption: "Planning a trip with your pet? Everything we've learned is on flywith.pet (link in bio).",
+  },
   dailyMix: { fun: 2, educational: 2, inspirational: 2 },
   faq: [
     { q: "What bag / carrier do you fly with?", a: "" },

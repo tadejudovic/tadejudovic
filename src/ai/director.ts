@@ -1,4 +1,4 @@
-import { spreadPoints } from "../overlayLayout.ts";
+import { lengthenFootage, spreadPoints } from "../overlayLayout.ts";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
@@ -395,6 +395,8 @@ export interface DirectContext {
   /** Educational: this video's theme, and the topics already covered (never repeated). */
   pillar?: EduPillar;
   covered?: string[];
+  /** Educational: the call to action at the end (on screen) and in the description. */
+  cta?: { site: string; overlay: string; caption: string };
   /** Make this a collab version for a brand partner. */
   collab?: { name: string; handle?: string; about: string; mustInclude?: string; note?: string };
 }
@@ -422,7 +424,9 @@ function pillarText(pillar: EduPillar | undefined, covered: string[]): string {
       ? `\n\nALREADY COVERED in earlier videos (never make the same topic or angle again, pick something new):\n` +
         covered.map((t) => `- ${t}`).join("\n")
       : "") +
-    `\nSet "topic" to this video's specific topic in a few words (e.g. "Kato backpack", "flying Lex to Brazil").`
+    `\nSet "topic" to this video's specific topic in a few words (e.g. "Kato backpack", "flying Lex to Brazil").` +
+    `\nThe video ends with the creator's call to action (their website), added after your text: don't write one ` +
+    `yourself, on screen or in the description.`
   );
 }
 
@@ -798,7 +802,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   // timing is stretched to the final length so every line still gets its share.
   const planned = lengthOf(segments);
   segments = fillByRepeating(limitSlowMotion(segments), ctx.minSeconds);
-  const total = lengthOf(segments);
+  let total = lengthOf(segments);
   const k = planned > 0 ? total / planned : 1;
   const frac = (v: number) => (v >= 0 && v <= 1 ? v : undefined);
   const overlays: Overlay[] = r.overlays
@@ -827,6 +831,20 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     overlays[0] = { ...overlays[0], start: 0, end: total + 1, y: undefined };
     overlays.splice(0, overlays.length, ...spreadPoints(overlays));
   }
+  // Educational: end on the creator's call to action (their site, link in bio) for the last 3s.
+  if (ctx.format === "tips" && ctx.cta?.overlay) {
+    segments = lengthenFootage(segments, total + 3, () => clip.duration);
+    const longer = lengthOf(segments);
+    overlays.forEach((o, i) => {
+      if (o.end > total) overlays[i] = { ...o, end: i === 0 ? longer + 1 : total };
+    });
+    overlays.push({ text: ctx.cta.overlay, start: total, end: longer + 1, y: 0.6 });
+    total = longer;
+  }
+  const caption =
+    ctx.format === "tips" && ctx.cta?.caption && !r.postCaption.toLowerCase().includes(ctx.cta.site.toLowerCase())
+      ? `${r.postCaption.trim()}\n\n${ctx.cta.caption}`
+      : r.postCaption;
   return {
     template: "auto",
     title: r.title,
@@ -846,7 +864,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       return c ? { text: c.text, views: c.views, url: c.url } : undefined;
     })(),
     segments,
-    postCaption: r.postCaption,
+    postCaption: caption,
     hashtags: r.hashtags.map((h) => h.replace(/^#/, "")).slice(0, 3),
     plannedBy: "claude",
   };

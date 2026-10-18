@@ -698,7 +698,8 @@ export async function proofreadText(lines: string[], petName: string, kind?: str
           `\n\nRead it as a stranger with the sound off. Does it make sense as one message? Check: the points answer ` +
           `the hook; any number in the hook matches the points; every point is the same kind of thing the hook ` +
           `promises; who "he/his/their" means is clear (use "your dog" or ${petName}); a follower question reads as ` +
-          `theirs, not the creator asking themselves; no line needs other context. If it's fine, ok = true and return ` +
+          `theirs, not the creator asking themselves; no line needs other context. Be strict: a reader shouldn't ` +
+          `have to work out what's meant. If it's fine, ok = true and return ` +
           `the lines unchanged. If not, ok = false, say the problem in a few words, and return fixed lines: exactly ` +
           `${lines.length}, same order and roles, each about as long as the original, no emoji, no hashtags.`,
       },
@@ -709,8 +710,8 @@ export async function proofreadText(lines: string[], petName: string, kind?: str
       required: ["ok", "problem", "lines"],
       properties: { ok: { type: "boolean" }, problem: { type: "string" }, lines: { type: "array", items: { type: "string" } } },
     },
+    // The main model: this is judgement about meaning, and only a few lines of text.
     effort: "low",
-    model: config.claude.fastModel,
   });
   if (r.ok || r.lines.length !== lines.length || r.lines.some((l) => !l.trim())) return lines;
   console.log(`[proofread] fixed the text (${r.problem}): ${lines.join(" | ")} → ${r.lines.join(" | ")}`);

@@ -371,7 +371,7 @@ let refreshing = false;
 app.post("/api/videos/refresh-design", (_req, res) => {
   if (refreshing) return res.json({ started: false });
   refreshing = true;
-  refreshDesigns()
+  refreshDesigns({ proofread: true })
     .catch((err) => console.error("[design]", err))
     .finally(() => (refreshing = false));
   res.json({ started: true });
@@ -1143,10 +1143,10 @@ if (!paused && !store.settings().yellowBoxRemadeV2) {
 startScheduler();
 
 // Once: videos already made get the new look (smaller text, kept off the subject, no overlaps).
-if (!paused && !store.settings().designRefreshV2) {
-  store.updateSettings({ designRefreshV1: true, designRefreshV2: true });
+if (!paused && !store.settings().designRefreshV3) {
+  store.updateSettings({ designRefreshV1: true, designRefreshV2: true, designRefreshV3: true });
   refreshing = true;
-  refreshDesigns()
+  refreshDesigns({ proofread: true })
     .catch((err) => console.error("[design]", err))
     .finally(() => (refreshing = false));
 }

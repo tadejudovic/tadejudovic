@@ -2189,7 +2189,7 @@ $("#example-form").addEventListener("submit", (e) => {
 // ---- Diagnostics --------------------------------------------------------------
 
 $("#btn-refresh-design").addEventListener("click", async () => {
-  if (!confirm("Re-make every video waiting for review or in Ready with the current look?\n\nSame text, footage and music; only the design changes. Takes a minute or two per video.")) return;
+  if (!confirm("Re-make every video waiting for review or in Ready with the current look?\n\nSame footage and music, the current design, and any text that doesn't add up is fixed. Takes a minute or two per video.")) return;
   try {
     await api("/api/videos/refresh-design", { method: "POST" });
     banner("Re-making your videos with the current look. They come back one by one.", "ok");

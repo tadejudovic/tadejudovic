@@ -6,7 +6,7 @@ import { localDate } from "./dailyLimit.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
-import { directClip, planVideos, writeCaption, type DirectContext } from "./ai/director.ts";
+import { directClip, planVideos, proofreadText, writeCaption, type DirectContext } from "./ai/director.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
@@ -744,7 +744,7 @@ export function deleteRender(id: string) {
  * latest layout rules), keeping their text, footage and music. Videos made before the AI reported
  * where the subject is get a quick look first, so their text can stay off it.
  */
-export async function refreshDesigns(): Promise<number> {
+export async function refreshDesigns({ proofread = false } = {}): Promise<number> {
   const { textStyle, textSize, fontId } = store.settings();
   const todo = store
     .renders()
@@ -760,6 +760,12 @@ export async function refreshDesigns(): Promise<number> {
         return undefined;
       });
       if (band) plan = { ...plan, keepClear: band };
+    }
+    // The text gets the same read a new video gets, and is fixed where it doesn't add up.
+    if (proofread && plan.overlays?.length && config.claude.enabled && aiAvailable()) {
+      const old = plan.overlays;
+      const fixed = await proofreadText(old.map((o) => o.text), store.settings().petName, plan.format).catch(() => null);
+      if (fixed) plan = { ...plan, overlays: old.map((o, i) => ({ ...o, text: fixed[i] })), hook: fixed[0] };
     }
     if (!store.render(r.id)) continue; // deleted meanwhile
     const fresh = queueRender(plan, { ...r.options, textStyle, textSize, fontId }, r.batch, { countUse: false });

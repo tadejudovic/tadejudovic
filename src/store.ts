@@ -80,6 +80,7 @@ export interface Settings {
   designRefreshV3?: boolean;
   ctaAddedV1?: boolean;
   zigzagV1?: boolean;
+  zigzagV2?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */
   pastFeedback?: ReviewFeedback;
 }

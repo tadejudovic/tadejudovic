@@ -1149,8 +1149,9 @@ if (!paused && !store.settings().ctaAddedV1) {
   addCtaToExisting();
 }
 // Once: and their points zig-zag over the frame.
-if (!paused && !store.settings().zigzagV1) {
-  store.updateSettings({ zigzagV1: true });
+// (Runs for videos the call to action pass already re-made; ones it re-makes now already zig-zag.)
+if (!paused && !store.settings().zigzagV2) {
+  store.updateSettings({ zigzagV1: true, zigzagV2: true });
   zigzagExisting();
 }
 

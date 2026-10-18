@@ -21,8 +21,8 @@ test("educational points: hook stays on top, each point placed on its own with a
     template: "auto", title: "t", hook: "3 things I use to fly my dog around the world",
     segments: [{ clipId: "p", start: 0, end: 9, speed: 1 }],
     overlays: [
-      { text: "3 things I use to fly my dog around the world", start: 0, end: 10 },
-      { text: "1. Kato backpack", start: 1.5, end: 4, y: 0.6, pointTo: { x: 0.7, y: 0.78 } },
+      { text: "which airline do you fly with Lex?? the one that passes these 3 checks", start: 0, end: 10 },
+      { text: "1. Confirm pets can fly in the cabin", start: 1.5, end: 4, y: 0.3 },
       { text: "2. PetPace health tracker", start: 4, end: 6.5, y: 0.52, pointTo: { x: 0.6, y: 0.42 } },
       { text: "3. A ton of documents", start: 6.5, end: 10, y: 0.45 },
     ],

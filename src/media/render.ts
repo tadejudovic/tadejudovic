@@ -17,7 +17,7 @@ const HOOK_Y = 0.17;
  * 55-70px: big enough to read at a glance, small enough to stay 2-3 lines and leave the
  * dog visible. Medium is the default.
  */
-export const TEXT_PX = { small: 54, medium: 62, large: 70 } as const;
+export const TEXT_PX = { small: 42, medium: 48, large: 56 } as const;
 const textPx = (o: RenderOptions) => TEXT_PX[o.textSize ?? "medium"] ?? TEXT_PX.medium;
 /** Smaller text fits more words per line. */
 const charsFor = (px: number, at70: number) => Math.round((at70 * 70) / px);
@@ -267,13 +267,17 @@ async function finalize(
 ) {
   const overlays = overlaysFor(plan, duration);
   const filters: string[] = [];
-  const placed: { o: Overlay; bottom: number }[] = [];
+  const placed: { o: Overlay; bottom: number; top: number; end: number }[] = [];
   // One text size per position for the whole video: if any overlay there is a list of three or more
   // lines (tips), all of them are set a little smaller, so the text never changes size mid-video.
   const smaller = new Set(overlays.filter((o) => o.text.split(/\s+\/\s+/).length >= 3).map((o) => o.at ?? ""));
   const arrows: { file: string; start: number; end: number }[] = [];
-  for (const [i, o] of overlays.entries()) {
+  // Text in its usual place first (the hook), then text placed by the AI, which must stay clear of it.
+  const order = [...overlays.keys()].sort((a, b) => Number(overlays[a].y !== undefined) - Number(overlays[b].y !== undefined));
+  for (const i of order) {
+    const o = overlays[i];
     const px = smaller.has(o.at ?? "") ? Math.round(textPx(options) * 0.82) : textPx(options);
+    const boxPad = Math.round(px * 0.38) + 10;
     const enable = `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`;
     // Placed by the AI next to what it's about (educational points), maybe with an arrow pointing at it.
     if (o.y !== undefined) {
@@ -292,6 +296,17 @@ async function finalize(
           ({ filters: f, height } = draw(y));
         }
       }
+      // Never on top of other text on screen at the same time (e.g. a long hook): move below it.
+      const clash = placed.filter((p) => p.o.start < o.end && o.start < p.end);
+      const top0 = H * y - height / 2 - boxPad;
+      const bottom0 = H * y + height / 2 + boxPad;
+      const hit = clash.filter((p) => p.top < bottom0 && top0 < p.bottom);
+      if (hit.length) {
+        const below = Math.max(...hit.map((p) => p.bottom)) + 30 + boxPad + height / 2;
+        y = Math.min(0.9, below / H);
+        ({ filters: f, height } = draw(y));
+      }
+      placed.push({ o, top: H * y - height / 2 - boxPad, bottom: H * y + height / 2 + boxPad, end: o.end });
       filters.push(...f);
       if (o.pointTo) {
         const top = Math.round(H * y - height / 2);
@@ -310,8 +325,9 @@ async function finalize(
       continue;
     }
     // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
-    const above = placed.filter((p) => o.y === undefined && p.o.y === undefined && (p.o.at ?? "") === (o.at ?? "") && p.o.start < o.end && o.start < p.o.end);
-    const offset = above.length ? Math.max(...above.map((p) => p.bottom)) + 24 : 0;
+    const above = placed.filter((p) => p.o.y === undefined && (p.o.at ?? "") === (o.at ?? "") && p.o.start < o.end && o.start < p.end);
+    const base = Math.round(H * (o.at === "caption" ? CAPTION_Y : HOOK_Y));
+    const offset = above.length ? Math.max(...above.map((p) => p.bottom)) - base + 20 + boxPad : 0;
     const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
     const { filters: f, height } = textFilters(o.text, {
       yFrac,
@@ -325,7 +341,7 @@ async function finalize(
       key: `ov${i}`,
     });
     filters.push(...f);
-    placed.push({ o, bottom: offset + height });
+    placed.push({ o, top: base + offset - boxPad, bottom: base + offset + height + boxPad, end: o.end });
   }
   const music = options.musicFile && fs.existsSync(options.musicFile);
   const fadeAt = Math.max(0, duration - 1).toFixed(2);

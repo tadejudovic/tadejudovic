@@ -2181,6 +2181,16 @@ $("#example-form").addEventListener("submit", (e) => {
 
 // ---- Diagnostics --------------------------------------------------------------
 
+$("#btn-refresh-design").addEventListener("click", async () => {
+  if (!confirm("Re-make every video waiting for review or in Ready with the current look?\n\nSame text, footage and music; only the design changes. Takes a minute or two per video.")) return;
+  try {
+    await api("/api/videos/refresh-design", { method: "POST" });
+    banner("Re-making your videos with the current look. They come back one by one.", "ok");
+  } catch (err) {
+    banner(err.message);
+  }
+});
+
 $("#btn-clear-videos").addEventListener("click", async () => {
   if (!confirm("Delete all videos?\n\nEvery video (to review and in Ready) is removed. Your clips stay and can all be used again, and what the AI learned from your reviews is kept. New videos are made right after.")) return;
   try {

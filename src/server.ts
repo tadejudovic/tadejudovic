@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, refreshDesigns } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { layoutPoints, lengthenFootage, readingSeconds } from "./overlayLayout.ts";
@@ -347,6 +347,16 @@ function clearVideos(): number {
   console.log(`[videos] deleted ${renders.length} video(s); clips kept and free to use again`);
   return renders.length;
 }
+
+let refreshing = false;
+app.post("/api/videos/refresh-design", (_req, res) => {
+  if (refreshing) return res.json({ started: false });
+  refreshing = true;
+  refreshDesigns()
+    .catch((err) => console.error("[design]", err))
+    .finally(() => (refreshing = false));
+  res.json({ started: true });
+});
 
 app.post("/api/videos/clear", (req, res) => {
   if (req.body?.confirm !== "delete videos") return res.status(400).json({ error: "Confirmation missing." });
@@ -1112,6 +1122,15 @@ if (!paused && !store.settings().yellowBoxRemadeV2) {
 }
 
 startScheduler();
+
+// Once: videos already made get the new look (smaller text, kept off the subject, no overlaps).
+if (!paused && !store.settings().designRefreshV1) {
+  store.updateSettings({ designRefreshV1: true });
+  refreshing = true;
+  refreshDesigns()
+    .catch((err) => console.error("[design]", err))
+    .finally(() => (refreshing = false));
+}
 
 // Public by default only when the password gate is on.
 const host = process.env.HOST ?? (gateEnabled ? "0.0.0.0" : "127.0.0.1");

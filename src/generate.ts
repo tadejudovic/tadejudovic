@@ -12,6 +12,8 @@ import { renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
 import type { Clip, DailyMix, EduPillar, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
+import { detectSubject } from "./ai/subject.ts";
+import { aiAvailable } from "./ai/budget.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
@@ -735,4 +737,36 @@ export function deleteRender(id: string) {
   if (!r) return;
   for (const f of [r.file, r.thumb]) if (f) fs.rmSync(f, { force: true });
   store.removeRender(id);
+}
+
+/**
+ * Re-make the videos waiting for review or posting with the current look (style, size, font and the
+ * latest layout rules), keeping their text, footage and music. Videos made before the AI reported
+ * where the subject is get a quick look first, so their text can stay off it.
+ */
+export async function refreshDesigns(): Promise<number> {
+  const { textStyle, textSize, fontId } = store.settings();
+  const todo = store
+    .renders()
+    .filter((r) => r.status === "done" && (r.review === "pending" || r.review === "approved") && !r.posts?.length)
+    .filter((r) => r.plan.segments.every((s) => store.clip(s.clipId)?.status === "ready"));
+  const clips = new Map(store.clips().map((c) => [c.id, c]));
+  let n = 0;
+  for (const r of todo) {
+    let plan = r.plan;
+    if (!plan.keepClear && config.claude.enabled && aiAvailable()) {
+      const band = await detectSubject(plan, clips).catch((err) => {
+        console.warn(`[design] couldn't find the subject in ${r.id}:`, (err as Error).message);
+        return undefined;
+      });
+      if (band) plan = { ...plan, keepClear: band };
+    }
+    if (!store.render(r.id)) continue; // deleted meanwhile
+    const fresh = queueRender(plan, { ...r.options, textStyle, textSize, fontId }, r.batch, { countUse: false });
+    if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
+    deleteRender(r.id);
+    n++;
+  }
+  if (n) console.log(`[design] re-making ${n} video(s) with the current look`);
+  return n;
 }

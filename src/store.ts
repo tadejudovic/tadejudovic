@@ -78,6 +78,7 @@ export interface Settings {
   designRefreshV1?: boolean;
   designRefreshV2?: boolean;
   designRefreshV3?: boolean;
+  ctaAddedV1?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */
   pastFeedback?: ReviewFeedback;
 }

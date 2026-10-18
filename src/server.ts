@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, refreshDesigns } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, refreshDesigns, addCtaToExisting } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -1141,6 +1141,12 @@ if (!paused && !store.settings().yellowBoxRemadeV2) {
 }
 
 startScheduler();
+
+// Once: educational videos already made get the call to action at the end (same text and description).
+if (!paused && !store.settings().ctaAddedV1) {
+  store.updateSettings({ ctaAddedV1: true });
+  addCtaToExisting();
+}
 
 // Once: videos already made get the new look (smaller text, kept off the subject, no overlaps).
 if (!paused && !store.settings().designRefreshV3) {

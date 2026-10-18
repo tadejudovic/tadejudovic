@@ -14,6 +14,7 @@ import type { Clip, DailyMix, EduPillar, GenerateRequest, Partner, Platform, Pos
 import { findClipFor } from "./ai/collabPick.ts";
 import { detectSubject } from "./ai/subject.ts";
 import { aiAvailable } from "./ai/budget.ts";
+import { lengthenFootage } from "./overlayLayout.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
@@ -774,5 +775,35 @@ export async function refreshDesigns({ proofread = false } = {}): Promise<number
     n++;
   }
   if (n) console.log(`[design] re-making ${n} video(s) with the current look`);
+  return n;
+}
+
+/**
+ * Educational videos made before the call to action: add it at the end (footage runs on 3s), keeping
+ * their text and description exactly as they are.
+ */
+export function addCtaToExisting(): number {
+  const cta = store.settings().cta;
+  if (!cta?.overlay) return 0;
+  const len = (p: VideoPlan) => p.segments.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+  let n = 0;
+  for (const r of [...store.renders()]) {
+    if (r.plan.format !== "tips" || r.status !== "done" || r.posts?.length) continue;
+    if (r.review !== "pending" && r.review !== "approved") continue;
+    if (!r.plan.segments.every((s) => store.clip(s.clipId)?.status === "ready")) continue;
+    if (r.plan.overlays?.some((o) => o.text.toLowerCase().includes(cta.site.toLowerCase()))) continue;
+    const total = len(r.plan);
+    const segments = lengthenFootage(r.plan.segments, total + 3, (id) => store.clip(id)?.duration ?? 0);
+    const longer = segments.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+    const overlays = (r.plan.overlays ?? [{ text: r.plan.hook, start: 0, end: total + 1 }]).map((o, i) =>
+      o.end > total ? { ...o, end: i === 0 ? longer + 1 : total } : o,
+    );
+    overlays.push({ text: cta.overlay, start: total, end: longer + 1, y: 0.6 });
+    const fresh = queueRender({ ...r.plan, segments, overlays }, r.options, r.batch, { countUse: false });
+    if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
+    deleteRender(r.id);
+    n++;
+  }
+  if (n) console.log(`[cta] added the call to action to ${n} educational video(s)`);
   return n;
 }

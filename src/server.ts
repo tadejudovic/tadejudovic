@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, refreshDesigns, addCtaToExisting } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, refreshDesigns, addCtaToExisting, zigzagExisting } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -957,6 +957,7 @@ function sanitizePlan(p: VideoPlan): VideoPlan {
             end: clamp(Number(o?.end) || 0, 0, 121),
             ...(o?.at === "caption" ? { at: "caption" as const } : {}),
             ...(Number.isFinite(o?.y) ? { y: clamp(Number(o!.y), 0.05, 0.95) } : {}),
+            ...(Number.isFinite(o?.x) ? { x: clamp(Number(o!.x), 0.05, 0.95) } : {}),
             ...(o?.pointTo && Number.isFinite(o.pointTo.x) && Number.isFinite(o.pointTo.y)
               ? { pointTo: { x: clamp(o.pointTo.x, 0, 1), y: clamp(o.pointTo.y, 0, 1) } }
               : {}),
@@ -1144,8 +1145,13 @@ startScheduler();
 
 // Once: educational videos already made get the call to action at the end (same text and description).
 if (!paused && !store.settings().ctaAddedV1) {
-  store.updateSettings({ ctaAddedV1: true });
+  store.updateSettings({ ctaAddedV1: true, zigzagV1: true }); // the call to action pass zig-zags the points too
   addCtaToExisting();
+}
+// Once: and their points zig-zag over the frame.
+if (!paused && !store.settings().zigzagV1) {
+  store.updateSettings({ zigzagV1: true });
+  zigzagExisting();
 }
 
 // Once: videos already made get the new look (smaller text, kept off the subject, no overlaps).

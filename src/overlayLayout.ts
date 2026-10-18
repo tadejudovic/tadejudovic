@@ -8,6 +8,8 @@ import type { Overlay, Segment } from "./types.ts";
 
 /** Where points sit, in turn (center of the text, 0 top … 1 bottom): never twice in the same spot. */
 export const POINT_Y = [0.62, 0.42, 0.72, 0.5, 0.66, 0.46];
+/** And across: left, right, middle… so the points move over the screen one after another. */
+export const POINT_X = [0.34, 0.6, 0.46, 0.36, 0.58, 0.44];
 
 /** Seconds needed to read a hook and `points` points one after another. */
 export function readingSeconds(points: number): number {
@@ -26,6 +28,7 @@ export function layoutPoints(texts: string[], total: number): Overlay[] {
       start: first + i * per,
       end: i === points.length - 1 ? total + 1 : first + (i + 1) * per,
       y: POINT_Y[i % POINT_Y.length],
+      x: POINT_X[i % POINT_X.length],
     }),
   );
   return out;
@@ -36,8 +39,16 @@ export function spreadPoints(overlays: Overlay[]): Overlay[] {
   const points = overlays.slice(1);
   if (points.length < 2) return overlays;
   const spots = new Set(points.map((o) => (o.y === undefined ? "none" : o.y.toFixed(2))));
-  if (spots.size >= Math.min(points.length, 2) && !spots.has("none")) return overlays;
-  return [overlays[0], ...points.map((o, i) => (o.pointTo ? o : { ...o, y: POINT_Y[i % POINT_Y.length] }))];
+  const spread = spots.size >= Math.min(points.length, 2) && !spots.has("none");
+  return [
+    overlays[0],
+    ...points.map((o, i) => ({
+      ...o,
+      ...(spread || o.pointTo ? {} : { y: POINT_Y[i % POINT_Y.length] }),
+      // Across the frame too: toward the thing an arrow points at, otherwise left, right, middle in turn.
+      x: o.x ?? (o.pointTo ? Math.max(0.36, Math.min(0.58, o.pointTo.x)) : POINT_X[i % POINT_X.length]),
+    })),
+  ];
 }
 
 /**

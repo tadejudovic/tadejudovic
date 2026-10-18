@@ -33,3 +33,12 @@ test("points the AI put in one spot are spread over the frame", () => {
   ]);
   assert.equal(new Set(o.slice(1).map((p) => p.y)).size, 3);
 });
+
+test("points zig-zag across the frame, not just up and down", () => {
+  const o = layoutPoints(["Hook", "1. A", "2. B", "3. C"], 12);
+  const xs = o.slice(1).map((p) => p.x!);
+  assert.ok(xs.every((x) => x > 0.3 && x < 0.65));
+  for (let i = 1; i < xs.length; i++) assert.notEqual(xs[i], xs[i - 1]);
+  const s = spreadPoints([{ text: "h", start: 0, end: 9 }, { text: "1", start: 1, end: 3, y: 0.5 }, { text: "2", start: 3, end: 9, y: 0.6 }]);
+  assert.ok(s.slice(1).every((p) => p.x !== undefined));
+});

@@ -72,6 +72,8 @@ interface TextOpts {
   yFrac: number;
   /** Or: pixel position of the top of the block (wins over yFrac). */
   yTop?: number;
+  /** Horizontal center as a fraction of the width (centered in the safe zone when unset). */
+  xFrac?: number;
   size: number;
   maxChars: number;
   style: RenderOptions["textStyle"];
@@ -91,8 +93,11 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
   const boxed = !opts.style || opts.style === "yellowbox" || opts.style === "box";
   const padX = Math.round(opts.size * 0.55);
   const padY = Math.round(opts.size * 0.38);
-  // Lines are wrapped to fit the safe zone's width (measured with the font), not just a character count.
-  const maxTextW = SAFE_W - (boxed ? padX * 2 : 24);
+  // Off-center text (points that zig-zag) keeps its center and gets the room on its narrower side.
+  const cx = opts.xFrac === undefined ? SAFE_CX : Math.round(W * Math.max(SAFE.left + 0.2, Math.min(SAFE.right - 0.2, opts.xFrac)));
+  const room = Math.min(SAFE_W, 2 * Math.min(cx - W * SAFE.left, W * SAFE.right - cx));
+  // Lines are wrapped to fit that width (measured with the font), not just a character count.
+  const maxTextW = room - (boxed ? padX * 2 : 24);
   let chars = opts.maxChars;
   let lines = wrap(clean, chars);
   while (chars > 10 && lines.some((l) => textWidth(opts.font, l, opts.size) > maxTextW)) lines = wrap(clean, --chars);
@@ -109,10 +114,10 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
   const block = opts.style === "yellowbox" ? "0xF5C400" : opts.style === "box" ? "white" : null;
   if (block) {
     const widths = lines.map((l) => textWidth(opts.font, l, opts.size));
-    const w = Math.min(SAFE_W, Math.round(Math.max(...widths)) + padX * 2);
+    const w = Math.min(room, Math.round(Math.max(...widths)) + padX * 2);
     const h = Math.round(blockH) + padY * 2;
     const box = [
-      `drawbox=x=${Math.round(SAFE_CX - w / 2)}:y=${top - padY}:w=${w}:h=${h}:color=${block}@1:t=fill`,
+      `drawbox=x=${Math.round(cx - w / 2)}:y=${top - padY}:w=${w}:h=${h}:color=${block}@1:t=fill`,
       opts.enable ? `enable='${opts.enable}'` : "",
     ].filter(Boolean).join(":");
     const ink = textFilters(text, { ...opts, yTop: top, maxChars: chars, style: "ink" as RenderOptions["textStyle"] });
@@ -136,7 +141,7 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
       "expansion=none",
       `fontsize=${opts.size}`,
       style,
-      `x=${SAFE_CX}-text_w/2`,
+      `x=${cx}-text_w/2`,
       `y=${top + i * lineH}`,
       opts.enable ? `enable='${opts.enable}'` : "",
     ]
@@ -317,7 +322,7 @@ async function finalize(
     // Placed by the AI next to what it's about (educational points), maybe with an arrow pointing at it.
     if (o.y !== undefined) {
       const draw = (y: number) =>
-        textFilters(o.text, { yFrac: y, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
+        textFilters(o.text, { yFrac: y, xFrac: o.x, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
       let y = o.y;
       let { filters: f, height, top: drawnTop } = draw(y);
       // An arrow needs room to read as one: if the thing is right next to the text, move the text away from it.
@@ -359,7 +364,8 @@ async function finalize(
         const to = { x: o.pointTo.x * W, y: o.pointTo.y * H };
         const below = to.y > bottom;
         const pad = Math.round(px * 0.38) + 14;
-        const from = { x: W / 2 + Math.max(-220, Math.min(220, (to.x - W / 2) * 0.5)), y: below ? bottom + pad : top - pad };
+        const boxX = o.x === undefined ? SAFE_CX : W * o.x;
+        const from = { x: boxX + Math.max(-180, Math.min(180, (to.x - boxX) * 0.5)), y: below ? bottom + pad : top - pad };
         // Stop just short of the thing, so the tip points at it instead of covering it.
         const d = Math.hypot(to.x - from.x, to.y - from.y) || 1;
         const tip = { x: to.x - ((to.x - from.x) / d) * 30, y: to.y - ((to.y - from.y) / d) * 30 };

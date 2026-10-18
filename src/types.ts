@@ -128,6 +128,8 @@ export interface Overlay {
   at?: "caption";
   /** Where the text block's center sits (0 top … 1 bottom), instead of the usual position. */
   y?: number;
+  /** And across (0 left … 1 right), for points that zig-zag over the frame; centered when unset. */
+  x?: number;
   /** A red arrow from the text to this point of the frame (0..1 from the left / top). */
   pointTo?: { x: number; y: number };
 }

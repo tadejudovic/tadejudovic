@@ -72,6 +72,7 @@ export interface Settings {
   /** Set once all videos were deleted for a fresh start. */
   freshStartV1?: boolean;
   freshStartV2?: boolean;
+  freshStartV3?: boolean;
   designRefreshV1?: boolean;
   designRefreshV2?: boolean;
   designRefreshV3?: boolean;

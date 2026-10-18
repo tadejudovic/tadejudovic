@@ -1015,9 +1015,9 @@ if (!store.settings().freshStartV1 && !store.renders().length && !store.clips().
 }
 
 // Second fresh start, asked for by the creator: all videos again, clips stay, 3 new ones follow.
-if (!store.settings().freshStartV2) {
+if (!store.settings().freshStartV3) {
   if (store.renders().length) clearVideos();
-  store.updateSettings({ freshStartV2: true, yellowBoxRemade: true, yellowBoxRemadeV2: true });
+  store.updateSettings({ freshStartV2: true, freshStartV3: true, yellowBoxRemade: true, yellowBoxRemadeV2: true, designRefreshV3: true });
 }
 
 // ---- Startup recovery -----------------------------------------------------

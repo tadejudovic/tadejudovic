@@ -1143,8 +1143,8 @@ if (!paused && !store.settings().yellowBoxRemadeV2) {
 startScheduler();
 
 // Once: videos already made get the new look (smaller text, kept off the subject, no overlaps).
-if (!paused && !store.settings().designRefreshV1) {
-  store.updateSettings({ designRefreshV1: true });
+if (!paused && !store.settings().designRefreshV2) {
+  store.updateSettings({ designRefreshV1: true, designRefreshV2: true });
   refreshing = true;
   refreshDesigns()
     .catch((err) => console.error("[design]", err))

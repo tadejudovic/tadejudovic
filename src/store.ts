@@ -73,6 +73,7 @@ export interface Settings {
   freshStartV1?: boolean;
   freshStartV2?: boolean;
   designRefreshV1?: boolean;
+  designRefreshV2?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */
   pastFeedback?: ReviewFeedback;
 }

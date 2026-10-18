@@ -9,8 +9,14 @@ import type { Clip, Overlay, RenderOptions, VideoPlan } from "../types.ts";
 
 const { width: W, height: H, fps: FPS } = config.output;
 
-// TikTok's UI covers the top bar, the right-hand action rail and the bottom
-// caption area. Keep text inside the safe zone.
+/**
+ * The part of a 1080x1920 frame that TikTok and Instagram Reels leave uncovered: their top bar, the
+ * like/comment/share rail on the right and the caption and buttons at the bottom cover the rest.
+ * Text always stays inside it (fractions of the frame).
+ */
+export const SAFE = { top: 0.12, bottom: 0.76, left: 0.06, right: 0.87 } as const;
+const SAFE_CX = Math.round((W * (SAFE.left + SAFE.right)) / 2);
+const SAFE_W = Math.round(W * (SAFE.right - SAFE.left));
 const HOOK_Y = 0.17;
 /**
  * On-screen text size (px on a 1080x1920 frame). TikTok-style overlays read best at roughly
@@ -79,28 +85,38 @@ interface TextOpts {
  * One drawtext filter per line so every line is centered. Text goes through
  * files (textfile=) so quotes, colons and % never need filter escaping.
  */
-export function textFilters(text: string, opts: TextOpts): { filters: string[]; height: number } {
+export function textFilters(text: string, opts: TextOpts): { filters: string[]; height: number; top: number } {
   const clean = screenText(text);
-  if (!clean) return { filters: [], height: 0 };
-  const lines = wrap(clean, opts.maxChars);
+  if (!clean) return { filters: [], height: 0, top: 0 };
+  const boxed = !opts.style || opts.style === "yellowbox" || opts.style === "box";
+  const padX = Math.round(opts.size * 0.55);
+  const padY = Math.round(opts.size * 0.38);
+  // Lines are wrapped to fit the safe zone's width (measured with the font), not just a character count.
+  const maxTextW = SAFE_W - (boxed ? padX * 2 : 24);
+  let chars = opts.maxChars;
+  let lines = wrap(clean, chars);
+  while (chars > 10 && lines.some((l) => textWidth(opts.font, l, opts.size) > maxTextW)) lines = wrap(clean, --chars);
   const lineH = Math.round(opts.size * 1.24);
-  const top = opts.yTop ?? Math.round(H * opts.yFrac - (lines.length * lineH) / 2);
+  let top = opts.yTop ?? Math.round(H * opts.yFrac - (lines.length * lineH) / 2);
+  // Inside the safe zone, top to bottom.
+  const blockH = (lines.length - 1) * lineH + opts.size * 1.08;
+  const minTop = Math.round(H * SAFE.top + padY);
+  const maxTop = Math.round(H * SAFE.bottom - padY - blockH);
+  top = Math.max(minTop, Math.min(top, Math.max(minTop, maxTop)));
   // Box styles: one solid block behind all the lines, sized to the widest one.
   // No style given (older videos, other entry points): the yellow box, the default look.
   if (!opts.style) opts = { ...opts, style: "yellowbox" };
   const block = opts.style === "yellowbox" ? "0xF5C400" : opts.style === "box" ? "white" : null;
   if (block) {
     const widths = lines.map((l) => textWidth(opts.font, l, opts.size));
-    const padX = Math.round(opts.size * 0.55);
-    const padY = Math.round(opts.size * 0.38);
-    const w = Math.min(W - 40, Math.round(Math.max(...widths)) + padX * 2);
-    const h = Math.round((lines.length - 1) * lineH + opts.size * 1.08) + padY * 2;
+    const w = Math.min(SAFE_W, Math.round(Math.max(...widths)) + padX * 2);
+    const h = Math.round(blockH) + padY * 2;
     const box = [
-      `drawbox=x=${Math.round((W - w) / 2)}:y=${top - padY}:w=${w}:h=${h}:color=${block}@1:t=fill`,
+      `drawbox=x=${Math.round(SAFE_CX - w / 2)}:y=${top - padY}:w=${w}:h=${h}:color=${block}@1:t=fill`,
       opts.enable ? `enable='${opts.enable}'` : "",
     ].filter(Boolean).join(":");
-    const ink = textFilters(text, { ...opts, style: "ink" as RenderOptions["textStyle"] });
-    return { filters: [box, ...ink.filters], height: ink.height };
+    const ink = textFilters(text, { ...opts, yTop: top, maxChars: chars, style: "ink" as RenderOptions["textStyle"] });
+    return { filters: [box, ...ink.filters], height: ink.height, top };
   }
   const style = {
     ink: "fontcolor=0x111111",
@@ -120,14 +136,14 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
       "expansion=none",
       `fontsize=${opts.size}`,
       style,
-      "x=(w-text_w)/2",
+      `x=${SAFE_CX}-text_w/2`,
       `y=${top + i * lineH}`,
       opts.enable ? `enable='${opts.enable}'` : "",
     ]
       .filter(Boolean)
       .join(":");
   });
-  return { filters, height: lines.length * lineH };
+  return { filters, height: lines.length * lineH, top };
 }
 
 /**
@@ -142,8 +158,8 @@ export function clearOfSubject(top: number, height: number, pad: number, band?: 
   if (top + height + pad <= kt || top - pad >= kb) return top;
   const above = kt - 24 - pad - height;
   const below = kb + 24 + pad;
-  const fitsAbove = above - pad >= H * 0.08; // clear of the app's top bar
-  const fitsBelow = below + height + pad <= H * 0.9;
+  const fitsAbove = above - pad >= H * SAFE.top;
+  const fitsBelow = below + height + pad <= H * SAFE.bottom;
   if (fitsAbove && (!fitsBelow || top - above <= below - top)) return above;
   if (fitsBelow) return below;
   return top;
@@ -303,40 +319,42 @@ async function finalize(
       const draw = (y: number) =>
         textFilters(o.text, { yFrac: y, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
       let y = o.y;
-      let { filters: f, height } = draw(y);
+      let { filters: f, height, top: drawnTop } = draw(y);
       // An arrow needs room to read as one: if the thing is right next to the text, move the text away from it.
       if (o.pointTo) {
         const ty = o.pointTo.y * H;
-        const top = H * y - height / 2;
+        const top = drawnTop;
         const bottom = top + height;
         const gap = ty > bottom ? ty - bottom : top - ty;
         if (gap >= 0 && gap < 200) {
           y = Math.max(0.1, Math.min(0.85, y + ((ty > bottom ? -1 : 1) * (200 - gap)) / H));
-          ({ filters: f, height } = draw(y));
+          ({ filters: f, height, top: drawnTop } = draw(y));
         }
       }
       // Off the subject (the dog, faces).
       if (plan.keepClear) {
-        const top = clearOfSubject(H * y - height / 2, height, boxPad, plan.keepClear);
-        if (top !== H * y - height / 2) {
+        const top = clearOfSubject(drawnTop, height, boxPad, plan.keepClear);
+        if (top !== drawnTop) {
           y = Math.max(0.08, Math.min(0.9, (top + height / 2) / H));
-          ({ filters: f, height } = draw(y));
+          ({ filters: f, height, top: drawnTop } = draw(y));
         }
       }
       // Never on top of other text on screen at the same time (e.g. a long hook): move below it.
       const clash = placed.filter((p) => p.o.start < o.end && o.start < p.end);
-      const top0 = H * y - height / 2 - boxPad;
-      const bottom0 = H * y + height / 2 + boxPad;
+      const top0 = drawnTop - boxPad;
+      const bottom0 = drawnTop + height + boxPad;
       const hit = clash.filter((p) => p.top < bottom0 && top0 < p.bottom);
       if (hit.length) {
+        // Below the other text, or above it when that would leave the safe zone.
         const below = Math.max(...hit.map((p) => p.bottom)) + 30 + boxPad + height / 2;
-        y = Math.min(0.9, below / H);
-        ({ filters: f, height } = draw(y));
+        const above = Math.min(...hit.map((p) => p.top)) - 30 - boxPad - height / 2;
+        y = below + height / 2 + boxPad <= H * SAFE.bottom || above - height / 2 - boxPad < H * SAFE.top ? below / H : above / H;
+        ({ filters: f, height, top: drawnTop } = draw(y));
       }
-      placed.push({ o, top: H * y - height / 2 - boxPad, bottom: H * y + height / 2 + boxPad, end: o.end });
+      placed.push({ o, top: drawnTop - boxPad, bottom: drawnTop + height + boxPad, end: o.end });
       filters.push(...f);
       if (o.pointTo) {
-        const top = Math.round(H * y - height / 2);
+        const top = drawnTop;
         const bottom = top + height;
         const to = { x: o.pointTo.x * W, y: o.pointTo.y * H };
         const below = to.y > bottom;
@@ -358,17 +376,17 @@ async function finalize(
     const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
     const drawAt = (top: number) =>
       textFilters(o.text, { yFrac, yTop: top, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
-    let { filters: f, height } = drawAt(base + offset);
+    let { filters: f, height, top: drawnTop } = drawAt(base + offset);
     // The first text in its place (the hook) moves above or below the subject if it would cover it.
     if (!offset && o.at !== "caption" && plan.keepClear) {
       const top = Math.round(clearOfSubject(base, height, boxPad, plan.keepClear));
       if (top !== base) {
         base = top;
-        ({ filters: f, height } = drawAt(base));
+        ({ filters: f, height, top: drawnTop } = drawAt(base));
       }
     }
     filters.push(...f);
-    placed.push({ o, top: base + offset - boxPad, bottom: base + offset + height + boxPad, end: o.end });
+    placed.push({ o, top: drawnTop - boxPad, bottom: drawnTop + height + boxPad, end: o.end });
   }
   const music = options.musicFile && fs.existsSync(options.musicFile);
   const fadeAt = Math.max(0, duration - 1).toFixed(2);

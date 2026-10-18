@@ -462,7 +462,8 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `~2.5–3.5s, the last one staying to the end: e.g. "1. Kato backpack", "2. PetPace health tracker", "3. A ton of ` +
     `documents". Short: up to ~5 words, numbered when it's a list. A light, funny last point is great if it fits ` +
     `("4. Optional: a patient owner").` +
-    `\n- Place each point in a DIFFERENT part of the frame from the one before (vary y between 0.35 and 0.8), next to ` +
+    `\n- Place each point in a DIFFERENT part of the frame from the one before (vary y between 0.3 and 0.7; the top ` +
+    `and bottom of the frame are covered by the app), next to ` +
     `what it's about, never over ${petName}'s ` +
     `face.` +
     `\n- An arrow ONLY when the exact object the point names is clearly visible in the footage while the point is ` +

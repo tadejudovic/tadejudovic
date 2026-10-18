@@ -333,6 +333,28 @@ app.patch("/api/albums/:id", (req, res) => {
  * Start over: remove every album, clip and video (files included). Settings, situations, caption
  * research, examples and spending are kept.
  */
+/**
+ * Delete every made video, keep the clips (free to use again) and what reviews and post stats
+ * taught the AI. The next round is made right after.
+ */
+function clearVideos(): number {
+  const learned = reviewFeedback(30);
+  const renders = [...store.renders()];
+  for (const r of renders) deleteRender(r.id);
+  for (const c of store.clips()) if (c.uses) store.updateClip(c.id, { uses: 0 });
+  store.updateSettings({ pastFeedback: learned });
+  store.updateAuto({ lastBatchDate: undefined });
+  console.log(`[videos] deleted ${renders.length} video(s); clips kept and free to use again`);
+  return renders.length;
+}
+
+app.post("/api/videos/clear", (req, res) => {
+  if (req.body?.confirm !== "delete videos") return res.status(400).json({ error: "Confirmation missing." });
+  const deleted = clearVideos();
+  afterReview();
+  res.json({ deleted });
+});
+
 app.post("/api/reset", (req, res) => {
   if (req.body?.confirm !== "start over") return res.status(400).json({ error: "Confirmation missing." });
   clearWaitingWork();
@@ -961,6 +983,12 @@ if (!store.settings().freshStartV1 && !store.renders().length && !store.clips().
   });
   store.updateAuto({ dailyCount: 3, lastBatchDate: undefined });
   console.log(`[fresh start] deleted ${n} video(s); clips kept and free to use again; 3 a day from now`);
+}
+
+// Second fresh start, asked for by the creator: all videos again, clips stay, 3 new ones follow.
+if (!store.settings().freshStartV2) {
+  if (store.renders().length) clearVideos();
+  store.updateSettings({ freshStartV2: true, yellowBoxRemade: true, yellowBoxRemadeV2: true });
 }
 
 // ---- Startup recovery -----------------------------------------------------

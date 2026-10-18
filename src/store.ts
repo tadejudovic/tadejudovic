@@ -71,6 +71,7 @@ export interface Settings {
   yellowBoxRemadeV2?: boolean;
   /** Set once all videos were deleted for a fresh start. */
   freshStartV1?: boolean;
+  freshStartV2?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */
   pastFeedback?: ReviewFeedback;
 }

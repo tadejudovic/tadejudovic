@@ -2181,6 +2181,16 @@ $("#example-form").addEventListener("submit", (e) => {
 
 // ---- Diagnostics --------------------------------------------------------------
 
+$("#btn-clear-videos").addEventListener("click", async () => {
+  if (!confirm("Delete all videos?\n\nEvery video (to review and in Ready) is removed. Your clips stay and can all be used again, and what the AI learned from your reviews is kept. New videos are made right after.")) return;
+  try {
+    await api("/api/videos/clear", { method: "POST", body: { confirm: "delete videos" } });
+  } catch (err) {
+    return banner(err.message);
+  }
+  location.reload();
+});
+
 $("#btn-reset").addEventListener("click", async () => {
   const ok = confirm(
     "Start over?\n\nThis permanently removes all your albums, every imported clip and every video (to review and ready to post). " +

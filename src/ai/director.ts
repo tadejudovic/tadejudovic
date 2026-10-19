@@ -521,8 +521,8 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
           `rules; never add others): ${faq.a.trim()}`
         : `\nThe creator hasn't written their answer yet: keep it general and useful (what to look for, how we ` +
           `think about it) and name no brands, airlines, places or country rules.`) +
-      `\nA hook that plays on the question works well ("You always ask what bag ${petName} flies in", "The #1 ` +
-      `question we get: …").`
+      `\nThe hook can play on the question, as a headline, not as speech: "The bag ${petName} flies in", "Which ` +
+      `airline? Wrong question", "Our #1 question, answered". The "you always ask…" setup belongs in the description.`
     : "";
   return (
     `\n\nFORMAT FOR THIS VIDEO: EDUCATIONAL. Teach something real about flying or traveling with a pet` +
@@ -537,16 +537,17 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `\n- the question everyone asks us, then the answer;` +
     `\n- what we pack / what we check before a flight;` +
     `\n- "nobody tells you…" followed by the thing nobody tells you.` +
-    `\n\nTHE HOOK matters most: it's alone on screen for the first ~2.5s and must stop the scroll on its own. ` +
-    `Make it specific, curious or a little high-stakes, in first person or as a direct "you": e.g. "The airline ` +
-    `almost didn't let ${petName} on", "Stop doing this before a flight with your dog", "Nobody warned us about ` +
-    `security", "I wish someone told me this before our first flight". Never a bland title like "Tips for flying ` +
-    `with a dog".` +
+    `\n\nTHE HOOK matters most: it's alone on screen for the first ~2.5s, then stays on top as the header, so it ` +
+    `must stop the scroll AND be read at a glance. It's a headline, not a spoken sentence: ONE idea, 4–8 words, no ` +
+    `" / " line breaks, no setup clause ("You always ask…, but…", "If you're flying with your dog, …"). Specific, ` +
+    `curious or a little high-stakes: e.g. "3 seats to avoid with a dog", "The seat matters more than the airline", ` +
+    `"Stop doing this before a flight", "Nobody warned us about security". Never a bland title like "Tips for ` +
+    `flying with a dog". The conversational version, the setup and the why go in the description.` +
     `\n\nON SCREEN, the way top creators do it:` +
     `\n- The hook is one overlay that stays at the top for the WHOLE video (start 0, end = the video's length, y -1).` +
     `\n- Then each point is its own overlay, shown alone (never repeating earlier points), one after another, each ` +
     `~2.5–3.5s, the last one staying to the end: e.g. "1. Kato backpack", "2. PetPace health tracker", "3. A ton of ` +
-    `documents". Short: up to ~5 words, numbered when it's a list. A light, funny last point is great if it fits ` +
+    `documents". Short: up to ~5 words (never more than 7), numbered when it's a list. A light, funny last point is great if it fits ` +
     `("4. Optional: a patient owner").` +
     `\n- Place each point in a DIFFERENT part of the frame from the one before (vary y between 0.3 and 0.7; the top ` +
     `and bottom of the frame are covered by the app), next to ` +
@@ -820,7 +821,13 @@ export async function proofreadText(lines: string[], petName: string, kind?: str
           `promises; who "he/his/their" means is clear (use "your dog" or ${petName}); a follower question reads as ` +
           `theirs, not the creator asking themselves; an educational list or lesson doesn't start with "POV:" (POV is ` +
           `for a moment); no line needs other context; it reads as natural English, with the small words a person would ` +
-          `say ("Call the airline", not "Call airline"). Be strict: a reader shouldn't ` +
+          `say ("Call the airline", not "Call airline")` +
+          (kind === "tips" || kind === "educational"
+            ? `; on-screen text reads as text, not speech: the first line (the hook, which stays on screen as the ` +
+              `header) is ONE idea in at most 8 words with no setup clause ("You always ask X, but Y" → "Y"), and a ` +
+              `numbered point is at most 7 words (shorten them if not; the one case where a line may get much shorter)`
+            : "") +
+          `. Be strict: a reader shouldn't ` +
           `have to work out what's meant. If it's fine, ok = true and return ` +
           `the lines unchanged. If not, ok = false, say the problem in a few words, and return fixed lines: exactly ` +
           `${lines.length}, same order and roles, each about as long as the original, no emoji, no hashtags.`,

@@ -66,7 +66,10 @@ export interface Clip {
 /** A caption/overlay that is known to have done well on TikTok for a situation. */
 export interface ProvenCaption {
   id: string;
+  /** Wording another creator could reuse (adapted by the AI from the original). */
   text: string;
+  /** What the video really shows: its on-screen text as read from the cover, or its post caption. */
+  original?: string;
   views?: number;
   url?: string;
   /** "overlay" = on-screen text, "description" = the post's caption, "creator" = added by hand. */
@@ -163,7 +166,7 @@ export interface VideoPlan {
   /** The director's one-line reasoning, shown in review. */
   concept?: string;
   /** The proven caption this overlay was adapted from. */
-  basedOn?: { text: string; views?: number; url?: string };
+  basedOn?: { text: string; original?: string; views?: number; url?: string };
   scene?: string;
   /** Post counts of the researched hashtags this video uses. */
   hashtagInfo?: PickedHashtag[];
@@ -233,7 +236,7 @@ export interface StoryDraft {
   lines: DraftLine[];
   postCaption: string;
   hashtags: string[];
-  basedOn?: { text: string; views?: number; url?: string };
+  basedOn?: { text: string; original?: string; views?: number; url?: string };
   scene?: string;
 }
 

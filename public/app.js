@@ -950,6 +950,7 @@ function detailsBody(r) {
         h("span", {},
           h("b", {}, b.views ? `${fmtViews(b.views)} views on TikTok` : "A popular TikTok"),
           h("span", { class: "d-proof-text" }, `“${b.text}”`),
+          b.original && b.original !== b.text ? h("span", { class: "muted" }, ` (their video: “${b.original}”)`) : null,
           b.url ? h("a", { href: b.url, target: "_blank", rel: "noopener noreferrer" }, "Watch on TikTok ›") : null),
       ),
     ) : null,

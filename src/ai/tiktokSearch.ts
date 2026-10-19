@@ -386,6 +386,8 @@ export async function researchSceneOnTikTok(scene: string, petName: string): Pro
     captions.push({
       id: newId(),
       text: text.slice(0, 200),
+      // The source as it really is, so a reference can be checked against the video.
+      original: (r.onScreenText.trim() || `(post caption) ${v.description}`).slice(0, 200),
       views: v.views,
       url: v.url,
       kind: r.onScreenText.trim() ? "overlay" : "description",

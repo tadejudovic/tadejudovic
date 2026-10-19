@@ -579,9 +579,9 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `\n- Before answering, read the overlays in order as someone who has never seen this account. If any line ` +
     `needs the post description to make sense, or the hook and the points don't fit together, rewrite them.` +
     `\n\nPost description: expand the lesson in a few sentences, connect it to ${petName}'s journey, and end with ` +
-    `a question that invites people to share their own experience. Ignore the one-line overlay limit above; the ` +
-    `proven captions are where the HOOK comes from: build the hook on the pattern or wording of one of them (adapted ` +
-    `to this lesson) and set basedOn to it.`
+    `a question that invites people to share their own experience. Ignore the one-line overlay limit above. ` +
+    `Proven captions are optional here: build on one only if its pattern really fits a lesson headline, and set ` +
+    `basedOn to it then; otherwise basedOn -1. Never name one the hook doesn't use.`
   );
 }
 
@@ -1004,7 +1004,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       : {}),
     basedOn: (() => {
       const c = ctx.proven[r.basedOn - 1];
-      return c ? { text: c.text, views: c.views, url: c.url } : undefined;
+      // Only a reference the hook really shows: shared wording or the same opening pattern.
+      return c && echoes(overlays[0]?.text ?? "", c.text) ? { text: c.text, original: c.original, views: c.views, url: c.url } : undefined;
     })(),
     segments,
     postCaption: caption,
@@ -1025,6 +1026,21 @@ const EXAMPLE_SCHEMA = {
     captionStyle: { type: "string", description: "Tone, casing, length and position of the text" },
   },
 };
+
+const STOP = new Set("the a an and or but to of in on at for with your you my me i it is are was this that his her their our we they be so do dont not no just when what".split(" "));
+const words = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w));
+/**
+ * Whether a hook visibly builds on a caption: at least two of its words, or the same opening pattern
+ * ("POV:", "nobody:", "me when", "when your…", "things I…").
+ */
+export function echoes(hook: string, caption: string): boolean {
+  const a = new Set(words(hook));
+  const shared = new Set(words(caption).filter((w) => a.has(w)));
+  if (shared.size >= 2) return true;
+  const opening = (s: string) => s.toLowerCase().trim().match(/^(pov|nobody|me when|me:|when (your|you)|things|how to|stop|why|if you|the \d|\d )/)?.[0];
+  const o = opening(hook);
+  return !!o && o === opening(caption);
+}
 
 /** Study a video that performed well so its style can guide future edits. */
 export async function analyzeExample(file: string, duration: number, note?: string): Promise<NonNullable<Example["analysis"]>> {

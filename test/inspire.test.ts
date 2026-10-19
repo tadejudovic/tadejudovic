@@ -33,3 +33,10 @@ test("asked for an inspirational video with only outside footage left, it's stil
   assert.equal(r.plans.length, 1);
   assert.equal(r.plans[0].format, "inspire");
 });
+
+test("a hook only claims a reference it visibly builds on", async () => {
+  const { echoes } = await import("../src/ai/director.ts");
+  assert.equal(echoes("You always ask which airline Lex flies with / but the seat you book matters more", "If you are traveling with your dog, they must remain in their carrier underneath the seat"), false);
+  assert.equal(echoes("The carrier stays under the seat the whole flight", "If you are traveling with your dog, they must remain in their carrier underneath the seat"), true);
+  assert.equal(echoes("POV: your dog clears security first", "POV: you forgot the passport"), true);
+});

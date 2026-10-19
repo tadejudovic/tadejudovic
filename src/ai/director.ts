@@ -619,7 +619,8 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
         : `\nThe creator hasn't written their answer yet: keep it general and useful (what to look for, how we ` +
           `think about it) and name no brands, airlines, places or country rules.`) +
       `\nThe hook can BE the question, asked plainly in the viewer's own words, the way they'd type it into ` +
-      `search: "Where do dogs pee when they fly?", "Which airlines let dogs in the cabin?". Never about who asks: ` +
+      `search, and for anyone curious, not only dog owners: "Where do dogs pee when they fly?", "Which airlines let ` +
+      `dogs in the cabin?". Never about who asks: ` +
       `no "you always ask…", "our #1 question", "people ask me…", no quote marks, no "${petName}" in it.`
     : "";
   return (
@@ -637,9 +638,10 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `\n- "nobody tells you…" followed by the thing nobody tells you.` +
     `\n\nTHE HOOK matters most: it's alone on screen for the first ~2.5s, then stays on top as the header, so it ` +
     `must stop the scroll AND be read at a glance (it stays pinned at the top, at most two lines). ONE idea, 3–8 ` +
-    `words, no " / " line breaks, in plain everyday words. The best: the exact question the viewer has, asked ` +
-    `directly, e.g. "Where do dogs pee when they fly?", "Can your dog fly in the cabin?", "How much does it cost ` +
-    `to fly a dog?"; or a plain promise: "3 seats to avoid with a dog", "Before your dog's first flight". Never ` +
+    `words, no " / " line breaks, in plain everyday words. The best: a question ANYONE is curious about, asked ` +
+    `directly, e.g. "Where do dogs pee when they fly?", "Can dogs fly in the cabin?", "How much does it cost to ` +
+    `fly a dog?"; or a plain promise: "3 seats a dog can't sit in". It speaks to everyone curious, not only dog ` +
+    `owners: no "your dog", "dog owners", "pet parents", "if you have a dog", "flying with your dog?". Never ` +
     `label-style ("Flight day: 3 spots…", "Airport hack:"), never quote someone or say who asks ("you always ` +
     `ask", "the #1 question", "people ask me"), no "POV", and never a bland title like "Tips for flying with a ` +
     `dog". The setup, the story and the why go in the description.` +
@@ -924,8 +926,9 @@ export async function proofreadText(lines: string[], petName: string, kind?: str
           `say ("Call the airline", not "Call airline")` +
           (kind === "tips" || kind === "educational"
             ? `; on-screen text reads as text, not speech: the first line (the hook, which stays on screen as the ` +
-              `header) is ONE idea in at most 8 words, plain words, ideally the viewer's own question asked directly ` +
-              `("Where do dogs pee when they fly?"); never label-style ("Flight day: …"), never quoted, never "you ` +
+              `header) is ONE idea in at most 8 words, plain words, ideally a question anyone is curious about, asked ` +
+              `directly ("Where do dogs pee when they fly?"), not aimed at dog owners (no "your dog", "dog owners", "pet ` +
+              `parents", "if you have a dog"); never label-style ("Flight day: …"), never quoted, never "you ` +
               `always ask", "our #1 question", "people ask me"; and a ` +
               `numbered point is at most 7 words (shorten them if not; the one case where a line may get much shorter)`
             : "") +

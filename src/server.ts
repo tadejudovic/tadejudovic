@@ -406,7 +406,18 @@ app.get("/api/renders/:id/diagnostics", (req, res) => {
     rejectNote: r.rejectNote,
     kind: p.format,
     audience: p.audience,
-    educational: p.format === "tips" ? { theme: p.pillar, topic: p.topic, question: p.faq } : undefined,
+    educational:
+      p.format === "tips"
+        ? {
+            theme: p.pillar,
+            angle: p.angle,
+            topic: p.topic,
+            searchTopic: p.searchTopic ?? null,
+            question: p.faq,
+            // Whether search topics were available at all (Settings > What people search).
+            searchTopicsLoaded: { tiktok: store.settings().searchTopics?.length ?? 0, google: store.settings().keywordTopics?.length ?? 0 },
+          }
+        : undefined,
     collab: p.collab?.name,
     length: round(length),
     renderedLength: round(r.duration),

@@ -558,21 +558,43 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
   );
 }
 
-/** An inspirational post: the bigger journey, the feeling of traveling the world together. */
-function inspireText(petName: string): string {
+/**
+ * An inspirational post. For everyone (the default) it's about a feeling anyone has (the leap, the
+ * place, what travel changes in you), with the dog in the picture but not the subject; for dog lovers,
+ * the journey of seeing the world with your dog.
+ */
+function inspireText(petName: string, audience: "pets" | "everyone" = "everyone"): string {
+  if (audience === "pets")
+    return (
+      `\n\nFORMAT FOR THIS VIDEO: INSPIRATIONAL. Not a joke and not a lesson: make people feel something about ` +
+      `traveling the world with a dog, and make them want to do it too. Use the footage as a quiet, beautiful or ` +
+      `meaningful moment of the journey.` +
+      `\n- The hook still has to stop the scroll: personal, specific and a little emotional, e.g. "Six countries ` +
+      `later, he still sleeps on my feet", "Everyone said we couldn't bring him". No clichés like "living our best life".` +
+      `\n- One overlay, or a setup and a payoff line that appears a few seconds later. Calm pacing: let the moment ` +
+      `breathe (at least 8s).` +
+      `\n- Post description: where we are in ${petName}'s journey, what it means to us, and an invitation ` +
+      `(where would you take your dog?).`
+    );
   return (
-    `\n\nFORMAT FOR THIS VIDEO: INSPIRATIONAL. Not a joke and not a lesson: make people feel something about ` +
-    `traveling the world with a dog, and make them want to do it too. Use the footage as a quiet, beautiful or ` +
-    `meaningful moment of the journey.` +
-    `\n- The hook still has to stop the scroll: personal, specific and a little emotional, e.g. "Six countries ` +
-    `later, he still sleeps on my feet", "Everyone said we couldn't bring him", "If you're scared to fly with your ` +
-    `dog, this is for you", "The moment I knew we'd made the right choice". No clichés like "living our best life".` +
-    `\n- Build the hook on the pattern or wording of one of the proven captions (made personal and ` +
-    `emotional) and set basedOn to it.` +
+    `\n\nFORMAT FOR THIS VIDEO: INSPIRATIONAL, FOR EVERYONE. Not a joke, not a lesson, and NOT a dog video: it's ` +
+    `about life and travel, the kind of post someone with no pet saves and sends to a friend. Look at what the ` +
+    `footage shows (the place, the light, the road, the quiet, the city waking up) and write about the feeling ` +
+    `behind it: taking the leap, leaving the comfort zone, slowing down, a place that changes you, building a life ` +
+    `that fits you, home being who you're with, the trip you almost didn't take.` +
+    `\n- The words must make sense without the dog: don't name ${petName}, don't say "dog", "pup" or "pet" in the ` +
+    `on-screen text. ${petName} can be in the footage; the text is about the human side.` +
+    `\n- The hook stops the scroll by being personal and specific, e.g. "The trip I almost said no to", "Nobody ` +
+    `tells you how quiet it gets when you finally go", "I used to think I'd do this someday", "Some places make you ` +
+    `want to stay a little longer", "Proof you don't have to have it all figured out". No clichés like "living our ` +
+    `best life" or "wanderlust".` +
+    `\n- Proven captions: only borrow a structure from one if it fits; pet-specific wording doesn't belong here. ` +
+    `Set basedOn only if you adapt one.` +
     `\n- One overlay, or a setup and a payoff line that appears a few seconds later. Calm pacing: let the moment ` +
     `breathe (at least 8s).` +
-    `\n- Post description: the most story-driven of all: where we are in ${petName}'s journey, what it means to ` +
-    `us, and an invitation (where would you take your dog?).`
+    `\n- Post description: the most story-driven of all: where we are and what this chapter means, written so ` +
+    `anyone relates, ending with an open question (e.g. "What's the trip you keep putting off?"). The dog can ` +
+    `appear in the description as part of the story, not the point of it.`
   );
 }
 
@@ -668,7 +690,7 @@ function audienceText(audience: "pets" | "everyone" = "pets", petName: string, f
     return audience === "everyone"
       ? `\n\nAUDIENCE for this video: EVERYONE. Make it about a feeling anyone has, not about dogs: taking the leap, ` +
           `leaving the comfort zone, home being a person, saying yes to the trip, the people (and ${petName}) who come ` +
-          `along. ${petName} is part of the moment, but someone without a dog should feel it too.`
+          `along. ${petName} can be in the shot, but the words are for someone who has never had a dog.`
       : `\n\nAUDIENCE for this video: dog lovers: what it means to see the world with your dog by your side.`;
   return audience === "everyone"
     ? `\n\nAUDIENCE for this video: EVERYONE, not just dog lovers. Write about the moment any person recognizes ` +
@@ -826,7 +848,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : ctx.format === "tips" ? "" : audienceText(ctx.audience, ctx.petName, ctx.format)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName) : "") +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`

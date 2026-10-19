@@ -97,6 +97,9 @@ export function outsideClips(): Clip[] {
     .map((x) => x.c);
 }
 
+/** Why the last inspirational video couldn't be written by the AI (for diagnostics). */
+export let inspireIssue: { at: string; message: string } | null = null;
+
 /** The country a clip was filmed in is switched off in Themes ("place:Portugal"). */
 export function placeOff(c: Clip): boolean {
   const country = countryOf(c.place);
@@ -279,6 +282,8 @@ export function coveredTopics(): string[] {
 export function nextAudience(format: PostFormat): "pets" | "everyone" {
   const { captionAudience } = store.settings();
   if (captionAudience === "everyone" || captionAudience === "pets") return captionAudience;
+  // Inspirational videos are for everyone: they're how the account reaches people beyond dog owners.
+  if (format === "inspire") return "everyone";
   // Mostly for everyone (two in three), now and then for dog lovers: the account grows beyond pet people.
   const lastTwo = store
     .renders()
@@ -460,9 +465,18 @@ export async function plan(
           return p;
         } catch (err) {
           failures.push((err as Error).message);
+          if (kinds[i] === "inspire") inspireIssue = { at: new Date().toISOString(), message: (err as Error).message.slice(0, 300) };
         }
       }
-      const p = heuristicPlan({ template: "auto", targetSeconds: req.targetSeconds, clips: [clip], petName, used: new Map() });
+      // A clip without sound analysis still gets its video (from the start of the clip), rather than
+      // failing the whole round: that was how the day's inspirational video kept going missing.
+      const p = heuristicPlan({
+        template: "auto",
+        targetSeconds: req.targetSeconds,
+        clips: [clip.energy?.length ? clip : { ...clip, energy: Array(Math.max(1, Math.round(clip.duration * 2))).fill(0.5) }],
+        petName,
+        used: new Map(),
+      });
       // Without the AI director: use a proven caption for the clip's situation if there is one,
       // otherwise a generic trend example. Flagged so the creator knows, and can ask for a new caption.
       if (aiOn) p.aiNote = (failures[failures.length - 1] ?? "the AI didn't answer").slice(0, 300);

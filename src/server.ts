@@ -12,7 +12,7 @@ import { createSession, getSession, listPicked, deleteSession } from "./google/p
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { vlogDays } from "./ai/vlog.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -88,6 +88,14 @@ app.get("/api/diagnostics", (_req, res) => {
     queuePending: ingestQueue.pending,
     yourCorrections: store.edits().slice(0, 10),
     today: { byKind: madeTodayByKind(), outsideClipsAvailable: outsideClips().length },
+    inspirational: {
+      lastMade: renders.filter((r) => r.plan.format === "inspire").map((r) => r.createdAt).sort().pop() ?? null,
+      last7Days: renders.filter((r) => r.plan.format === "inspire" && Date.now() - Date.parse(r.createdAt) < 7 * 86400_000).length,
+      fromOutsideFootage: renders.filter((r) => r.plan.outside).length,
+      outsideThemesOn: store.settings().outsideThemes.filter((t) => !store.settings().themesOff?.includes(t)),
+      outsideClipsByTheme: count(clips.filter((c) => c.status === "ready" && store.settings().outsideThemes.includes(c.scene ?? "")), (c) => `${c.scene}${c.uses ? " (used)" : ""}`),
+      lastAiIssue: inspireIssue,
+    },
     look: {
       setting: store.settings().textStyle,
       font: store.settings().fontId,

@@ -59,6 +59,7 @@ export function reviewFeedback(limit = 15): ReviewFeedback {
   // Lessons from before the fresh start come after the newer ones.
   const past = store.settings().pastFeedback;
   return {
+    edits: store.edits().slice(0, 12),
     kept: [...reviewed.filter((r) => r.review === "approved").map(item), ...(past?.kept ?? [])].slice(0, limit),
     rejected: [
       ...reviewed.filter((r) => r.review === "rejected").map((r) => ({ ...item(r), reason: r.rejectReason, note: r.rejectNote })),

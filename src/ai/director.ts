@@ -4,7 +4,7 @@ import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { TEMPLATES } from "../templates.ts";
-import type { EduPillar, PostFormat, Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
+import type { EditRecord, EduPillar, PostFormat, Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
 
 /**
  * The "AI director": Claude watches sampled frames of each clip once (cached on
@@ -568,7 +568,7 @@ const REASON_TEXT: Record<string, string> = {
 const KIND: Record<string, string> = { fun: "fun", tips: "educational", inspire: "inspirational" };
 
 export function feedbackText(f: ReviewFeedback | undefined): string {
-  if (!f || (!f.kept.length && !f.rejected.length && !f.performance?.length)) return "";
+  if (!f || (!f.kept.length && !f.rejected.length && !f.performance?.length && !f.edits?.length)) return "";
   const line = (x: { text: string; scene?: string; basedOn?: string; format?: string }) =>
     `- "${x.text}"${x.format && KIND[x.format] ? ` [${KIND[x.format]}]` : ""}${x.scene ? ` (${x.scene})` : ""}` +
     `${x.basedOn ? ` [adapted from "${x.basedOn}"]` : ""}`;
@@ -580,8 +580,19 @@ export function feedbackText(f: ReviewFeedback | undefined): string {
         .map((p) => `${line(p)} on ${p.platform === "instagram" ? "Instagram" : "TikTok"}: ${fmt(p.views)} ${p.platform === "instagram" ? "plays" : "views"}${p.likes ? `, ${fmt(p.likes)} likes` : ""}${p.saves ? `, ${fmt(p.saves)} saves` : ""}${p.shares ? `, ${fmt(p.shares)} shares` : ""}`)
         .join("\n")
     : "";
+  const KIND_OF = (x: EditRecord) => (x.format && KIND[x.format] ? ` [${KIND[x.format]}]` : "");
+  const short = (t: string) => (t.length > 300 ? `${t.slice(0, 300)}…` : t).replaceAll("\n", " / ");
+  const edits = f.edits?.length
+    ? `\n\nTHE CREATOR'S OWN CORRECTIONS, newest first: what you (or an earlier version of you) wrote, and what ` +
+      `they changed it to. This is the most direct signal of their taste and voice: write the way they correct, ` +
+      `avoid what they keep removing, and don't repeat the mistakes they fixed.\n` +
+      f.edits
+        .map((x) => `- ${x.what === "text" ? "On-screen text" : x.what === "caption" ? "Description" : "Hashtags"}${KIND_OF(x)}: "${short(x.before)}" → "${short(x.after)}"`)
+        .join("\n")
+    : "";
   return (
     perf +
+    edits +
     `\n\nThe creator reviews every video: swipe right to keep it, left to reject it. Learn their taste from this ` +
     `and write more like what they kept and less like what they rejected (don't copy the kept lines).` +
     (f.kept.length ? `\nKept:\n${f.kept.map(line).join("\n")}` : "") +

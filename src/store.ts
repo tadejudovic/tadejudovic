@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem, DailyMix, StoryDraft, ReviewFeedback } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem, DailyMix, StoryDraft, ReviewFeedback, EditRecord } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -16,6 +16,7 @@ interface DB {
   examples: Example[];
   partners: Partner[];
   drafts: StoryDraft[];
+  edits: EditRecord[];
   trends?: Trends;
   auto: AutoSettings;
   research: Record<string, SceneResearch>;
@@ -165,6 +166,7 @@ function load(): DB {
     db.albums ??= [];
     db.partners ??= [];
     db.drafts ??= [];
+    db.edits ??= [];
     for (const r of db.renders ?? []) {
       if (r.posted && !r.posts) r.posts = [{ ...r.posted, platform: "tiktok" }];
       delete r.posted;
@@ -184,7 +186,7 @@ function load(): DB {
     for (const r of db.renders) r.review ??= "pending";
     return db;
   } catch {
-    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], partners: [], drafts: [], auto: { ...DEFAULT_AUTO }, research: {}, spend: { month: "", usd: 0, calls: 0 } };
+    return { clips: [], renders: [], settings: { ...DEFAULT_SETTINGS }, albums: [], examples: [], partners: [], drafts: [], edits: [], auto: { ...DEFAULT_AUTO }, research: {}, spend: { month: "", usd: 0, calls: 0 } };
   }
 }
 
@@ -276,6 +278,14 @@ export const store = {
   },
   removeAlbum(id: string) {
     db.albums = db.albums.filter((a) => a.id !== id);
+    save();
+  },
+
+  /** The creator's corrections to text, descriptions and hashtags, newest first (the last 150). */
+  edits: () => db.edits,
+  addEdit(e: Omit<EditRecord, "at">) {
+    if (e.before.trim() === e.after.trim()) return;
+    db.edits = [{ ...e, at: new Date().toISOString() }, ...db.edits].slice(0, 150);
     save();
   },
 

@@ -83,6 +83,7 @@ app.get("/api/diagnostics", (_req, res) => {
     }).filter(Boolean),
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     queuePending: ingestQueue.pending,
+    yourCorrections: store.edits().slice(0, 10),
     look: {
       setting: store.settings().textStyle,
       font: store.settings().fontId,
@@ -717,6 +718,9 @@ app.patch("/api/renders/:id", (req, res) => {
   const planPatch: Partial<VideoPlan> = {};
   if (typeof b.postCaption === "string") planPatch.postCaption = b.postCaption.slice(0, 2200);
   if (Array.isArray(b.hashtags)) planPatch.hashtags = b.hashtags.map((t: unknown) => String(t).replace(/^#/, "").slice(0, 40)).filter(Boolean).slice(0, 15);
+  // The creator's own corrections are kept as feedback for the next videos.
+  if (planPatch.postCaption !== undefined) store.addEdit({ what: "caption", before: r.plan.postCaption ?? "", after: planPatch.postCaption, format: r.plan.format, scene: r.plan.scene });
+  if (planPatch.hashtags) store.addEdit({ what: "hashtags", before: (r.plan.hashtags ?? []).join(" "), after: planPatch.hashtags.join(" "), format: r.plan.format, scene: r.plan.scene });
   const review = ["pending", "approved", "rejected"].includes(b.review) ? (b.review as Render["review"]) : undefined;
   const reason = ["text", "clip", "edit", "other"].includes(b.rejectReason) ? (b.rejectReason as RejectReason) : undefined;
   store.updateRender(r.id, {
@@ -926,6 +930,7 @@ app.post("/api/renders/:id/rerender", (req, res) => {
   let overlays = r.plan.overlays;
   if (texts?.length) {
     const old = r.plan.overlays ?? [];
+    store.addEdit({ what: "text", before: (old.length ? old.map((o) => o.text) : [r.plan.hook]).join("\n"), after: texts.join("\n"), format: r.plan.format, scene: r.plan.scene });
     const total = segments.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
     if (texts.length === old.length) {
       // Same pieces of text, reworded: same timing and places.

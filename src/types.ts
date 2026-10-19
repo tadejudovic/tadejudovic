@@ -402,7 +402,19 @@ export interface FeedbackItem {
   format?: string;
 }
 
+/** A change the creator made to a video's words: kept (even when videos are deleted) and fed to the AI. */
+export interface EditRecord {
+  at: string;
+  what: "text" | "caption" | "hashtags";
+  before: string;
+  after: string;
+  format?: PostFormat;
+  scene?: string;
+}
+
 export interface ReviewFeedback {
+  /** The creator's own corrections, newest first: the most direct signal of their taste. */
+  edits?: EditRecord[];
   kept: FeedbackItem[];
   rejected: (FeedbackItem & { reason?: RejectReason; note?: string })[];
   /** Posted videos with real stats, best first. */

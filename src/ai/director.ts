@@ -793,7 +793,8 @@ export async function proofreadText(lines: string[], petName: string, kind?: str
           `the hook; any number in the hook matches the points; every point is the same kind of thing the hook ` +
           `promises; who "he/his/their" means is clear (use "your dog" or ${petName}); a follower question reads as ` +
           `theirs, not the creator asking themselves; an educational list or lesson doesn't start with "POV:" (POV is ` +
-          `for a moment); no line needs other context. Be strict: a reader shouldn't ` +
+          `for a moment); no line needs other context; it reads as natural English, with the small words a person would ` +
+          `say ("Call the airline", not "Call airline"). Be strict: a reader shouldn't ` +
           `have to work out what's meant. If it's fine, ok = true and return ` +
           `the lines unchanged. If not, ok = false, say the problem in a few words, and return fixed lines: exactly ` +
           `${lines.length}, same order and roles, each about as long as the original, no emoji, no hashtags.`,

@@ -15,7 +15,8 @@ const { width: W, height: H, fps: FPS } = config.output;
  * like/comment/share rail on the right and the caption and buttons at the bottom cover the rest.
  * Text always stays inside it (fractions of the frame).
  */
-export const SAFE = { top: 0.12, bottom: 0.76, left: 0.06, right: 0.87 } as const;
+// Left: tall phones (20:9) crop the sides of a 9:16 video by up to ~10%, so text keeps clear of that too.
+export const SAFE = { top: 0.12, bottom: 0.76, left: 0.1, right: 0.87 } as const;
 const SAFE_CX = Math.round((W * (SAFE.left + SAFE.right)) / 2);
 const SAFE_W = Math.round(W * (SAFE.right - SAFE.left));
 const HOOK_Y = 0.17;
@@ -149,6 +150,78 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
       .filter(Boolean)
       .join(":");
   });
+  return { filters, height: lines.length * lineH, top };
+}
+
+/** "1. Call the airline" → ["1", "Call the airline"]; text that isn't a numbered point → undefined. */
+export function splitNumber(text: string): [string, string] | undefined {
+  const m = /^\s*(\d{1,2})[.):]\s+(\S[\s\S]*)$/.exec(text);
+  return m ? [m[1], m[2]] : undefined;
+}
+
+/** The black number tab on the left of a numbered point. */
+const badgeWidth = (size: number) => Math.round(size * 1.45);
+
+/**
+ * How wide a numbered point's box is when its text is wrapped to at most `maxW`: used to give all
+ * the points of a video one width, so they read as one set wherever they appear.
+ */
+export function pointBoxWidth(text: string, size: number, font: string, maxW: number): number {
+  const split = splitNumber(screenText(text));
+  if (!split) return 0;
+  const padX = Math.round(size * 0.5);
+  const lines = fitLines(split[1], maxW - badgeWidth(size) - padX * 2, size, font, charsFor(size, 24));
+  return Math.min(maxW, Math.round(Math.max(...lines.map((l) => textWidth(font, l, size)))) + badgeWidth(size) + padX * 2);
+}
+
+function fitLines(text: string, maxTextW: number, size: number, font: string, maxChars: number): string[] {
+  let chars = maxChars;
+  let lines = wrap(text, chars);
+  while (chars > 10 && lines.some((l) => textWidth(font, l, size) > maxTextW)) lines = wrap(text, --chars);
+  return lines;
+}
+
+/**
+ * A numbered point in the box styles: a black tab with the number in yellow on the left, the text
+ * left-aligned in the box beside it, the box `boxW` wide (the same for every point of the video).
+ * Same return as textFilters: the text block's height and top, without the box padding.
+ */
+export function pointFilters(num: string, text: string, opts: TextOpts & { boxW: number }): { filters: string[]; height: number; top: number } {
+  const size = opts.size;
+  const padX = Math.round(size * 0.5);
+  const padY = Math.round(size * 0.38);
+  const badgeW = badgeWidth(size);
+  const w = Math.min(opts.boxW, SAFE_W);
+  const cx = opts.xFrac === undefined ? SAFE_CX : W * opts.xFrac;
+  const left = Math.round(Math.max(W * SAFE.left, Math.min(W * SAFE.right - w, cx - w / 2)));
+  const lines = fitLines(screenText(text), w - badgeW - padX * 2, size, opts.font, opts.maxChars);
+  const lineH = Math.round(size * 1.24);
+  const blockH = (lines.length - 1) * lineH + size * 1.08;
+  let top = opts.yTop ?? Math.round(H * opts.yFrac - (lines.length * lineH) / 2);
+  const minTop = Math.round(H * SAFE.top + padY);
+  const maxTop = Math.round(H * SAFE.bottom - padY - blockH);
+  top = Math.max(minTop, Math.min(top, Math.max(minTop, maxTop)));
+  const h = Math.round(blockH) + padY * 2;
+  const enable = opts.enable ? `enable='${opts.enable}'` : "";
+  const body = opts.style === "box" ? "white" : "0xF5C400";
+  const write = (name: string, s: string) => {
+    const file = path.join(opts.tmp, `${opts.key}-${name}.txt`);
+    fs.writeFileSync(file, s);
+    return `textfile='${esc(file)}'`;
+  };
+  const numSize = Math.round(size * 1.15);
+  const filters = [
+    [`drawbox=x=${left + badgeW}:y=${top - padY}:w=${w - badgeW}:h=${h}:color=${body}@1:t=fill`, enable],
+    [`drawbox=x=${left}:y=${top - padY}:w=${badgeW}:h=${h}:color=0x111111@1:t=fill`, enable],
+    [
+      `drawtext=fontfile='${esc(opts.font)}'`, write("n", num), "expansion=none", `fontsize=${numSize}`, `fontcolor=${body}`,
+      `x=${left + badgeW / 2}-text_w/2`, `y=${top - padY + h / 2}-text_h/2`, enable,
+    ],
+    ...lines.map((line, i) => [
+      `drawtext=fontfile='${esc(opts.font)}'`, write(String(i), line), "expansion=none", `fontsize=${size}`, "fontcolor=0x111111",
+      `x=${left + badgeW + padX}`, `y=${top + i * lineH}`, enable,
+    ]),
+  ].map((parts) => parts.filter(Boolean).join(":"));
   return { filters, height: lines.length * lineH, top };
 }
 
@@ -338,6 +411,24 @@ async function finalize(
   for (let i = 0; i < points.length - 1; i++) if (points[i].end > points[i + 1].start) points[i].end = points[i + 1].start;
   // Nothing flashes by: a line too short to read stays up at least 1.5s (within the video).
   for (const o of overlays) if (o.y === undefined && o.end - o.start < 1.5) o.end = Math.min(duration + 1, o.start + 1.5);
+  // Once the points start, the hook steps back: it shrinks into a header at the top, so the point is
+  // what the eye goes to.
+  const boxed = !options.textStyle || options.textStyle === "yellowbox" || options.textStyle === "box";
+  const headers = new Set<Overlay>();
+  const numbered = boxed ? points.filter((o) => splitNumber(screenText(o.text))) : [];
+  if (numbered.length) {
+    const first = numbered[0].start;
+    for (const o of [...overlays])
+      if (o.y === undefined && o.at !== "caption" && o.start < first - 0.5 && o.end > first + 0.5) {
+        const header = { ...o, start: first };
+        o.end = first;
+        headers.add(header);
+        overlays.push(header);
+      }
+  }
+  // Numbered points share one box width: the widest point's (wrapped to at most 64% of the frame).
+  const pointPx = (o: Overlay) => (overlays.some((x) => x.text.split(/\s+\/\s+/).length >= 3 && (x.at ?? "") === (o.at ?? "")) ? Math.round(textPx(options) * 0.82) : textPx(options));
+  const pointW = Math.max(0, ...numbered.map((o) => pointBoxWidth(o.text, pointPx(o), font, Math.round(W * 0.64))));
   const filters: string[] = [];
   const placed: { o: Overlay; bottom: number; top: number; end: number }[] = [];
   // One text size per position for the whole video: if any overlay there is a list of three or more
@@ -351,13 +442,18 @@ async function finalize(
   let lastPointY: number | undefined;
   for (const i of order) {
     const o = overlays[i];
-    const px = smaller.has(o.at ?? "") ? Math.round(textPx(options) * 0.82) : textPx(options);
+    const px = headers.has(o)
+      ? Math.round(textPx(options) * 0.72)
+      : smaller.has(o.at ?? "") ? Math.round(textPx(options) * 0.82) : textPx(options);
     const boxPad = Math.round(px * 0.38) + 10;
     const enable = `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`;
     // Placed by the AI next to what it's about (educational points), maybe with an arrow pointing at it.
     if (o.y !== undefined) {
-      const draw = (y: number) =>
-        textFilters(o.text, { yFrac: y, xFrac: o.x, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
+      const num = numbered.includes(o) ? splitNumber(screenText(o.text)) : undefined;
+      const draw = (y: number) => {
+        const opts = { yFrac: y, xFrac: o.x, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` };
+        return num ? pointFilters(num[0], num[1], { ...opts, boxW: pointW }) : textFilters(o.text, opts);
+      };
       let y = o.y;
       let { filters: f, height, top: drawnTop } = draw(y);
       // An arrow needs room to read as one: if the thing is right next to the text, move the text away from it.
@@ -433,14 +529,15 @@ async function finalize(
     }
     // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
     const above = placed.filter((p) => p.o.y === undefined && (p.o.at ?? "") === (o.at ?? "") && p.o.start < o.end && o.start < p.end);
-    let base = Math.round(H * (o.at === "caption" ? CAPTION_Y : HOOK_Y));
+    // The header sits at the very top of the safe zone (textFilters keeps it inside).
+    let base = headers.has(o) ? 0 : Math.round(H * (o.at === "caption" ? CAPTION_Y : HOOK_Y));
     const offset = above.length ? Math.max(...above.map((p) => p.bottom)) - base + 20 + boxPad : 0;
     const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
     const drawAt = (top: number) =>
-      textFilters(o.text, { yFrac, yTop: top, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
+      textFilters(o.text, { yFrac, yTop: top, size: px, maxChars: charsFor(px, headers.has(o) ? 26 : 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
     let { filters: f, height, top: drawnTop } = drawAt(base + offset);
     // The first text in its place (the hook) moves above or below the subject if it would cover it.
-    if (!offset && o.at !== "caption" && plan.keepClear) {
+    if (!offset && o.at !== "caption" && !headers.has(o) && plan.keepClear) {
       const top = Math.round(clearOfSubject(base, height, boxPad, plan.keepClear));
       if (top !== base) {
         base = top;

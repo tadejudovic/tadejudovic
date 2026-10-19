@@ -12,7 +12,7 @@ import { createSession, getSession, listPicked, deleteSession } from "./google/p
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { vlogDays } from "./ai/vlog.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -1334,6 +1334,12 @@ if (!paused && !store.settings().ctaAddedV1) {
 if (!paused && !store.settings().zigzagV2) {
   store.updateSettings({ zigzagV1: true, zigzagV2: true });
   zigzagExisting();
+}
+
+// Once: educational videos waiting get the numbered-point look (number tab, one width, hook as header).
+if (!paused && !store.settings().numberTabsV1) {
+  store.updateSettings({ numberTabsV1: true });
+  numberTabsExisting();
 }
 
 // Once: videos already made get the new look (smaller text, kept off the subject, no overlaps).

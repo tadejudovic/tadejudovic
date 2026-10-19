@@ -983,6 +983,26 @@ export function zigzagExisting(): number {
   return n;
 }
 
+/**
+ * Educational videos not posted yet get the numbered-point look (number tab, one width, the hook
+ * shrinking into a header). Same text and footage: only the text is drawn again.
+ */
+export function numberTabsExisting(): number {
+  let n = 0;
+  for (const r of [...store.renders()]) {
+    if (r.plan.format !== "tips" || r.status !== "done" || r.posts?.length) continue;
+    if (r.review !== "pending" && r.review !== "approved") continue;
+    if (!r.plan.segments.every((s) => store.clip(s.clipId)?.status === "ready")) continue;
+    if (!(r.plan.overlays ?? []).some((o) => o.y !== undefined && /^\s*\d{1,2}[.):]\s/.test(o.text))) continue;
+    const fresh = queueRender(r.plan, r.options, r.batch, { countUse: false });
+    if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
+    deleteRender(r.id);
+    n++;
+  }
+  if (n) console.log(`[layout] numbered points redrawn in ${n} educational video(s)`);
+  return n;
+}
+
 const REMAKE_BRIEF: Record<string, (text: string, note?: string) => string> = {
   text: (t, n) =>
     `REMAKE: the creator rejected a video of this clip because the TEXT was off. The rejected text was "${t}". ` +

@@ -86,6 +86,7 @@ export interface Settings {
   ctaAddedV1?: boolean;
   zigzagV1?: boolean;
   zigzagV2?: boolean;
+  numberTabsV1?: boolean;
   themesV1?: boolean;
   geoV1?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */

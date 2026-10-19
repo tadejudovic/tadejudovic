@@ -32,7 +32,7 @@ test("educational points: hook stays on top, each point placed on its own with a
   const info = await probe(out.file);
   assert.ok(Math.abs(info.duration - 9) < 0.3);
   if (process.env.LOOK_DIR) {
-    for (const t of [2.5, 5]) execFileSync("ffmpeg", ["-y", "-v", "error", "-ss", String(t), "-i", out.file, "-frames:v", "1", "-vf", "scale=360:-1", path.join(process.env.LOOK_DIR, `pointed-${t}.png`)]);
+    for (const t of [1, 2.5, 5, 8]) execFileSync("ffmpeg", ["-y", "-v", "error", "-ss", String(t), "-i", out.file, "-frames:v", "1", "-vf", "scale=360:-1", path.join(process.env.LOOK_DIR, `pointed-${t}.png`)]);
   }
 });
 

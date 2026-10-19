@@ -16,7 +16,7 @@ import { previewFor } from "./media/preview.ts";
 import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playbackPaused, seedBandwidth } from "./bandwidth.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting } from "./generate.ts";
-import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
+import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
 import { resortOther, suggestThemes } from "./ai/themes.ts";
@@ -619,6 +619,26 @@ const resortInBackground = () => {
     .catch((err) => console.warn("[themes]", (err as Error).message))
     .finally(() => (resorting = false));
 };
+
+/**
+ * Scan everything since a date: missing videos imported, clips without an AI look given one, and
+ * clips filed as "other" sorted into the themes again.
+ */
+async function fullScan(since: number) {
+  const { newItems } = await scanSince(since);
+  const relooked = queueMissingAiLooks();
+  resortInBackground();
+  return { newItems, relooked };
+}
+
+app.post(
+  "/api/albums/scan",
+  h(async (req, res) => {
+    const since = Date.parse(String(req.body?.since ?? ""));
+    if (!Number.isFinite(since) || since > Date.now()) return void res.status(400).json({ error: "Pick a date in the past." });
+    res.json(await fullScan(since));
+  }),
+);
 
 app.put("/api/themes", (req, res) => {
   const b = req.body ?? {};
@@ -1384,6 +1404,12 @@ if (!paused && !store.settings().ctaAddedV1) {
 if (!paused && !store.settings().zigzagV2) {
   store.updateSettings({ zigzagV1: true, zigzagV2: true });
   zigzagExisting();
+}
+
+// Once: everything filmed since September 10 into the library (the creator asked for a full scan).
+if (!paused && !store.settings().scanSinceSep10) {
+  store.updateSettings({ scanSinceSep10: true });
+  setTimeout(() => fullScan(Date.parse("2026-09-10T00:00:00")).catch((err) => console.warn("[albums] full scan:", (err as Error).message)), 45_000);
 }
 
 // Once: the creator asked for the airport potty video (34d625ab05316488) to be made again: same first

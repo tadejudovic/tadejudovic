@@ -95,6 +95,7 @@ export interface Settings {
   bandwidth?: { month: string; bytes: number };
   bandwidthSeedV1?: boolean;
   remakePottyV1?: boolean;
+  scanSinceSep10?: boolean;
   /** What people search for before finding the account (TikTok search analytics), grouped into topics. */
   searchTopics?: SearchTopic[];
   searchTopicsAt?: string;

@@ -117,7 +117,10 @@ export function markDuplicates(): number {
 const listings = new Map<string, { at: number; page: Awaited<ReturnType<typeof fetchAlbum>> }>();
 const LISTING_TTL_MS = 30 * 60_000;
 
-export async function syncAlbum(id: string, { reread = false } = {}): Promise<{ newItems: number }> {
+export async function syncAlbum(
+  id: string,
+  { reread = false, since, unlimited = false }: { reread?: boolean; since?: number; unlimited?: boolean } = {},
+): Promise<{ newItems: number }> {
   const album = store.album(id);
   if (!album) throw new Error("Unknown album");
   if (syncing.has(id)) return { newItems: 0 };
@@ -149,6 +152,13 @@ export async function syncAlbum(id: string, { reread = false } = {}): Promise<{ 
         forgetItem(c.sourceId);
       }
     }
+    // A full scan from a date: anything from then on that isn't in the library gets another look,
+    // even if it was marked as handled (a download that never finished, a clip removed since).
+    if (since) {
+      const a = store.album(id)!;
+      const again = new Set(page.items.filter((it) => (it.takenAt ?? 0) >= since && !store.hasSource(it.id)).map((it) => it.id));
+      if (again.size) store.updateAlbum(id, { seen: a.seen.filter((s) => !again.has(s)) });
+    }
     const seen = new Set(store.album(id)!.seen);
     // Videos already in the library (from an earlier copy of this album, or another album) count
     // as this album's, so it doesn't read "0 videos" when everything in it is already here.
@@ -169,10 +179,13 @@ export async function syncAlbum(id: string, { reread = false } = {}): Promise<{ 
     });
     // Too-old items aren't marked as seen, so widening the window later picks them up.
     const days = store.album(id)!.recentDays ?? 0;
-    const cutoff = days > 0 ? Date.now() - days * 86400_000 : 0;
+    const window = days > 0 ? Date.now() - days * 86400_000 : 0;
+    // (0 = no limit; a scan from an earlier date widens the window to it.)
+    const cutoff = since !== undefined && window > 0 ? Math.min(window, since) : window;
     const recent = unseen.filter((it) => !it.takenAt || it.takenAt >= cutoff);
     const newestFirst = recent.sort((a, b) => (b.takenAt ?? 0) - (a.takenAt ?? 0));
-    const budget = importBudget();
+    // A full scan isn't held to the daily import budget (the disk guard still applies).
+    const budget = unlimited && !importPause() ? Number.MAX_SAFE_INTEGER : importBudget();
     const inRange = newestFirst.slice(0, budget);
     // The date range is used up: keep going back into older videos, newest first.
     const older = unseen.filter((it) => it.takenAt && it.takenAt < cutoff).sort((a, b) => (b.takenAt ?? 0) - (a.takenAt ?? 0));
@@ -219,6 +232,23 @@ export async function syncAlbum(id: string, { reread = false } = {}): Promise<{ 
 
 export function setRecentDays(id: string, days: number) {
   return store.updateAlbum(id, { recentDays: Math.max(0, Math.min(3650, Math.round(days))) });
+}
+
+/**
+ * Everything since a date: every album read again and every video filmed since then that isn't in
+ * the library imported (newest first, not held to the daily budget).
+ */
+export async function scanSince(since: number): Promise<{ newItems: number }> {
+  let newItems = 0;
+  for (const a of store.albums()) {
+    try {
+      newItems += (await syncAlbum(a.id, { reread: true, since, unlimited: true })).newItems;
+    } catch (err) {
+      console.warn(`[albums] scan of ${a.url} failed:`, (err as Error).message);
+    }
+  }
+  console.log(`[albums] full scan since ${new Date(since).toISOString().slice(0, 10)}: ${newItems} video(s) to import`);
+  return { newItems };
 }
 
 export async function syncAll() {

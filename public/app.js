@@ -205,6 +205,22 @@ $("#search-upload").addEventListener("change", async (e) => {
   }
 });
 
+// ---- Scan everything since a date --------------------------------------------------------
+
+{
+  const f = $("#scan-form");
+  f.since.value = new Date(Date.now() - 40 * 86400_000).toISOString().slice(0, 10);
+  f.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const btn = f.querySelector("button");
+    withBusy(btn, "Scanning…", async () => {
+      const r = await api("/api/albums/scan", { method: "POST", body: { since: `${f.since.value}T00:00:00` } });
+      toast(r.newItems ? `${r.newItems} video${r.newItems === 1 ? "" : "s"} to import${r.relooked ? `, ${r.relooked} clips get another AI look` : ""}` : "Everything since then is already in", "download");
+      refreshClips();
+    });
+  });
+}
+
 // ---- Day vlog: one day's clips, in the order filmed (only on request) -------------------
 
 async function loadVlogDays() {

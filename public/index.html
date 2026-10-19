@@ -158,7 +158,12 @@
           <button class="btn" type="submit">Add album</button>
         </form>
         <ul id="albums" class="albums"></ul>
-        <p class="hint">Tip: make the album add Lex by itself: in Google Photos open the album, ⋮ → Options → Automatically add → People &amp; pets → Lex. New albums use videos from the last 30 days. Rollcut keeps about five rounds' worth of clips sorted and ready, importing more as you review.</p>
+        <form id="scan-form" class="inline-form spaced">
+          <label>Scan everything since <input name="since" type="date" required /></label>
+          <button class="btn" type="submit">Scan</button>
+        </form>
+        <p class="hint">Reads every album again and brings in every video filmed since that date that isn't in your clips yet, not held to the daily import limit. Clips without an AI look get one, and clips filed as "other" are sorted into your themes again.</p>
+        <p class="hint">Tip: make the album add Lex by itself: in Google Photos open the album, ⋮ → Options → Automatically add → People &amp; pets → Lex. New albums use videos from the last 30 days, then keep scanning back in time, newest first.</p>
         <p class="hint">
           <span id="google-hint"></span>
           <label class="link">Or upload videos<input id="file-input" type="file" accept="video/*,image/*" multiple hidden /></label>

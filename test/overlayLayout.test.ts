@@ -59,7 +59,7 @@ test("every point stays on screen long enough to read; a too-short video asks fo
 
 test("a short clip is never played more than twice, however many times the video is lengthened", async () => {
   const { replayOnce, lengthenFootage } = await import("../src/overlayLayout.ts");
-  let segs = [{ clipId: "a", start: 0, end: 9.38, speed: 1 }];
+  let segs: { clipId: string; start: number; end: number; speed?: number }[] = [{ clipId: "a", start: 0, end: 9.38, speed: 1 }];
   segs = replayOnce(segs, 17); // reading time
   segs = lengthenFootage(segs, 25, () => 9.38); // then the call to action
   const plays = segs.filter((s) => s.clipId === "a" && s.start === 0).length;

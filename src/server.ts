@@ -1156,8 +1156,8 @@ if (!paused && !store.settings().zigzagV2) {
 }
 
 // Once: videos already made get the new look (smaller text, kept off the subject, no overlaps).
-if (!paused && !store.settings().designRefreshV3) {
-  store.updateSettings({ designRefreshV1: true, designRefreshV2: true, designRefreshV3: true });
+if (!paused && !store.settings().designRefreshV4) {
+  store.updateSettings({ designRefreshV1: true, designRefreshV2: true, designRefreshV3: true, designRefreshV4: true });
   refreshing = true;
   refreshDesigns({ proofread: true })
     .catch((err) => console.error("[design]", err))

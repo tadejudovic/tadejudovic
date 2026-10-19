@@ -305,7 +305,10 @@ async function finalize(
   font: string,
   tmp: string,
 ) {
-  const overlays = overlaysFor(plan, duration);
+  // Placed points (educational) show one at a time: each goes when the next one comes.
+  const overlays = overlaysFor(plan, duration).map((o) => ({ ...o }));
+  const points = overlays.filter((o) => o.y !== undefined).sort((a, b) => a.start - b.start);
+  for (let i = 0; i < points.length - 1; i++) if (points[i].end > points[i + 1].start) points[i].end = points[i + 1].start;
   const filters: string[] = [];
   const placed: { o: Overlay; bottom: number; top: number; end: number }[] = [];
   // One text size per position for the whole video: if any overlay there is a list of three or more

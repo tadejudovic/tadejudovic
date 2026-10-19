@@ -278,7 +278,26 @@ export function fillByRepeating(segments: Segment[], minSeconds: number): Segmen
   const once = len(segments);
   if (!segments.length || once <= 0) return segments;
   const out = [...segments];
-  for (let pass = 0; pass < 3 && len(out) < minSeconds - 0.5; pass++) out.push(...segments.map((s) => ({ ...s, speed: 1 })));
+  // At most one replay: footage on a loop looks like a loop.
+  if (len(out) < minSeconds - 0.5) out.push(...segments.map((s) => ({ ...s, speed: 1 })));
+  return out;
+}
+
+/**
+ * Too short for the text: add more footage of the same kind of moment (other clips, their best
+ * part), instead of replaying the same few seconds. Takes clips from `extras` as it uses them.
+ */
+export function fillWithClips(segments: Segment[], minSeconds: number, extras: Clip[]): Segment[] {
+  const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+  const out = [...segments];
+  while (len(out) < minSeconds - 0.5 && extras.length) {
+    const c = extras.shift()!;
+    const m = [...(c.ai?.moments ?? c.moments ?? [])].sort((a, b) => b.score - a.score)[0];
+    const want = Math.min(8, Math.max(3, minSeconds - len(out)));
+    const start = m ? Math.max(0, Math.min(m.start, c.duration - want)) : Math.max(0, (c.duration - want) / 2);
+    const end = Math.min(c.duration, start + Math.max(want, m ? m.end - m.start : 0));
+    if (end - start >= 1) out.push({ clipId: c.id, start, end, speed: 1 });
+  }
   return out;
 }
 
@@ -395,6 +414,8 @@ export interface DirectContext {
   /** Educational: this video's theme, and the topics already covered (never repeated). */
   pillar?: EduPillar;
   covered?: string[];
+  /** Other clips of the same kind of moment, to add when this one is too short (instead of replaying it). */
+  extraClips?: Clip[];
   /** Educational: the call to action at the end (on screen) and in the description. */
   cta?: { site: string; overlay: string; caption: string };
   /** Make this a collab version for a brand partner. */
@@ -487,6 +508,7 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `early: only 1–2 pets per cabin", "Measure the space under the seat", "Check the pet rules on every ` +
     `connecting flight". Never a bare noun phrase ("Same pet rules on every connection") or shorthand only you ` +
     `understand.` +
+    `\n- No "POV:" hook here: POV is for a moment, not a lesson or a list.` +
     `\n- Numbers add up: a hook that says "3 checks" has exactly 3 points, all of that kind. No "bonus" unless the ` +
     `hook leaves room for it, and a bonus is still the same kind of thing.` +
     `\n- A follower question in the hook is clearly theirs: "You always ask which airline we fly with" or "\"Which ` +
@@ -702,7 +724,8 @@ export async function proofreadText(lines: string[], petName: string, kind?: str
           `\n\nRead it as a stranger with the sound off. Does it make sense as one message? Check: the points answer ` +
           `the hook; any number in the hook matches the points; every point is the same kind of thing the hook ` +
           `promises; who "he/his/their" means is clear (use "your dog" or ${petName}); a follower question reads as ` +
-          `theirs, not the creator asking themselves; no line needs other context. Be strict: a reader shouldn't ` +
+          `theirs, not the creator asking themselves; an educational list or lesson doesn't start with "POV:" (POV is ` +
+          `for a moment); no line needs other context. Be strict: a reader shouldn't ` +
           `have to work out what's meant. If it's fine, ok = true and return ` +
           `the lines unchanged. If not, ok = false, say the problem in a few words, and return fixed lines: exactly ` +
           `${lines.length}, same order and roles, each about as long as the original, no emoji, no hashtags.`,
@@ -798,10 +821,12 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     .filter((s): s is Segment => s !== null);
   if (!segments.length) throw new Error("The director returned no usable part of the clip.");
   const lengthOf = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+  const known = new Map([clip, ...(ctx.extraClips ?? [])].map((c) => [c.id, c]));
   // The text was timed for the AI's own cut: when slow motion is removed or the clip replayed, the
   // timing is stretched to the final length so every line still gets its share.
   const planned = lengthOf(segments);
-  segments = fillByRepeating(limitSlowMotion(segments), ctx.minSeconds);
+  // More footage from other clips of the moment first; a single replay only if there's none.
+  segments = fillByRepeating(fillWithClips(limitSlowMotion(segments), ctx.minSeconds, ctx.extraClips ?? []), ctx.minSeconds);
   let total = lengthOf(segments);
   const k = planned > 0 ? total / planned : 1;
   const frac = (v: number) => (v >= 0 && v <= 1 ? v : undefined);
@@ -833,7 +858,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   }
   // Educational: end on the creator's call to action (their site, link in bio) for the last 3s.
   if (ctx.format === "tips" && ctx.cta?.overlay) {
-    segments = lengthenFootage(segments, total + 3, () => clip.duration);
+    segments = lengthenFootage(fillWithClips(segments, total + 3, ctx.extraClips ?? []), total + 3, (id) => known.get(id)?.duration ?? 0);
     const longer = lengthOf(segments);
     overlays.forEach((o, i) => {
       if (o.end > total) overlays[i] = { ...o, end: i === 0 ? longer + 1 : total };

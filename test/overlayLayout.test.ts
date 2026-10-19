@@ -13,14 +13,13 @@ test("edited list text: hook stays on top, points one after another in different
   assert.ok(o[o.length - 1].end > 14);
 });
 
-test("more text makes the footage longer: the clip runs on, then replays", () => {
+test("more text makes the footage longer: the clip runs on, then replays once at most", () => {
   const need = readingSeconds(4);
   const longClip = lengthenFootage([{ clipId: "a", start: 0, end: 6, speed: 1 }], need, () => 30);
   assert.equal(longClip.length, 1);
   assert.ok(Math.abs(longClip[0].end - need) < 1e-9);
   const shortClip = lengthenFootage([{ clipId: "a", start: 0, end: 6, speed: 1 }], need, () => 7);
-  const len = shortClip.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
-  assert.ok(len >= need - 0.3);
+  assert.equal(shortClip.length, 2); // runs on to the clip's end, then one replay at most
   assert.ok(shortClip.every((s) => s.speed === 1));
 });
 

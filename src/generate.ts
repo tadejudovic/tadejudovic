@@ -297,6 +297,24 @@ export async function plan(
     // The daily mix: fun, educational and inspirational candidates, alternating so a round always
     // has at least one of each (the creator keeps the best of each kind).
     const kinds = mixSequence(store.settings().dailyMix, chosen.length, madeTodayByKind());
+    // Educational videos need time to read: they get the longest of the round's clips.
+    kinds.forEach((k, i) => {
+      if (k !== "tips") return;
+      let best = i;
+      for (let j = 0; j < chosen.length; j++) if (kinds[j] !== "tips" && chosen[j].duration > chosen[best].duration) best = j;
+      [chosen[i], chosen[best]] = [chosen[best], chosen[i]];
+    });
+    // Extra footage for videos whose clip is too short: other unused clips, the same situation first.
+    const spare = clips.filter((c) => !chosen.includes(c) && c.kind === "video" && !c.edited && !c.duplicateOf);
+    const taken = new Set<string>();
+    const extrasFor = (clip: Clip): Clip[] => {
+      const pick = [...spare]
+        .filter((c) => !taken.has(c.id))
+        .sort((a, b) => Number(b.scene === clip.scene) - Number(a.scene === clip.scene) || b.duration - a.duration)
+        .slice(0, 3);
+      for (const c of pick) taken.add(c.id);
+      return pick;
+    };
     // Fun and inspirational take turns between dog lovers and everyone, across rounds and days.
     const turn: Partial<Record<PostFormat, "pets" | "everyone">> = {};
     const audiences = kinds.map((k) => {
@@ -326,7 +344,7 @@ export async function plan(
             proven: provenCaptions(clip.scene),
             audience: kind === "tips" ? (captionAudience === "pets" ? "pets" : "everyone") : audiences[i],
             format: kind,
-            ...(kind === "tips" ? { faq, pillar, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { faq, pillar, covered, cta: store.settings().cta, extraClips: extrasFor(clip), minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);

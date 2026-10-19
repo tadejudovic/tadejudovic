@@ -78,6 +78,7 @@ export interface Settings {
   designRefreshV1?: boolean;
   designRefreshV2?: boolean;
   designRefreshV3?: boolean;
+  designRefreshV4?: boolean;
   ctaAddedV1?: boolean;
   zigzagV1?: boolean;
   zigzagV2?: boolean;

@@ -64,6 +64,7 @@ export function lengthenFootage(segments: Segment[], seconds: number, clipDurati
     lastSeg.end += Math.max(0, Math.min(room, (seconds - len(out)) * (lastSeg.speed ?? 1)));
   }
   const once = out.map((s) => ({ ...s, speed: 1 }));
-  for (let pass = 0; pass < 4 && len(out) < seconds - 0.3; pass++) out = [...out, ...once];
+  // One replay at most: footage on a loop looks like a loop.
+  if (len(out) < seconds - 0.3) out = [...out, ...once];
   return out;
 }

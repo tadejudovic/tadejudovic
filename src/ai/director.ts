@@ -279,7 +279,7 @@ export function arrowTarget(text: string, pointAt: string): boolean {
  * Of the clips offered to lengthen a video, the ones that show the same kind of place and moment as
  * its main clip and fit what the video is about. Text only (what's in each clip), small model.
  */
-export async function fittingClips(concept: string, main: Clip, extras: Clip[]): Promise<Clip[]> {
+export async function fittingClips(concept: string, main: Clip, extras: Clip[], kind?: PostFormat): Promise<Clip[]> {
   const described = extras.filter((c) => c.ai?.summary);
   if (!described.length) return [];
   const r = await structured<{ fits: number[] }>({
@@ -291,8 +291,12 @@ export async function fittingClips(concept: string, main: Clip, extras: Clip[]):
           `The video: ${concept}\nIts main clip: ${main.ai?.summary ?? main.scene ?? ""}${main.place ? ` (${main.place})` : ""}\n\n` +
           `Extra clips that could be added to make it longer:\n` +
           described.map((c, i) => `${i + 1}. ${c.ai!.summary}${c.place ? ` (${c.place})` : ""}`).join("\n") +
-          `\n\nWhich ones show the same kind of place and moment and fit this video, so a viewer wouldn't notice a jump? ` +
-          `A different setting (a car instead of a plane, a street instead of an airport) does NOT fit. List their numbers.`,
+          (kind === "inspire"
+            ? `\n\nThis is a journey video: footage from different places can belong together if it tells the same ` +
+              `story (the trip, the feeling, being somewhere together). Which ones fit it? List their numbers.`
+            : `\n\nThis video is about one specific thing, so extra footage has to show that same thing: same kind of ` +
+              `place and moment, so a viewer wouldn't notice a jump. A different setting (a car instead of a plane, a ` +
+              `street instead of an airport) does NOT fit. List their numbers.`),
       },
     ],
     schema: {
@@ -871,7 +875,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   const known = new Map([clip, ...(ctx.extraClips ?? [])].map((c) => [c.id, c]));
   // Extra footage only if it really belongs in this video (a clip's situation label can be wrong:
   // a car seat filed as "inside the airplane"), judged from what's in it against what this video is.
-  if (ctx.extraClips?.length) ctx = { ...ctx, extraClips: await fittingClips(r.concept, clip, ctx.extraClips).catch(() => []) };
+  if (ctx.extraClips?.length) ctx = { ...ctx, extraClips: await fittingClips(r.concept, clip, ctx.extraClips, ctx.format).catch(() => []) };
   // The text was timed for the AI's own cut: when slow motion is removed or the clip replayed, the
   // timing is stretched to the final length so every line still gets its share.
   const planned = lengthOf(segments);

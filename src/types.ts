@@ -275,6 +275,8 @@ export interface Render {
   rejectReason?: RejectReason;
   /** The new version made after this one was rejected. */
   remadeAs?: string;
+  /** The app version that made this video. */
+  madeWith?: string;
   /** The creator's own words on what they didn't like. */
   rejectNote?: string;
   reviewedAt?: string;

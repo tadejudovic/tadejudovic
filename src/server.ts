@@ -380,6 +380,7 @@ app.get("/api/renders/:id/diagnostics", (req, res) => {
   const length = segments.reduce((a, s) => a + (s.seconds ?? 0), 0);
   res.json({
     app: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
+    madeWith: r.madeWith ?? "before versions were recorded",
     video: r.id,
     made: r.createdAt,
     status: r.status,

@@ -557,6 +557,7 @@ export function queueRender(
     review: "pending",
     batch,
     countUse,
+    madeWith: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
   });
   enqueueRenderJob(render.id);
   return render;

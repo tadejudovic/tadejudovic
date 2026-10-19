@@ -19,6 +19,7 @@ import { healPlan, lengthenFootage, spreadPoints } from "./overlayLayout.ts";
 import { countryOf } from "./geo.ts";
 import { planDayVlog } from "./ai/vlog.ts";
 import { searchTopicsFor } from "./searchDemand.ts";
+import { basicChecks } from "./checks.ts";
 import { reviewVideo, type EditorVerdict } from "./ai/editor.ts";
 import { previewFor, removePreview } from "./media/preview.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
@@ -524,7 +525,7 @@ export async function plan(
           const question = kind === "tips" ? nextQuestion(clip.scene, askedThisRound, pillar) : undefined;
           const faq = search.length && !question?.a?.trim() ? undefined : question;
           if (faq) askedThisRound.add(faq.q);
-          const p = await directClip(clip, {
+          const direction: DirectContext = {
             ...ctx,
             proven: provenCaptions(clip.scene),
             audience: kind === "tips" ? (captionAudience === "pets" ? "pets" : "everyone") : audiences[i],
@@ -541,7 +542,18 @@ export async function plan(
                 }
               : {}),
             ...(kind === "tips" ? { broll: brollPool(clip, chosen), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
-          });
+          };
+          let p = await directClip(clip, direction);
+          // The basics first (headline, points, pacing): a draft that breaks one goes back once with
+          // the exact problems, and the version with fewer problems is kept.
+          const problems = basicChecks(p);
+          if (problems.length) {
+            console.log(`[checks] ${kind} on ${clip.id}: ${problems.join(" | ")}`);
+            const brief = [direction.brief, `THE LAST DRAFT BROKE THESE BASIC RULES, fix every one: ${problems.join(" ")}`].filter(Boolean).join("\n\n");
+            const again = await directClip(clip, { ...direction, brief }).catch(() => undefined);
+            if (again && basicChecks(again).length < problems.length) p = again;
+          }
+          p.checks = basicChecks(p);
           if (outside.has(clip.id)) p.outside = true;
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);
@@ -979,10 +991,14 @@ function needsEditor(r: Render): boolean {
   return config.claude.enabled && aiAvailable() && ["tips", "fun", "inspire"].includes(r.plan.format ?? "") && !r.plan.collab;
 }
 
+/** Attempts per video: the first, then up to two more made from the editor's notes. */
+export const EDITOR_ATTEMPTS = 3;
+const total = (e?: Render["editor"]) => (e ? e.scores.hook * 2 + e.scores.body + e.scores.ending : -1);
+
 /**
- * The editor's review of a finished video: passed on to Review, or sent back once (the text fixed,
- * or the video made again with the editor's notes). A video that still falls short after that
- * reaches the creator with the notes, so a hard case never loops or runs up costs.
+ * The editor's review of a finished video: passed on to Review, or made again automatically (the
+ * text fixed, or new footage or a new cut, from the editor's notes) until it passes, up to
+ * EDITOR_ATTEMPTS in all. If none passes, the best-scoring attempt goes to the creator, with notes.
  */
 export async function editorPass(id: string, duration: number): Promise<void> {
   const r = store.render(id);
@@ -998,40 +1014,72 @@ export async function editorPass(id: string, duration: number): Promise<void> {
   if (!store.render(id)) return; // deleted meanwhile
   const pass = r.plan.editorPass ?? 0;
   const base = { at: new Date().toISOString(), scores: v.scores, parts: v.parts, dropOff: v.dropOff?.slice(0, 3), verdict: v.verdict, issues: v.issues.slice(0, 8) };
-  console.log(`[editor] ${id} (${r.plan.format}): ${v.verdict} ${JSON.stringify(v.scores)}${v.issues.length ? ` – ${v.issues.join("; ")}` : ""}`);
+  console.log(`[editor] ${id} (${r.plan.format}, attempt ${pass + 1}): ${v.verdict} ${JSON.stringify(v.scores)}${v.issues.length ? ` – ${v.issues.join("; ")}` : ""}`);
   if (v.verdict === "pass") return void finish({ editor: { ...base, outcome: "passed" } });
-  if (pass >= 1) return void finish({ editor: { ...base, outcome: "let_through" } });
+  // Set aside by the editor (not the creator's feedback); kept so the best attempt can come back.
+  const setAside = (note: string, reason: Render["rejectReason"], outcome: NonNullable<Render["editor"]>["outcome"]) => {
+    store.updateRender(id, {
+      status: "done",
+      progress: 1,
+      review: "rejected",
+      reviewedAt: new Date().toISOString(),
+      rejectReason: reason,
+      rejectNote: `Editor's review: ${note}`.slice(0, 600),
+      rejectedBy: "editor",
+      editor: { ...base, outcome },
+    });
+    syncClipUses(id);
+  };
+  if (pass + 1 >= EDITOR_ATTEMPTS) return void deliverBest(id, base);
   const overlays = r.plan.overlays ?? [];
   if (v.verdict === "fix_text" && overlays.length && v.texts.length === overlays.length) {
     // Only the words change: the text is drawn again on the same footage (cached, quick).
     const fixed = overlays.map((o, i) => ({ ...o, text: v.texts[i]?.trim() || o.text }));
-    const plan = healPlan({ ...r.plan, overlays: fixed, hook: fixed[0].text, editorPass: pass + 1 }, store.settings().cta?.site);
+    const plan = healPlan({ ...r.plan, overlays: fixed, hook: fixed[0].text, editorPass: pass + 1, remakeOf: id }, store.settings().cta?.site);
+    setAside(v.issues.join("; "), "text", "text_fixed");
     const fresh = queueRender(plan, r.options, r.batch, { countUse: false });
-    store.updateRender(fresh.id, { editor: { ...base, outcome: "text_fixed" } });
-    deleteRender(id);
+    store.updateRender(id, { remadeAs: fresh.id });
     console.log(`[editor] ${id}: text fixed → ${fresh.id}`);
     return;
   }
-  // Footage, cut or pacing: made again with the editor's notes (not counted as the creator's feedback).
-  store.updateRender(id, {
-    status: "done",
-    progress: 1,
-    review: "rejected",
-    reviewedAt: new Date().toISOString(),
-    // Weak visuals (a dull opening, footage that doesn't show the points): other footage. Otherwise a
-    // new cut of the same footage.
-    rejectReason: v.parts.hook.visual < 7 || v.parts.body.visual < 6 ? "clip" : "edit",
-    rejectNote: `Editor's review: ${v.remakeBrief || v.issues.join("; ")}`.slice(0, 600),
-    rejectedBy: "editor",
-    editor: { ...base, outcome: "remade" },
-  });
-  syncClipUses(id);
+  // Footage, cut or pacing. Weak visuals (a dull opening, footage that doesn't show the points): other
+  // footage; otherwise a new cut of the same footage.
+  setAside(v.remakeBrief || v.issues.join("; "), v.parts.hook.visual < 7 || v.parts.body.visual < 6 ? "clip" : "edit", "remade");
   const fresh = await remakeRejected(id, { force: true, editorPass: pass + 1 }).catch(() => undefined);
-  if (!fresh) {
-    // Couldn't make it again (no footage, the day's cap): the creator gets it, with the notes.
-    store.updateRender(id, { review: "pending", reviewedAt: undefined, rejectReason: undefined, rejectNote: undefined, rejectedBy: undefined, editor: { ...base, outcome: "let_through" } });
+  if (!fresh) deliverBest(id, base); // no footage left, or the day's cap: the best so far goes on
+}
+
+/**
+ * No attempt passed (or no more can be made): the best-scoring one in this video's chain goes to
+ * Review with the editor's notes; the others stay set aside.
+ */
+function deliverBest(id: string, review: Omit<NonNullable<Render["editor"]>, "outcome">) {
+  const chain: Render[] = [];
+  for (let r = store.render(id); r && !chain.includes(r); r = r.plan.remakeOf ? store.render(r.plan.remakeOf) : undefined) {
+    if (r.id === id || r.rejectedBy === "editor") chain.push(r);
+  }
+  const current = { ...store.render(id)!, editor: { ...review, outcome: "let_through" as const } };
+  const best = [current, ...chain.slice(1)].reduce((a, b) => (total(b.editor) > total(a.editor) ? b : a));
+  const restore = (x: Render) =>
+    store.updateRender(x.id, {
+      status: "done",
+      progress: 1,
+      review: "pending",
+      reviewedAt: undefined,
+      rejectReason: undefined,
+      rejectNote: undefined,
+      rejectedBy: undefined,
+      editor: { ...(x.editor ?? review), outcome: "let_through" },
+    });
+  if (best.id === id) {
+    restore(current);
+  } else {
+    restore(best);
+    store.updateRender(id, { status: "done", progress: 1, review: "rejected", reviewedAt: new Date().toISOString(), rejectReason: "other", rejectNote: "Editor's review: an earlier attempt scored better.", rejectedBy: "editor", editor: { ...review, outcome: "remade" } });
     syncClipUses(id);
   }
+  syncClipUses(best.id);
+  console.log(`[editor] ${id}: no attempt passed; best attempt ${best.id} goes to Review`);
 }
 
 export function deleteRender(id: string) {

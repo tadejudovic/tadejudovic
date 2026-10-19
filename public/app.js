@@ -1157,7 +1157,8 @@ const renderEls = new Map();
 function renderRenders() {
   const el = $("#renders");
   // Ready tab, folded: rejected videos and ones that couldn't be made.
-  const earlier = state.renders.filter((r) => r.review === "rejected" || r.status === "error");
+  // Attempts the editor's review set aside aren't shown: only what the creator rejected, and failures.
+  const earlier = state.renders.filter((r) => (r.review === "rejected" && r.rejectedBy !== "editor") || r.status === "error");
   $("#renders-empty").hidden = earlier.length > 0;
   const nodes = earlier.map((r) => {
     const key = `${r.id}:${r.status}:${r.review}:${r.rejectReason}:${r.downloaded}:${r.status === "done" ? "" : Math.round(r.progress * 20)}`;

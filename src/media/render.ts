@@ -416,14 +416,17 @@ async function finalize(
   for (let i = 0; i < points.length - 1; i++) if (points[i].end > points[i + 1].start) points[i].end = points[i + 1].start;
   // Nothing flashes by: a line too short to read stays up at least 1.5s (within the video).
   for (const o of overlays) if (o.y === undefined && o.end - o.start < 1.5) o.end = Math.min(duration + 1, o.start + 1.5);
-  // With points (educational), the headline is pinned: the same box in the same place, at the top,
-  // the whole video, at most two lines. It never moves or changes size.
+  // The opening headline is pinned, in every video: the same box in the same place at the top of the
+  // safe zone, at most two even lines. It never moves (other text steers around faces instead).
   const boxed = !options.textStyle || options.textStyle === "yellowbox" || options.textStyle === "box";
   const headers = new Set<Overlay>();
   const numbered = boxed ? points.filter((o) => splitNumber(screenText(o.text))) : [];
-  if (points.length)
-    for (const o of overlays)
-      if (o.y === undefined && o.at !== "caption" && o.start < points[0].start && o.end > points[0].start) headers.add(o);
+  const headline = overlays.filter((o) => o.y === undefined && o.at !== "caption").sort((a, b) => a.start - b.start)[0];
+  if (headline && headline.start <= 0.5) headers.add(headline);
+  // Lines are split evenly: a forced break (" / ") would leave a short line over a long one. Only a
+  // dialogue-style break ("me: / Lex:", every part a few words) is kept; points keep theirs.
+  const dialogue = (t: string) => t.split(/\s+\/\s+/).every((part) => part.trim().split(/\s+/).length <= 3);
+  const shown = (o: Overlay) => (o.y === undefined && !dialogue(o.text) ? o.text.replace(/\s+\/\s+/g, " ") : o.text);
   // Numbered points share one box width: the widest point's (wrapped to at most 64% of the frame).
   const pointPx = (o: Overlay) => (overlays.some((x) => x.text.split(/\s+\/\s+/).length >= 3 && (x.at ?? "") === (o.at ?? "")) ? Math.round(textPx(options) * 0.82) : textPx(options));
   const pointW = Math.max(0, ...numbered.map((o) => pointBoxWidth(o.text, pointPx(o), font, Math.round(W * 0.64))));
@@ -550,7 +553,7 @@ async function finalize(
     // At most two lines: a long headline gets a little smaller rather than a third line.
     if (headers.has(o)) {
       const lineCount = (size: number) =>
-        Math.round(textFilters(o.text, { yFrac: HOOK_Y, size, maxChars: charsFor(size, 26), style: options.textStyle, font, tmp, key: `fit${i}` }).height / Math.round(size * 1.24));
+        Math.round(textFilters(shown(o), { yFrac: HOOK_Y, size, maxChars: charsFor(size, 26), style: options.textStyle, font, tmp, key: `fit${i}` }).height / Math.round(size * 1.24));
       for (const k of [1, 0.92, 0.85, 0.78]) {
         px = Math.round(textPx(options) * k);
         if (lineCount(px) <= 2) break;
@@ -559,7 +562,7 @@ async function finalize(
     const offset = above.length ? Math.max(...above.map((p) => p.bottom)) - base + 20 + boxPad : 0;
     const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
     const drawAt = (top: number) =>
-      textFilters(o.text, { yFrac, yTop: top, size: px, maxChars: charsFor(px, headers.has(o) ? 26 : 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
+      textFilters(shown(o), { yFrac, yTop: top, size: px, maxChars: charsFor(px, headers.has(o) ? 26 : 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
     let { filters: f, height, top: drawnTop, left: drawnLeft, width: drawnWidth } = drawAt(base + offset);
     // The first text in its place (the hook, or its header) moves above or below what it would cover:
     // the faces seen while it's on screen, or else the subject's band.
@@ -572,6 +575,10 @@ async function finalize(
         base = top;
         ({ filters: f, height, top: drawnTop } = drawAt(base));
       }
+    } else if (offset && faceBand) {
+      // A line stacked under the headline that would land on a face goes below the face instead.
+      const below = Math.round(faceBand.bottom * H + boxPad + 10);
+      if (below + height + boxPad <= H * SAFE.bottom) ({ filters: f, height, top: drawnTop } = drawAt(below));
     }
     filters.push(...f);
     placed.push({ o, top: drawnTop - boxPad, bottom: drawnTop + height + boxPad, end: o.end });

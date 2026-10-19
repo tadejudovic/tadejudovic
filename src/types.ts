@@ -189,6 +189,8 @@ export interface VideoPlan {
   remakeDepth?: number;
   /** How many times the editor's review already sent this video back (fixed text or remade). */
   editorPass?: number;
+  /** Basic rules the final plan still breaks (empty when it meets them all). */
+  checks?: string[];
   /** Who the text speaks to (fun and inspirational alternate between the two). */
   audience?: "pets" | "everyone";
   /** The part of the frame (top to bottom, 0..1) where the subject is: Lex, faces. Text stays out of it. */

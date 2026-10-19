@@ -25,19 +25,28 @@ test("a video that passes goes to Review with the editor's scores", async () => 
   assert.equal(r.editor?.outcome, "passed");
 });
 
-test("a weak hook gets its text fixed once; after that it's let through with notes", async () => {
+test("a weak hook gets its text fixed and checked again; the first try is set aside, not deleted", async () => {
   add("t1");
   editorReviewer.review = async () => ({ scores: { ...scores, hook: 4 }, parts, dropOff: [{ at: 1, why: "label-style hook" }], verdict: "fix_text", issues: ["Hook is label-style"], texts: ["Where do dogs pee when they fly?", "1. One"], remakeBrief: "" });
   await editorPass("t1", 8);
-  assert.equal(store.render("t1"), undefined);
+  const old = store.render("t1")!;
+  assert.equal(old.review, "rejected");
+  assert.equal(old.rejectedBy, "editor");
   const fixed = store.renders().find((r) => r.plan.hook === "Where do dogs pee when they fly?")!;
-  assert.ok(fixed);
   assert.equal(fixed.plan.editorPass, 1);
-  assert.equal(fixed.plan.overlays![0].text, "Where do dogs pee when they fly?");
+  assert.equal(fixed.plan.remakeOf, "t1");
+  assert.equal(old.remadeAs, fixed.id);
+});
 
-  // Second look at the fixed one: still not great, but it isn't sent back again.
-  add("t2", { editorPass: 1 });
-  await editorPass("t2", 8);
-  assert.equal(store.render("t2")!.status, "done");
-  assert.equal(store.render("t2")!.editor?.outcome, "let_through");
+test("after the last attempt, the best-scoring one goes to Review", async () => {
+  // Attempt 1 scored better than attempt 3.
+  add("a1", { hook: "First" });
+  store.updateRender("a1", { status: "done", review: "rejected", rejectedBy: "editor", rejectReason: "edit", editor: { at: "", scores: { hook: 7, body: 7, ending: 7 }, verdict: "remake", issues: [], outcome: "remade" } } as any);
+  add("a3", { hook: "Third", editorPass: 2, remakeOf: "a1" });
+  editorReviewer.review = async () => ({ scores: { hook: 5, body: 6, ending: 6 }, parts, dropOff: [], verdict: "remake", issues: ["Weak opening"], texts: [], remakeBrief: "Open on movement" });
+  await editorPass("a3", 8);
+  assert.equal(store.render("a1")!.review, "pending");
+  assert.equal(store.render("a1")!.editor?.outcome, "let_through");
+  assert.equal(store.render("a3")!.review, "rejected");
+  assert.equal(store.render("a3")!.rejectedBy, "editor");
 });

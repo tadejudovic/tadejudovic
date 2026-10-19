@@ -70,6 +70,8 @@ export interface ProbeInfo {
   pixFmt?: string;
   /** e.g. "arib-std-b67" (HLG, iPhone HDR) or "smpte2084" (PQ / HDR10). */
   colorTransfer?: string;
+  /** Where it was filmed (ISO 6709, e.g. "+38.7223-009.1393/"), if the phone stored it. */
+  location?: string;
   /** Clockwise rotation (0/90/180/270) needed to display the video upright. */
   rotation: number;
 }
@@ -112,6 +114,7 @@ export async function probe(file: string): Promise<ProbeInfo> {
     pixFmt: video?.pix_fmt,
     colorTransfer: video?.color_transfer,
     rotation,
+    location: info.format?.tags?.location ?? info.format?.tags?.["com.apple.quicktime.location.ISO6709"] ?? info.format?.tags?.["location-eng"],
   };
 }
 

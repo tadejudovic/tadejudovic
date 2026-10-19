@@ -15,7 +15,8 @@ import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, 
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
-import { resortOther } from "./ai/themes.ts";
+import { resortOther, suggestThemes } from "./ai/themes.ts";
+import { countryOf, locateAll } from "./geo.ts";
 import { layoutPoints, lengthenFootage, readingSeconds } from "./overlayLayout.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
@@ -422,8 +423,8 @@ app.post(
     const fixed = await proofreadText(old.map((o) => o.text), store.settings().petName, r.plan.format);
     if (fixed.every((t, i) => t === old[i].text)) return res.json({ changed: false });
     const overlays = old.map((o, i) => ({ ...o, text: fixed[i] }));
+    // Corrected: back to Review for a fresh yes or no.
     const fresh = queueRender({ ...r.plan, overlays, hook: overlays[0].text }, r.options, r.batch, { countUse: false });
-    if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
     deleteRender(r.id);
     res.json({ changed: true, render: fresh });
   }),
@@ -547,12 +548,37 @@ app.get("/api/themes", (_req, res) => {
     unused: clips.filter((c) => c.scene === name && c.uses === 0).length,
   });
   const all = allScenes();
+  // Places: the countries the footage was filmed in, from GPS or the AI's read (most clips first).
+  const byCountry = new Map<string, typeof clips>();
+  for (const c of clips) {
+    const country = countryOf(c.place);
+    if (country) byCountry.set(country, [...(byCountry.get(country) ?? []), c]);
+  }
+  const places = [...byCountry.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([name, cs]) => ({
+      name,
+      key: `place:${name}`,
+      on: !themesOff.includes(`place:${name}`),
+      clips: cs.length,
+      unused: cs.filter((c) => c.uses === 0).length,
+      cities: [...new Set(cs.map((c) => c.place!.split(",")[0].trim()).filter((x) => x !== name))].slice(0, 6),
+    }));
   res.json({
     travel: scenes.map(row),
     outside: outsideThemes.map(row),
+    places,
+    located: clips.filter((c) => c.place).length,
     unsorted: clips.filter((c) => !c.scene || !all.includes(c.scene)).length,
   });
 });
+
+app.get(
+  "/api/themes/suggestions",
+  h(async (req, res) => {
+    res.json(await suggestThemes(req.query.fresh === "1").catch(() => []));
+  }),
+);
 
 let resorting = false;
 const resortInBackground = () => {
@@ -565,10 +591,13 @@ const resortInBackground = () => {
 
 app.put("/api/themes", (req, res) => {
   const b = req.body ?? {};
-  const clean = (xs: unknown) =>
-    Array.isArray(xs) ? [...new Set(xs.map((x) => String(x).trim().toLowerCase().slice(0, 40)).filter((x) => x && x !== "other"))] : undefined;
+  const clean = (xs: unknown, lower = true) =>
+    Array.isArray(xs)
+      ? [...new Set(xs.map((x) => String(x).trim().slice(0, 60)).map((x) => (lower ? x.toLowerCase() : x)).filter((x) => x && x !== "other"))]
+      : undefined;
   const outsideThemes = clean(b.outsideThemes)?.slice(0, 20);
-  const themesOff = clean(b.themesOff);
+  // (Places keep their capitals: "place:Portugal".)
+  const themesOff = clean(b.themesOff, false)?.map((x) => (x.startsWith("place:") ? x : x.toLowerCase()));
   const before = store.settings().outsideThemes;
   store.updateSettings({ ...(outsideThemes ? { outsideThemes } : {}), ...(themesOff ? { themesOff } : {}) });
   // A new theme: unsorted clips get another look so it fills up.
@@ -765,7 +794,11 @@ app.patch("/api/renders/:id", (req, res) => {
   if (planPatch.hashtags) store.addEdit({ what: "hashtags", before: (r.plan.hashtags ?? []).join(" "), after: planPatch.hashtags.join(" "), format: r.plan.format, scene: r.plan.scene });
   const review = ["pending", "approved", "rejected"].includes(b.review) ? (b.review as Render["review"]) : undefined;
   const reason = ["text", "clip", "edit", "other"].includes(b.rejectReason) ? (b.rejectReason as RejectReason) : undefined;
+  // A corrected description or hashtags on a video in Ready: back to Review for a fresh yes or no.
+  const corrected = (planPatch.postCaption !== undefined && planPatch.postCaption !== r.plan.postCaption) ||
+    (planPatch.hashtags !== undefined && planPatch.hashtags.join(" ") !== (r.plan.hashtags ?? []).join(" "));
   store.updateRender(r.id, {
+    ...(corrected && !review && r.review === "approved" ? { review: "pending" as const } : {}),
     ...(review ? { review, reviewedAt: new Date().toISOString(), rejectReason: review === "rejected" ? reason ?? r.rejectReason : undefined } : {}),
     ...(review === undefined && reason && r.review === "rejected" ? { rejectReason: reason } : {}),
     ...(typeof b.rejectNote === "string" && (r.review === "rejected" || review === "rejected") ? { rejectNote: b.rejectNote.trim().slice(0, 500) || undefined } : {}),
@@ -1007,9 +1040,8 @@ app.post("/api/renders/:id/rerender", (req, res) => {
   const options = { ...r.options, ...parseOptions({ ...r.options, ...(b.options ?? {}) }) };
   // Keep the video's music unless a different track was picked.
   if (!b.options?.musicId) options.musicFile = r.options.musicFile;
+  // A corrected video comes back to Review for a fresh yes or no, even if it was in Ready.
   const fresh = queueRender(next, options, r.batch, { countUse: false });
-  // A video already in Ready stays there; one under review comes back to Review.
-  if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
   deleteRender(r.id);
   res.json(fresh);
 });
@@ -1251,6 +1283,12 @@ if (!paused && !store.settings().yellowBoxRemadeV2) {
 }
 
 startScheduler();
+
+// Once: clips already imported get their place from the GPS position in their files.
+if (!store.settings().geoV1) {
+  store.updateSettings({ geoV1: true });
+  setTimeout(() => locateAll().catch((err) => console.warn("[geo]", (err as Error).message)), 60_000);
+}
 
 // Once: clips sorted as "other" before the outside themes existed are sorted into them.
 if (!store.settings().themesV1) {

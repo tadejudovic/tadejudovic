@@ -49,7 +49,7 @@ export function stripShots(text: string): string {
 const STOP = new Set("the and for with that this from have has was were are his her him she they them you your our out into over just like about what when then than there here very really more most some lex dog dogs".split(" "));
 const words = (t: string) => new Set(t.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w)));
 const clipText = (c: Clip) =>
-  [c.scene, c.ai?.summary, ...(c.ai?.tags ?? []), c.note, ...(c.ai?.moments ?? []).map((m) => m.description)].filter(Boolean).join(" ");
+  [c.scene, c.place, c.ai?.summary, ...(c.ai?.tags ?? []), c.note, ...(c.ai?.moments ?? []).map((m) => m.description)].filter(Boolean).join(" ");
 function relevance(c: Clip, query: Set<string>): number {
   let n = 0;
   for (const w of words(clipText(c))) if (query.has(w) || [...query].some((q) => q.length >= 5 && (w.startsWith(q) || q.startsWith(w)))) n++;
@@ -110,6 +110,7 @@ async function clipCandidates(text = "", shots: string[] = []): Promise<{ shown:
         `Clip ${shown.length}: ${c.duration.toFixed(1)}s` +
         (c.scene ? `, ${c.scene}` : "") +
         (c.capturedAt ? `, filmed ${c.capturedAt.slice(0, 10)}` : "") +
+        (c.place ? ` in ${c.place}` : "") +
         (c.ai?.summary ? `. ${c.ai.summary}` : "") +
         (c.note ? ` Creator's note: ${c.note}` : "") +
         (moments ? ` Best moments: ${moments}` : ""),

@@ -15,6 +15,7 @@ import { findClipFor } from "./ai/collabPick.ts";
 import { detectSubject } from "./ai/subject.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { lengthenFootage, spreadPoints } from "./overlayLayout.ts";
+import { countryOf } from "./geo.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
@@ -87,11 +88,17 @@ export function outsideClips(): Clip[] {
     .filter(
       (c) =>
         c.status === "ready" && c.kind === "video" && c.height >= c.width && c.uses === 0 && !c.disliked &&
-        !c.edited && !c.duplicateOf && c.duration >= 5 && !!c.scene && on.has(c.scene),
+        !c.edited && !c.duplicateOf && c.duration >= 5 && !!c.scene && on.has(c.scene) && !placeOff(c),
     )
     .map((c) => ({ c, s: Math.min(c.duration, 20) / 20 + Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score)) }))
     .sort((a, b) => b.s - a.s)
     .map((x) => x.c);
+}
+
+/** The country a clip was filmed in is switched off in Themes ("place:Portugal"). */
+export function placeOff(c: Clip): boolean {
+  const country = countryOf(c.place);
+  return !!country && (store.settings().themesOff ?? []).includes(`place:${country}`);
 }
 
 /** Clips shorter than this are too short to build a video on (a second or two of footage). */
@@ -104,6 +111,7 @@ export function onTopic(c: Clip): boolean {
   if (c.kind === "video" && c.duration < MIN_CLIP_SECONDS) return false;
   const { onlySituations, scenes, themesOff } = store.settings();
   if (c.scene && themesOff?.includes(c.scene)) return false;
+  if (placeOff(c)) return false;
   if (!onlySituations || !config.claude.enabled) return true;
   return !!c.scene && scenes.includes(c.scene);
 }

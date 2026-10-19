@@ -59,3 +59,54 @@ export async function resortOther(): Promise<number> {
   if (moved) console.log(`[themes] sorted ${moved} clip(s) from "other" into themes`);
   return moved;
 }
+
+/**
+ * Themes suggested from the creator's own footage (not a fixed list): what keeps coming up in the
+ * clips that don't fit a theme yet, named the way a creator would. Text only, small model; cached.
+ */
+let suggested: { at: number; themes: { name: string; why: string }[] } | null = null;
+export async function suggestThemes(fresh = false): Promise<{ name: string; why: string }[]> {
+  if (!config.claude.enabled) return [];
+  if (!fresh && suggested && Date.now() - suggested.at < 12 * 3600_000) return suggested.themes;
+  const have = allScenes();
+  const pool = store
+    .clips()
+    .filter((c) => c.status === "ready" && c.ai?.summary)
+    .sort((a, b) => Number(!have.includes(b.scene ?? "")) - Number(!have.includes(a.scene ?? "")))
+    .slice(0, 150);
+  if (pool.length < 10) return [];
+  const r = await structured<{ themes: { name: string; why: string }[] }>({
+    system: "You help a creator organise their travel footage into themes for short videos.",
+    content: [
+      {
+        type: "text",
+        text:
+          `Clips from a creator's camera roll (what's in each):\n` +
+          pool.map((c) => `- ${c.ai!.summary}${c.place ? ` (${c.place})` : ""}`).join("\n") +
+          `\n\nThemes they already have: ${have.map((t) => `"${t}"`).join(", ")}.\n` +
+          `Suggest up to 6 NEW themes that several of these clips share and that would make good videos (a kind of ` +
+          `place, activity or moment, e.g. "mountains", "train rides", "markets", "sunsets"). Short lowercase names, ` +
+          `not places' names, not overlapping the existing ones. For each, a few words on what it covers.`,
+      },
+    ],
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["themes"],
+      properties: {
+        themes: {
+          type: "array",
+          items: { type: "object", additionalProperties: false, required: ["name", "why"], properties: { name: { type: "string" }, why: { type: "string" } } },
+        },
+      },
+    },
+    effort: "low",
+    model: config.claude.fastModel,
+  });
+  const themes = r.themes
+    .map((t) => ({ name: t.name.trim().toLowerCase().slice(0, 40), why: t.why.trim().slice(0, 120) }))
+    .filter((t) => t.name && !have.includes(t.name))
+    .slice(0, 6);
+  suggested = { at: Date.now(), themes };
+  return themes;
+}

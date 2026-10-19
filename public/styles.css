@@ -764,3 +764,5 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .theme-chip.on .theme-toggle { color: #fff; }
 .theme-count { font-weight: 400; opacity: .6; font-size: 12px; }
 .theme-x { border: 0; background: none; padding: 0 10px 0 0; font-size: 15px; cursor: pointer; color: #a1a1aa; }
+.theme-suggest { margin-top: 12px; }
+.theme-chip.suggest { border-style: dashed; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; color: #3f3f46; cursor: pointer; }

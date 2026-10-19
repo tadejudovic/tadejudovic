@@ -43,6 +43,9 @@ export interface Clip {
   uses: number;
   /** Creator's own description of what's on the footage (optional, fed to the AI director). */
   note?: string;
+  /** Where it was filmed ("Lisbon, Portugal"): from the file's GPS, the AI's read of signs, or the creator. */
+  place?: string;
+  placeSource?: "gps" | "ai" | "creator";
   /** The situation the clip shows (e.g. "security check"), from the AI or set by the creator. */
   scene?: string;
   sceneSetBy?: "ai" | "creator";

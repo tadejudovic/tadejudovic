@@ -676,7 +676,7 @@ function detailsBody(r) {
     await api(`/api/renders/${r.id}/rerender`, { method: "POST", body: { options: { ...look } } });
     closeSheet();
     await refreshRenders();
-    banner("Re-making the video with the new text style. It's back in a minute or two.", "ok");
+    banner("Re-making the video with the new text style. It comes back to Review in a minute or two.", "ok");
   }) }, "Apply to this video");
   const styleEdit = h("div", { class: "d-style", hidden: true },
     h("span", { class: "d-label" }, "Size"), segControl("textSize", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]]),
@@ -708,8 +708,14 @@ function detailsBody(r) {
   const captionEdit = h("textarea", { class: "d-caption-edit", rows: 4, hidden: true }, caption);
   const saveCaption = async () => {
     plan.postCaption = captionEdit.value.trim();
-    await api(`/api/renders/${r.id}`, { method: "PATCH", body: { postCaption: plan.postCaption, hashtags: plan.hashtags } });
+    const updated = await api(`/api/renders/${r.id}`, { method: "PATCH", body: { postCaption: plan.postCaption, hashtags: plan.hashtags } });
     captionText.textContent = plan.postCaption || "No caption";
+    // Corrected in Ready: it goes back to Review for a fresh yes or no.
+    if (r.review === "approved" && updated.review === "pending") {
+      r.review = "pending";
+      banner("Description changed: the video is back in Review for a fresh yes or no.", "ok");
+      refreshRenders();
+    }
   };
   captionEdit.addEventListener("change", saveCaption);
   const copyBtn = h("button", { class: "d-link", onclick: async (e) => {
@@ -794,7 +800,7 @@ function detailsBody(r) {
           if (!res.changed) return banner("The text reads fine as it is.", "ok");
           closeSheet();
           await refreshRenders();
-          banner("Fixed the text. Re-making the video now; it comes back in a minute or two.", "ok");
+          banner("Fixed the text. Re-making the video now; it comes back to Review in a minute or two.", "ok");
         }) }, "Fix the text"),
         h("button", { class: "d-link", onclick: (e) => withBusy(e.currentTarget, "Copying…", async () => {
           const d = await api(`/api/renders/${r.id}/diagnostics`);
@@ -2430,6 +2436,7 @@ async function refreshThemes() {
   if (!t) return;
   state.themes = t;
   const off = new Set([...t.travel, ...t.outside].filter((x) => !x.on).map((x) => x.name));
+  for (const p of t.places ?? []) if (!p.on) off.add(p.key);
   const chip = (x, removable) =>
     h("span", { class: `theme-chip ${x.on ? "on" : ""}` },
       h("button", { type: "button", class: "theme-toggle", onclick: async () => {
@@ -2445,6 +2452,31 @@ async function refreshThemes() {
   $("#themes-travel").replaceChildren(...t.travel.map((x) => chip(x, false)));
   $("#themes-outside").replaceChildren(...t.outside.map((x) => chip(x, true)));
   $("#themes-unsorted").textContent = t.unsorted ? `${t.unsorted} clip(s) don't fit any theme yet.` : "";
+  // Places: dynamic, from where the footage was filmed.
+  $("#themes-places").replaceChildren(
+    ...(t.places ?? []).map((p) =>
+      h("span", { class: `theme-chip ${p.on ? "on" : ""}`, title: p.cities.join(", ") },
+        h("button", { type: "button", class: "theme-toggle", onclick: async () => {
+          p.on ? off.add(p.key) : off.delete(p.key);
+          await api("/api/themes", { method: "PUT", body: { themesOff: [...off] } });
+          refreshThemes();
+        } }, p.on ? "✓ " : "", p.name, h("span", { class: "theme-count" }, ` ${p.unused}/${p.clips}`)))),
+  );
+  if (!(t.places ?? []).length) $("#themes-places").replaceChildren(h("p", { class: "muted" }, "No places found yet: they appear as clips are looked at (it needs the position your phone saves, or a recognizable place)."));
+  // Suggested from the footage itself: tap to add.
+  api("/api/themes/suggestions").then((sugg) => {
+    $("#themes-suggested").replaceChildren(
+      ...(sugg.length
+        ? [h("p", { class: "muted theme-sub" }, "Suggested from your footage:"),
+           h("div", { class: "theme-chips" }, ...sugg.map((s) =>
+             h("button", { type: "button", class: "theme-chip suggest", title: s.why, onclick: async () => {
+               await api("/api/themes", { method: "PUT", body: { outsideThemes: [...t.outside.map((o) => o.name), s.name] } });
+               banner(`Added “${s.name}”. Clips that fit it are being sorted in; give it a minute.`, "ok");
+               setTimeout(refreshThemes, 1500);
+             } }, `+ ${s.name}`)))]
+        : []),
+    );
+  }).catch(() => {});
   const on = [...t.travel, ...t.outside].filter((x) => x.on).length;
   $("#sum-themes").textContent = `${on} on`;
 }

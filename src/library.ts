@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.ts";
 import { allScenes, store, newId } from "./store.ts";
+import { locateClip } from "./geo.ts";
 import { probe, frameAt, photoToClip, needsProxy, makeProxy } from "./media/ffmpeg.ts";
 import { energyCurve, findMoments } from "./media/analyze.ts";
 import { tagClip } from "./ai/director.ts";
@@ -153,7 +154,7 @@ export async function aiTag(id: string) {
     const { petName } = store.settings();
     const scenes = allScenes();
     // The cheap model first; if it fails, the main model, so sorting never silently stops.
-    const { scene, alreadyEdited, ...ai } = await tagClip(current, petName, scenes).catch((err: Error) => {
+    const { scene, alreadyEdited, place, ...ai } = await tagClip(current, petName, scenes).catch((err: Error) => {
       if (config.claude.fastModel === config.claude.model || isOutOfCreditError(err) || err instanceof OutOfCredit) throw err;
       console.warn(`[ai] fast model failed on ${current.filename} (${err.message}); trying ${config.claude.model}`);
       fastModelError = err.message.slice(0, 300);
@@ -167,7 +168,10 @@ export async function aiTag(id: string) {
       tagError: undefined,
       ...(keepEdited ? {} : { edited: alreadyEdited }),
       ...(keepScene ? {} : { scene, sceneSetBy: "ai" as const }),
+      ...(place?.trim() && !current.placeSource ? { place: place.trim(), placeSource: "ai" as const } : {}),
     });
+    // The file's own GPS position, when the phone stored one, is more precise than the AI's read.
+    locateClip(id).catch(() => {});
   } catch (err) {
     // The heuristic moments still work, but without a situation the clip can't be used in strict
     // mode, so keep the reason (shown in diagnostics) and try again on the next start.

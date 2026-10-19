@@ -87,6 +87,7 @@ export interface Settings {
   zigzagV1?: boolean;
   zigzagV2?: boolean;
   themesV1?: boolean;
+  geoV1?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */
   pastFeedback?: ReviewFeedback;
 }

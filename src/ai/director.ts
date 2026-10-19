@@ -82,7 +82,7 @@ export async function tagClip(
   petName: string,
   scenes: string[],
   model = config.claude.fastModel,
-): Promise<NonNullable<Clip["ai"]> & { scene: string; alreadyEdited: boolean }> {
+): Promise<NonNullable<Clip["ai"]> & { scene: string; alreadyEdited: boolean; place: string }> {
   // Four frames on the small, fast model: enough to tell the situation and the best moments, for a tenth of a cent.
   const frames = Math.max(2, Math.min(4, Math.ceil(clip.duration / 2)));
   const times = Array.from({ length: frames }, (_, i) =>
@@ -109,20 +109,23 @@ export async function tagClip(
       `side-eye, tricks, outdoors, bath, food, toy, cuddle, dramatic, puppy).\n\n` +
       `Also classify which situation the clip shows. Choose exactly one of: ${scenes.map((x) => `"${x}"`).join(", ")}, ` +
       `or "other" if none fits.\n\n` +
+      `Where was it filmed? Only if signs, landmarks, a skyline or the language make it clear: "City, Country" ` +
+      `(or just the country). Otherwise empty: never guess.\n\n` +
       `Finally, say whether this is already an edited video: text overlays, captions, titles or stickers added on top ` +
       `of the footage (e.g. a finished TikTok saved back to the phone). Text that's part of the scene itself ` +
       `(signs, screens, labels, a boarding pass) doesn't count.`,
   });
   const schema = {
     ...TAG_SCHEMA,
-    required: [...TAG_SCHEMA.required, "scene", "alreadyEdited"],
+    required: [...TAG_SCHEMA.required, "scene", "alreadyEdited", "place"],
     properties: {
       ...TAG_SCHEMA.properties,
       scene: { type: "string", enum: [...scenes, "other"] },
       alreadyEdited: { type: "boolean", description: "Text, captions or stickers were added on top of the footage" },
+      place: { type: "string", description: "\"City, Country\" if clearly recognizable, else empty" },
     },
   };
-  const result = await structured<NonNullable<Clip["ai"]> & { scene: string; alreadyEdited: boolean }>({
+  const result = await structured<NonNullable<Clip["ai"]> & { scene: string; alreadyEdited: boolean; place: string }>({
     system:
       "You are a short-form video editor who specializes in viral pet content on TikTok, Reels and Shorts. " +
       "You judge footage by whether it stops the scroll in the first second: surprise, comedic timing, " +
@@ -771,6 +774,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     text:
       `These are frames from a ${clip.duration.toFixed(1)}s vertical clip of ${ctx.petName}` +
       (clip.capturedAt ? `, filmed ${clip.capturedAt.slice(0, 10)}` : "") +
+      (clip.place ? ` in ${clip.place}` : "") +
       `. Audio: ${clip.hasAudio ? "yes" : "none"}. Motion+loudness per 0.5s: ${energy || "n/a"}.` +
       (clip.note ? `\nThe creator's note about this footage: "${clip.note}"` : "") +
       (clip.ai?.summary ? `\nEarlier read of the clip: ${clip.ai.summary}` : "") +

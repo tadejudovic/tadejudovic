@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { cloneVoice, deleteVoice, speak } from "./voice/elevenlabs.ts";
 import { config } from "./config.ts";
-import { localDate } from "./dailyLimit.ts";
+import { localDate, videosLeftToday } from "./dailyLimit.ts";
+import { waitingOf } from "./daySet.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
@@ -1081,7 +1082,11 @@ export async function remakeRejected(id: string): Promise<Render | undefined> {
   const r = store.render(id);
   // Every rejected video is replaced by another of its kind (so each day ends with one of each),
   // also without a reason; videos made on request (stories, vlogs) aren't.
-  if (!r || r.review !== "rejected" || r.remadeAs || r.plan.format === "story" || r.plan.collab) return undefined;
+  if (!r || r.review !== "rejected" || r.remadeAs || !r.rejectReason || r.plan.format === "story" || r.plan.collab) return undefined;
+  if (!videosLeftToday()) return undefined;
+  // A new one of its kind is already on its way (the reason came after the next was started): the
+  // reason still counts as feedback, but no second video of the kind.
+  if (r.plan.format && waitingOf(r.plan.format) > 0) return undefined;
   if (!config.claude.enabled || !aiAvailable()) return undefined;
   const depth = (r.plan.remakeDepth ?? 0) + 1;
   if (depth > 3) return undefined;

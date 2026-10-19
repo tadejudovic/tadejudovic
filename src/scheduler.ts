@@ -5,23 +5,27 @@ import { plan, queueRender, isPortrait, onTopic, outsideClips, noteInspireIssue,
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { syncProfiles } from "./postMatch.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
+import { daySetDone, kindsToMake } from "./daySet.ts";
 
 /**
- * Videos are made in rounds, and there are always a few waiting: when fewer than MIN_WAITING are
- * left to review, the next ones are made (a full round once everything is reviewed), so each
- * decision still shapes what comes next. All within the daily limit.
+ * The day runs until one video of each kind (educational, fun, inspirational) is kept: each kind not
+ * kept yet has one waiting in Review, and a rejected one is replaced by another of its kind.
  */
-export const MIN_WAITING = 3;
 export function awaitingReview(): number {
-  // Videos made on request (stories, day vlogs) don't hold back the daily ones.
+  // Videos made on request (stories, day vlogs) don't count here.
   return store
     .renders()
     .filter((r) => r.plan.format !== "story" && (r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending"))).length;
 }
 
-/** Called after a review: if fewer than MIN_WAITING are left, make the next ones right away. */
+/**
+ * Called after a review: make what the day's set needs now, and once more a minute later (a kind
+ * rejected without a reason waits that long for one).
+ */
 export function afterReview() {
-  if (awaitingReview() < MIN_WAITING) runDue({ afterReview: true }).catch((err) => console.error("[scheduler]", err));
+  const go = () => runDue({ afterReview: true }).catch((err) => console.error("[scheduler]", err));
+  go();
+  setTimeout(go, 65_000).unref();
 }
 import { ingestQueue } from "./queue.ts";
 import { archiveUnusable, ARCHIVE_AFTER_DAYS, queueMissingAiLooks } from "./library.ts";
@@ -110,17 +114,10 @@ async function runDue({ afterReview = false } = {}) {
     const { newItems } = await syncAll();
     if (newItems) console.log(`[scheduler] topping up: importing ${newItems} more album item(s)`);
   }
-  // Don't wait for a whole import to finish: once a few usable clips are sorted, start the round
-  // (renders jump ahead of the remaining imports).
-  if (ingestQueue.pending > 0 && usableClips() < enoughToStart()) return;
-  const [hh, mm] = auto.dailyTime.split(":").map(Number);
-  const now = new Date();
-  // The first round of the day is ready by the set time; later rounds follow each finished review.
-  const due = afterReview || now.getHours() * 60 + now.getMinutes() >= hh * 60 + mm;
-  // If a batch fails (e.g. no footage yet), retry every 30 minutes rather than every tick, or as
-  // soon as enough clips have been sorted since.
-  const retry = Date.now() - lastAttempt > 30 * 60_000 || (lastRoundError !== null && usableClips() >= enoughToStart());
-  if (due && !batchRunning && awaitingReview() < MIN_WAITING && videosLeftToday() > 0 && (afterReview || retry)) {
+  // The day's set: a video of each kind not kept yet waits in Review, from midnight on, so they're
+  // ready in the morning. Failures retry every 10 minutes (or as soon as more clips are sorted).
+  const retry = Date.now() - lastAttempt > 10 * 60_000 || (lastRoundError !== null && usableClips() > 0);
+  if (!batchRunning && kindsToMake().length && videosLeftToday() > 0 && (afterReview || retry)) {
     lastAttempt = Date.now();
     try {
       const r = await runDailyBatch({ force: true });
@@ -128,12 +125,10 @@ async function runDue({ afterReview = false } = {}) {
       lastRoundError = null;
     } catch (err) {
       lastRoundError = { message: (err as Error).message, at: new Date().toISOString() };
+      if (/inspir/i.test((err as Error).message)) noteInspireIssue((err as Error).message);
       throw err;
     }
   }
-  // The day's inspirational video doesn't wait for a round: rounds only start when fewer than
-  // MIN_WAITING videos are waiting, so with a full Review queue it would never get its turn.
-  if (due && !batchRunning) await ensureInspirational().catch((err) => noteInspireIssue((err as Error).message));
   // Keep caption research fresh for situations that have clips waiting, one situation per tick,
   // after the round so it never delays videos.
   if (config.claude.enabled && !batchRunning && !researching) {
@@ -148,128 +143,73 @@ async function runDue({ afterReview = false } = {}) {
   }
 }
 
-let inspireAttempt = 0;
 /**
- * One inspirational video a day: if none was made today, make it on its own (from the outside
- * themes' footage when there is some), even when other videos are waiting for review. It counts as
- * the day's inspirational one, so the daily mix doesn't make another.
+ * Make what the day's set still needs: one video of each kind that isn't kept yet and has nothing
+ * waiting in Review. Safe to call by hand ("make the next ones").
  */
-export async function ensureInspirational(): Promise<boolean> {
-  if ((store.settings().dailyMix.inspirational ?? 0) <= 0 || !config.claude.enabled || !aiAvailable()) return false;
-  const date = today();
-  if (store.renders().some((r) => r.plan.format === "inspire" && localDate(new Date(r.createdAt)) === date)) return false;
-  if (Date.now() - inspireAttempt < 30 * 60_000) return false;
-  inspireAttempt = Date.now();
-  const pool = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c) && c.uses === 0);
-  if (!pool.length && !outsideClips().length) throw new Error("No unused footage left for the inspirational video.");
-  const { fontId, textStyle, textSize } = store.settings();
-  const options: RenderOptions = { keepOriginalAudio: true, textStyle, textSize, fontId };
-  const auto = store.auto();
-  batchRunning = true;
-  roundStage = "Writing today's inspirational video…";
-  try {
-    const { plans } = await plan({
-      template: auto.template,
-      targetSeconds: auto.targetSeconds,
-      count: 1,
-      clipIds: pool.map((c) => c.id),
-      pickFromPool: true,
-      useAi: true,
-      format: "inspire",
-      options,
-    });
-    const p = plans.find((x) => x.format === "inspire");
-    if (!p) throw new Error("The inspirational video couldn't be planned.");
-    queueRender(p, options, date);
-    noteInspireIssue(null);
-    console.log(`[scheduler] made today's inspirational video${p.outside ? " (outside footage)" : ""}`);
-    return true;
-  } finally {
-    batchRunning = false;
-    roundStage = null;
-  }
-}
-
-/** Build today's batch. Safe to call manually ("make today's batch now"). */
-export async function runDailyBatch(opts: { force?: boolean } = {}) {
-  if (batchRunning) throw new Error(`The next round is already being made${roundStage ? `: ${roundStage.toLowerCase()}` : ""}`);
+export async function runDailyBatch(_opts: { force?: boolean } = {}) {
+  if (batchRunning) throw new Error(`The next videos are already being made${roundStage ? `: ${roundStage.toLowerCase()}` : ""}`);
   batchRunning = true;
   roundStage = "Starting…";
-  const auto = store.auto();
   const date = today();
   try {
-    if (!opts.force && auto.lastBatchDate === date) return { renders: [], skipped: "already done today" };
-    // Enough videos waiting for a decision: the next ones are made after a few reviews.
-    const waiting = awaitingReview();
-    if (waiting >= MIN_WAITING) {
-      if (opts.force) throw new Error(`Review the ${waiting} video${waiting === 1 ? "" : "s"} you have first (swipe right or left). Then the next ones are made.`);
-      return { renders: [], skipped: "waiting for review" };
-    }
-    // Checked before any AI call, so a reached limit costs nothing.
-    const left = videosLeftToday();
-    if (!left) {
-      store.updateAuto({ lastBatchDate: date });
-      return { renders: [], skipped: "daily video limit reached" };
-    }
+    const kinds = kindsToMake();
+    if (!kinds.length) return { renders: [], skipped: daySetDone() ? "today's set is done" : "one of each is waiting for review" };
+    if (!videosLeftToday()) return { renders: [], skipped: "daily video limit reached" };
     // Pick up anything added to the albums since the last check, and let it finish analyzing.
     // Listing a big album takes a while: only wait for it when there's nothing to make videos from yet.
     if (store.albums().length) {
       lastSync = Date.now();
-      if (usableClips() >= enoughToStart()) {
-        syncAll().catch((err) => console.warn("[scheduler] album check failed:", (err as Error).message));
-      } else {
+      if (usableClips() > 0) syncAll().catch((err) => console.warn("[scheduler] album check failed:", (err as Error).message));
+      else {
         roundStage = "Bringing in more footage from your albums…";
         await syncAll();
+        roundStage = "Waiting for clips to be sorted into your situations…";
+        await waitForIngest(5 * 60_000);
       }
     }
-    if (usableClips() < enoughToStart()) {
-      roundStage = "Waiting for clips to be sorted into your situations…";
-      await waitForIngest(5 * 60_000);
-    }
-    const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c));
-    // Footage from the outside themes can still make the day's inspirational video.
-    const outsideLeft = outsideClips().length > 0;
-    if (!ready.length && !outsideLeft) {
+    const pool = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c) && c.uses === 0);
+    if (!pool.length && !outsideClips().length) {
       const any = store.clips().some((c) => c.status === "ready");
       throw new Error(
-        any && store.settings().onlySituations
-          ? `None of your clips match your situations yet (${store.settings().scenes.slice(0, 3).join(", ")}…). More are imported as needed.`
+        any
+          ? "Every clip has been used. Older footage from your albums is being imported now; the next video starts as soon as it's sorted."
           : "No analyzed vertical videos yet. Add a shared album or upload some clips.",
       );
     }
-    // Each clip is used once (a rejected video hands its clips back), so a round only draws on unused footage.
-    const pool = ready.filter((c) => c.uses === 0);
-    if (!pool.length && !outsideLeft) throw new Error("Every clip has been used. Older footage from your albums is being imported now; the next round starts as soon as it's sorted.");
-
+    const auto = store.auto();
     const { fontId, textStyle, textSize } = store.settings();
     const options: RenderOptions = { keepOriginalAudio: true, textStyle, textSize, fontId };
-    // Each video starts rendering as soon as its text is written, not when the whole round is.
     const renders: ReturnType<typeof queueRender>[] = [];
-    const queued = new Set<VideoPlan>();
-    // A full round when everything is reviewed; otherwise enough to have MIN_WAITING waiting again.
-    const count = Math.min(waiting ? MIN_WAITING - waiting : Math.max(auto.dailyCount, MIN_WAITING), left);
-    roundStage = `Writing the videos (0 of ${count})…`;
-    const start = (p: VideoPlan) => {
-      queued.add(p);
-      renders.push(queueRender(p, options, date));
-      roundStage = `Writing the videos (${renders.length} of ${count})…`;
-    };
-    const { plans, warning } = await plan(
-      {
-        template: auto.template,
-        targetSeconds: auto.targetSeconds,
-        count,
-        clipIds: pool.map((c) => c.id),
-        pickFromPool: true,
-        useAi: true,
-        options,
-      },
-      { onPlan: start },
-    );
-    for (const p of plans) if (!queued.has(p)) start(p);
+    const failures: string[] = [];
+    // One kind at a time, each starting to render as soon as its text is written.
+    for (const kind of kinds) {
+      if (!videosLeftToday()) break;
+      roundStage = `Writing the ${kind === "tips" ? "educational" : kind === "inspire" ? "inspirational" : "fun"} video…`;
+      try {
+        const { plans } = await plan({
+          template: auto.template,
+          targetSeconds: auto.targetSeconds,
+          count: 1,
+          clipIds: store.clips().filter((c) => pool.includes(c) && c.uses === 0).map((c) => c.id),
+          pickFromPool: true,
+          useAi: true,
+          format: kind,
+          options,
+        });
+        const p = plans.find((x) => x.format === kind);
+        if (!p) throw new Error(`the ${kind} video couldn't be planned`);
+        renders.push(queueRender(p, options, date));
+        if (kind === "inspire") noteInspireIssue(null);
+      } catch (err) {
+        failures.push(`${kind}: ${(err as Error).message}`);
+        if (kind === "inspire") noteInspireIssue((err as Error).message);
+      }
+    }
     store.updateAuto({ lastBatchDate: date });
-    console.log(`[scheduler] queued ${renders.length} video(s) for ${date}${warning ? ` (${warning})` : ""}`);
-    return { renders, warning };
+    console.log(`[scheduler] made ${renders.length} video(s) for today's set (${kinds.join(", ")})${failures.length ? `; failed: ${failures.join("; ")}` : ""}`);
+    if (!renders.length && failures.length) throw new Error(failures.join("; "));
+    return { renders, warning: failures.length ? failures.join("; ") : undefined };
   } finally {
     batchRunning = false;
     roundStage = null;
@@ -280,12 +220,6 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
 function usableClips(): number {
   return store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c) && c.uses === 0).length;
 }
-
-/**
- * A round starts as soon as this many clips are sorted, even while more are importing: enough for
- * MIN_WAITING videos (one of each kind), not a whole round.
- */
-const enoughToStart = () => Math.max(1, Math.min(videosLeftToday(), MIN_WAITING - awaitingReview()));
 
 async function waitForIngest(maxMs: number) {
   const until = Date.now() + maxMs;

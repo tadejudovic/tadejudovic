@@ -824,13 +824,9 @@ app.patch("/api/renders/:id", (req, res) => {
   if (now.review === "rejected" && now.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: true });
   else if (r.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: false });
   syncClipUses(r.id);
-  // With a reason: re-made right away. Without one: a few minutes later, so a reason picked just
-  // after the swipe still shapes the remake (and the day still ends with one of each kind).
-  if (now.review === "rejected" && !now.remadeAs) {
-    const remake = () => remakeRejected(r.id).catch((err) => console.warn("[remake]", err));
-    if (now.rejectReason) remake();
-    else setTimeout(() => store.render(r.id)?.rejectReason || remake(), 3 * 60_000).unref();
-  }
+  // A reason given for a rejection: a new version that fixes it, right away. Without one, the day's
+  // set makes another of its kind a minute later (see daySet.ts).
+  if (now.review === "rejected" && now.rejectReason && !now.remadeAs) remakeRejected(r.id).catch((err) => console.warn("[remake]", err));
   // Last video of the round reviewed: start the next round.
   if (review && review !== "pending") afterReview();
   res.json(store.render(r.id));
@@ -1365,8 +1361,15 @@ if (!paused && !store.settings().zigzagV2) {
   zigzagExisting();
 }
 
+// Once: the counters start over now. From here a day runs until one of each kind is kept (with a
+// safety cap of 15 videos a day), starting at midnight.
+if (!store.settings().countersResetV1) {
+  store.updateSettings({ countersResetV1: true, countFrom: new Date().toISOString(), maxVideosPerDay: 15, dailyMix: { fun: 1, educational: 1, inspirational: 1 } });
+  store.updateAuto({ lastBatchDate: undefined });
+}
+
 // Once: every day one educational, one fun and one inspirational video, and no more.
-if (!store.settings().mixV2) store.updateSettings({ mixV2: true, dailyMix: { fun: 1, educational: 1, inspirational: 1 }, maxVideosPerDay: 3 });
+if (!store.settings().mixV2) store.updateSettings({ mixV2: true, dailyMix: { fun: 1, educational: 1, inspirational: 1 } });
 
 // Once: educational videos waiting get the numbered-point look (number tab, one width, hook as header).
 if (!paused && !store.settings().numberTabsV1) {

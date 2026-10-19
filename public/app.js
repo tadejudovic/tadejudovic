@@ -87,7 +87,7 @@ async function loadStatus() {
   if (document.activeElement?.form !== $("#limits")) $("#limits").maxVideosPerDay.value = String(s.settings.maxVideosPerDay);
   $("#limits").onlySituations.checked = s.settings.onlySituations !== false;
   renderSummaries();
-  $("#videos-today").textContent = `${s.videosToday.made} of ${s.videosToday.limit} made today. Nothing more is made once the limit is reached, including by hand.`;
+  $("#videos-today").textContent = `${s.videosToday.made} of ${s.videosToday.limit} made today. Each day runs until you've kept one of each kind; this cap only stops a day of rejections from running up costs.`;
   const btn = $("#btn-google");
   // The picker needs Google Cloud credentials; the album link doesn't, so only show the picker when it's set up.
   btn.hidden = !s.google.configured;
@@ -2463,8 +2463,18 @@ function renderHomeState() {
         : unsorted
           ? `${unsorted} clip${unsorted === 1 ? " is" : "s are"} still being sorted into your situations.`
           : outOfClipsText(strict, st);
-  $("#btn-batch-empty").hidden = !n || atLimit;
-  $("#btn-batch-empty").textContent = "Make the next round";
+  // The day's set: one of each kind kept, and the day is done.
+  const mix = st?.dailyMix;
+  const dayKinds = mix ? [["fun", mix.fun], ["tips", mix.educational], ["inspire", mix.inspirational]].filter(([, k]) => k > 0).map(([k]) => k) : [];
+  const todayStr = new Date().toDateString();
+  const keptKinds = new Set(state.renders.filter((r) => r.review === "approved" && r.reviewedAt && new Date(r.reviewedAt).toDateString() === todayStr).map((r) => r.plan.format));
+  const setDone = dayKinds.length > 0 && dayKinds.every((k) => keptKinds.has(k));
+  if (setDone) {
+    $("#batch-empty-title").textContent = "Today's set is done";
+    $("#batch-empty-text").textContent = `One of each kept. The next ones are made after midnight, ready in the morning.${keptCount ? " Your videos to post are in Ready." : ""}`;
+  }
+  $("#btn-batch-empty").hidden = !n || atLimit || setDone;
+  $("#btn-batch-empty").textContent = "Make the next ones";
   $("#btn-batch").hidden ||= !$("#batch-empty").hidden;
   $("#ready-strip").hidden = caughtUp;
   $("#ready-strip").replaceChildren(

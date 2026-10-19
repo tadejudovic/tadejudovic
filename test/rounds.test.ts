@@ -5,22 +5,33 @@ import path from "node:path";
 
 process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-rounds-${process.pid}-${Date.now()}`);
 const { store } = await import("../src/store.ts");
-const { awaitingReview, runDailyBatch } = await import("../src/scheduler.ts");
+const { runDailyBatch } = await import("../src/scheduler.ts");
+const { kindsToMake, daySetDone } = await import("../src/daySet.ts");
 
-test("no new videos while 3 are waiting for review; below that, the next ones are made", async () => {
-  const add = (id: string, status: "done" | "rendering", review: "pending" | "approved" | "rejected") =>
-    store.addRender({ id, createdAt: new Date().toISOString(), status, progress: 1, review, options: {} as any, plan: { segments: [] } as any });
-  add("a", "done", "approved");
-  add("b", "done", "pending");
-  add("c", "rendering", "pending");
-  add("d", "done", "pending");
-  assert.equal(awaitingReview(), 3);
-  await assert.rejects(runDailyBatch({ force: true }), /Review the 3 videos/);
-  assert.deepEqual(await runDailyBatch(), { renders: [], skipped: "waiting for review" });
-  // One reviewed: only 2 waiting, so the next video is made (here: no footage yet).
-  store.updateRender("d", { review: "approved" });
-  await assert.rejects(runDailyBatch({ force: true }), /No analyzed vertical videos|None of your clips/);
-  store.updateRender("b", { review: "rejected" });
-  store.updateRender("c", { status: "done", review: "approved" });
-  assert.equal(awaitingReview(), 0);
+const now = () => new Date().toISOString();
+const add = (id: string, format: string, review: "pending" | "approved" | "rejected", extra: object = {}) =>
+  store.addRender({ id, createdAt: now(), reviewedAt: review === "pending" ? undefined : now(), status: "done", progress: 1, review, options: {} as any, plan: { segments: [], format } as any, ...extra } as any);
+
+test("the day runs until one of each kind is kept: each kind not kept has one waiting", async () => {
+  store.updateSettings({ dailyMix: { fun: 1, educational: 1, inspirational: 1 } } as any);
+  assert.deepEqual(kindsToMake(), ["tips", "fun", "inspire"]);
+  add("t1", "tips", "pending");
+  add("f1", "fun", "pending");
+  assert.deepEqual(kindsToMake(), ["inspire"]);
+  // Kept: that kind is done for the day.
+  store.updateRender("t1", { review: "approved", reviewedAt: now() });
+  assert.deepEqual(kindsToMake(), ["inspire"]);
+  // Rejected without a reason: another of its kind, after a minute (a reason may still come).
+  store.updateRender("f1", { review: "rejected", reviewedAt: now() });
+  assert.deepEqual(kindsToMake(), ["inspire"]);
+  assert.deepEqual(kindsToMake(Date.now() + 61_000), ["fun", "inspire"]);
+  // Rejected with a reason: its remake is on the way, so nothing else of the kind.
+  add("f2", "fun", "rejected", { rejectReason: "text", remadeAs: "pending" });
+  assert.deepEqual(kindsToMake(Date.now() + 61_000), ["inspire"]);
+  // A story made on request doesn't count as any kind.
+  add("s1", "story", "approved");
+  add("i1", "inspire", "approved");
+  add("f3", "fun", "approved");
+  assert.ok(daySetDone());
+  assert.deepEqual(await runDailyBatch(), { renders: [], skipped: "today's set is done" });
 });

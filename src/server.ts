@@ -17,7 +17,7 @@ import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
 import { resortOther, suggestThemes } from "./ai/themes.ts";
 import { countryOf, locateAll } from "./geo.ts";
-import { layoutPoints, lengthenFootage, readingSeconds } from "./overlayLayout.ts";
+import { healPlan, layoutPoints, lengthenFootage, readingSeconds } from "./overlayLayout.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { apifyEnabled, platformOf } from "./ai/tiktokSearch.ts";
@@ -426,7 +426,7 @@ app.post(
     if (fixed.every((t, i) => t === old[i].text)) return res.json({ changed: false });
     const overlays = old.map((o, i) => ({ ...o, text: fixed[i] }));
     // Corrected: back to Review for a fresh yes or no.
-    const fresh = queueRender({ ...r.plan, overlays, hook: overlays[0].text }, r.options, r.batch, { countUse: false });
+    const fresh = queueRender(healPlan({ ...r.plan, overlays, hook: overlays[0].text }, store.settings().cta?.site), r.options, r.batch, { countUse: false });
     deleteRender(r.id);
     res.json({ changed: true, render: fresh });
   }),
@@ -1043,7 +1043,8 @@ app.post("/api/renders/:id/rerender", (req, res) => {
   // Keep the video's music unless a different track was picked.
   if (!b.options?.musicId) options.musicFile = r.options.musicFile;
   // A corrected video comes back to Review for a fresh yes or no, even if it was in Ready.
-  const fresh = queueRender(next, options, r.batch, { countUse: false });
+  // Re-made under today's rules (footage played at most twice, points spread and timed, call to action last).
+  const fresh = queueRender(healPlan(next, store.settings().cta?.site), options, r.batch, { countUse: false });
   deleteRender(r.id);
   res.json(fresh);
 });

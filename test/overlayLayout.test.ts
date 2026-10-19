@@ -78,3 +78,26 @@ test("points without an arrow each take a clearly different spot", () => {
   assert.equal(new Set(spots).size, 3);
   assert.ok(o.slice(1).every((p) => p.y! >= 0.38));
 });
+
+test("a re-made video is brought up to today's rules, keeping its words", async () => {
+  const { healPlan } = await import("../src/overlayLayout.ts");
+  const seg = { clipId: "a", start: 0, end: 9.38, speed: 1 };
+  const plan = {
+    format: "tips",
+    segments: [seg, seg, seg, seg],
+    overlays: [
+      { text: "If you're flying with your dog do these 3 things with the airline:", start: 0, end: 37.5 },
+      { text: "1. Call airline to check open pet slots", start: 2.5, end: 7, y: 0.3, x: 0.34 },
+      { text: "2. Book & call back to add your pet", start: 7, end: 11.5, y: 0.74, x: 0.6 },
+      { text: "3. Buy the right carrier size", start: 11.5, end: 18.8, y: 0.3, x: 0.46 },
+      { text: "Plan your pet's trip / at www.flywith.pet", start: 18.8, end: 37.5, y: 0.6 },
+    ],
+  };
+  const h = healPlan(plan, "flywith.pet");
+  assert.ok(h.segments.length <= 2);
+  const total = h.segments.reduce((a, s) => a + (s.end - s.start), 0);
+  const o = h.overlays!;
+  assert.deepEqual(o.map((x) => x.text), plan.overlays.map((x) => x.text)); // the words stay
+  assert.ok(Math.abs(o[4].start - (total - 3)) < 1e-6); // call to action: the last 3s
+  assert.equal(new Set(o.slice(1, 4).map((p) => `${p.x},${p.y}`)).size, 3); // three different spots
+});

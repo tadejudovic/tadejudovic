@@ -126,3 +126,35 @@ export function replayOnce(segments: Segment[], seconds: number): Segment[] {
   }
   return out;
 }
+
+/**
+ * Bring a video made under older rules up to the current ones, keeping its words: no footage played
+ * more than twice, educational points spread over the frame and on screen long enough to read, and
+ * the call to action on the last 3s. Used whenever a video is re-made (text, style, Fix the text).
+ */
+export function healPlan<P extends { format?: string; segments: Segment[]; overlays?: Overlay[] }>(plan: P, ctaSite?: string): P {
+  const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+  // Footage: each part at most twice.
+  const key = (s: Segment) => `${s.clipId}:${s.start.toFixed(2)}`;
+  const plays = new Map<string, number>();
+  let segments = plan.segments.filter((s) => {
+    const n = (plays.get(key(s)) ?? 0) + 1;
+    plays.set(key(s), n);
+    return n <= 2;
+  });
+  if (plan.format !== "tips" || !plan.overlays?.length) return { ...plan, segments };
+  const site = ctaSite?.toLowerCase();
+  const isCta = (o: Overlay) => !!site && o.text.toLowerCase().includes(site.replace(/^www\./, ""));
+  const cta = plan.overlays.find(isCta);
+  const rest = plan.overlays.filter((o) => !isCta(o));
+  // Unique footage first; replays only as far as the text needs.
+  const unique = segments.filter((s, i) => segments.findIndex((x) => key(x) === key(s)) === i);
+  const ctaSeconds = cta ? 3 : 0;
+  const need = rest.length > 1 ? timePoints(spreadPoints(rest), 0).need + ctaSeconds : len(unique);
+  segments = len(unique) >= need ? unique : replayOnce(unique, need);
+  const total = len(segments);
+  const body = rest.length > 1 ? timePoints(spreadPoints(rest), Math.max(1, total - ctaSeconds)).overlays : rest;
+  const overlays = body.map((o, i) => (i === 0 ? { ...o, start: 0, end: total + 1 } : o.end > total - ctaSeconds && cta ? { ...o, end: total - ctaSeconds } : o));
+  if (cta) overlays.push({ ...cta, start: Math.max(0, total - ctaSeconds), end: total + 1, y: cta.y ?? 0.6 });
+  return { ...plan, segments, overlays };
+}

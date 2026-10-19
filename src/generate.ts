@@ -14,7 +14,7 @@ import type { Clip, DailyMix, EduPillar, GenerateRequest, Partner, Platform, Pos
 import { findClipFor } from "./ai/collabPick.ts";
 import { detectSubject } from "./ai/subject.ts";
 import { aiAvailable } from "./ai/budget.ts";
-import { lengthenFootage, spreadPoints } from "./overlayLayout.ts";
+import { healPlan, lengthenFootage, spreadPoints } from "./overlayLayout.ts";
 import { countryOf } from "./geo.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
@@ -898,7 +898,7 @@ export async function refreshDesigns({ proofread = false } = {}): Promise<number
       if (fixed) plan = { ...plan, overlays: old.map((o, i) => ({ ...o, text: fixed[i] })), hook: fixed[0] };
     }
     if (!store.render(r.id)) continue; // deleted meanwhile
-    const fresh = queueRender(plan, { ...r.options, textStyle, textSize, fontId }, r.batch, { countUse: false });
+    const fresh = queueRender(healPlan(plan, store.settings().cta?.site), { ...r.options, textStyle, textSize, fontId }, r.batch, { countUse: false });
     if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
     deleteRender(r.id);
     n++;

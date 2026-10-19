@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.ts";
-import { store, newId } from "./store.ts";
+import { allScenes, store, newId } from "./store.ts";
 import { probe, frameAt, photoToClip, needsProxy, makeProxy } from "./media/ffmpeg.ts";
 import { energyCurve, findMoments } from "./media/analyze.ts";
 import { tagClip } from "./ai/director.ts";
@@ -150,7 +150,8 @@ export async function aiTag(id: string) {
   const current = store.clip(id);
   if (!current) return;
   try {
-    const { petName, scenes } = store.settings();
+    const { petName } = store.settings();
+    const scenes = allScenes();
     // The cheap model first; if it fails, the main model, so sorting never silently stops.
     const { scene, alreadyEdited, ...ai } = await tagClip(current, petName, scenes).catch((err: Error) => {
       if (config.claude.fastModel === config.claude.model || isOutOfCreditError(err) || err instanceof OutOfCredit) throw err;
@@ -259,15 +260,13 @@ export const ARCHIVE_AFTER_DAYS = 7;
  * hand, and clips used in a video, are kept.
  */
 export function archiveUnusable(now = Date.now()): number {
-  const { onlySituations, scenes } = store.settings();
-  const strict = onlySituations && config.claude.enabled;
   const usedInVideo = new Set(store.renders().flatMap((r) => r.plan.segments.map((s) => s.clipId)));
   let archived = 0;
   for (const c of store.clips()) {
     if (c.status !== "ready" || c.uses > 0 || usedInVideo.has(c.id) || c.sceneSetBy === "creator") continue;
     if (now - Date.parse(c.importedAt) < ARCHIVE_AFTER_DAYS * 86400_000) continue;
-    const offTopic = strict && !!c.scene && !scenes.includes(c.scene);
-    if (!(c.edited || c.duplicateOf || c.width > c.height || offTopic)) continue;
+    // Footage from other situations is kept: it's for outside videos and themes switched on later.
+    if (!(c.edited || c.duplicateOf || c.width > c.height)) continue;
     removeClipFiles(c);
     store.updateClip(c.id, { status: "archived", archivedAt: new Date(now).toISOString() });
     archived++;

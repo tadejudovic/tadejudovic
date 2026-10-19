@@ -38,3 +38,14 @@ test("the follower question matches the theme", () => {
   assert.match(nextQuestion(undefined, new Set(), "airline")!.q, /airline/i);
   assert.match(nextQuestion(undefined, new Set(), "gear")!.q, /bag|carrier/i);
 });
+
+test("footage beyond the airport is offered for the daily outside video: long enough, unused, not an edit", async () => {
+  const { outsideClips } = await import("../src/generate.ts");
+  const base = { source: "upload", filename: "x.mp4", file: "/x", kind: "video", importedAt: "", width: 1080, height: 1920, hasAudio: true, uses: 0, status: "ready" } as any;
+  store.addClip({ ...base, id: "beach", scene: "beach", duration: 12 });
+  store.addClip({ ...base, id: "tiny", scene: "beach", duration: 3 });
+  store.addClip({ ...base, id: "unsorted", scene: "other", duration: 12 });
+  store.addClip({ ...base, id: "gate", scene: store.settings().scenes[0], duration: 12 });
+  store.addClip({ ...base, id: "edit", scene: "beach", duration: 12, edited: true });
+  assert.deepEqual(outsideClips().map((c) => c.id), ["beach"]);
+});

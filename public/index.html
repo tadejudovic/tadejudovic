@@ -126,6 +126,7 @@
 
       <p class="group-label">Captions</p>
       <div class="group">
+        <button class="srow" data-open="sp-themes"><span class="row-title">Themes for videos</span><span class="row-value" id="sum-themes"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-scenes"><span class="row-title">Situations &amp; TikTok captions</span><span class="row-value" id="sum-scenes"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-examples"><span class="row-title">Videos that worked</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-story"><span class="row-title">Story video</span><span class="row-value">from your words</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
@@ -246,6 +247,24 @@
           </div>
         </div>
         <p class="hint">Best practice: keep the text to 2–3 short lines, readable at a glance, and clear of TikTok's buttons (right side) and caption (bottom). Medium fits most videos; use Large for very short lines and Small for long ones.</p>
+        </div>
+      </div>
+
+      <div class="subpage" id="sp-themes" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Themes for videos</h2></header>
+        <div class="sp-body">
+          <p class="hint top">Every clip is sorted into a theme. Tap a theme to switch it on or off: only footage from themes that are on goes into videos. The numbers are clips not used yet / all clips.</p>
+          <h3 class="theme-h">Travel days</h3>
+          <p class="muted theme-sub">The daily fun and educational videos.</p>
+          <div id="themes-travel" class="theme-chips"></div>
+          <h3 class="theme-h">Beyond the airport</h3>
+          <p class="muted theme-sub">One video a day (the inspirational one) is made from these: places, walks, nature, moments together.</p>
+          <div id="themes-outside" class="theme-chips"></div>
+          <form id="theme-add" class="inline-form spaced">
+            <input name="theme" placeholder="Add a theme, e.g. mountains" maxlength="40" />
+            <button class="btn" type="submit">Add</button>
+          </form>
+          <p class="muted" id="themes-unsorted"></p>
         </div>
       </div>
 

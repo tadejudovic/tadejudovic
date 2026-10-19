@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { config, memoryMb } from "./config.ts";
-import { store, newId, mixSize } from "./store.ts";
+import { allScenes, store, newId, mixSize } from "./store.ts";
 import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
@@ -15,6 +15,7 @@ import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, 
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
+import { resortOther } from "./ai/themes.ts";
 import { layoutPoints, lengthenFootage, readingSeconds } from "./overlayLayout.ts";
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
@@ -534,6 +535,47 @@ app.put("/api/scenes", (req, res) => {
   res.json(store.updateSettings({ scenes }));
 });
 
+// ---- Themes: which kinds of footage go into videos ---------------------------------------
+
+app.get("/api/themes", (_req, res) => {
+  const { scenes, outsideThemes, themesOff } = store.settings();
+  const clips = store.clips().filter((c) => c.status === "ready" && c.kind === "video");
+  const row = (name: string) => ({
+    name,
+    on: !themesOff.includes(name),
+    clips: clips.filter((c) => c.scene === name).length,
+    unused: clips.filter((c) => c.scene === name && c.uses === 0).length,
+  });
+  const all = allScenes();
+  res.json({
+    travel: scenes.map(row),
+    outside: outsideThemes.map(row),
+    unsorted: clips.filter((c) => !c.scene || !all.includes(c.scene)).length,
+  });
+});
+
+let resorting = false;
+const resortInBackground = () => {
+  if (resorting) return;
+  resorting = true;
+  resortOther()
+    .catch((err) => console.warn("[themes]", (err as Error).message))
+    .finally(() => (resorting = false));
+};
+
+app.put("/api/themes", (req, res) => {
+  const b = req.body ?? {};
+  const clean = (xs: unknown) =>
+    Array.isArray(xs) ? [...new Set(xs.map((x) => String(x).trim().toLowerCase().slice(0, 40)).filter((x) => x && x !== "other"))] : undefined;
+  const outsideThemes = clean(b.outsideThemes)?.slice(0, 20);
+  const themesOff = clean(b.themesOff);
+  const before = store.settings().outsideThemes;
+  store.updateSettings({ ...(outsideThemes ? { outsideThemes } : {}), ...(themesOff ? { themesOff } : {}) });
+  // A new theme: unsorted clips get another look so it fills up.
+  if (outsideThemes?.some((t) => !before.includes(t))) resortInBackground();
+  res.json({ ok: true });
+});
+
 app.post(
   "/api/scenes/:scene/research",
   h(async (req, res) => {
@@ -585,7 +627,7 @@ app.patch("/api/clips/:id", (req, res) => {
   if (typeof edited === "boolean") Object.assign(patch, { edited, editedSetBy: "creator" as const });
   if (typeof note === "string") patch.note = note.trim().slice(0, 500) || undefined;
   if (typeof scene === "string") {
-    if (scene && scene !== "other" && !store.settings().scenes.includes(scene)) return res.status(400).json({ error: "Unknown situation" });
+    if (scene && scene !== "other" && !allScenes().includes(scene)) return res.status(400).json({ error: "Unknown situation" });
     patch.scene = scene || undefined;
     patch.sceneSetBy = "creator";
   }
@@ -1209,6 +1251,12 @@ if (!paused && !store.settings().yellowBoxRemadeV2) {
 }
 
 startScheduler();
+
+// Once: clips sorted as "other" before the outside themes existed are sorted into them.
+if (!store.settings().themesV1) {
+  store.updateSettings({ themesV1: true });
+  setTimeout(resortInBackground, 30_000);
+}
 
 // Once: educational videos already made get the call to action at the end (same text and description).
 if (!paused && !store.settings().ctaAddedV1) {

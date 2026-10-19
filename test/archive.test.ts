@@ -18,17 +18,17 @@ const clip = (id: string, extra: object) => {
   return store.addClip({ id, source: "shared_album", filename: "x.mp4", file, kind: "video", importedAt: old, duration: 8, width: 1080, height: 1920, hasAudio: true, uses: 0, status: "ready", ...extra } as any);
 };
 
-test("week-old clips that will never be used lose their files but keep their record", () => {
+test("week-old clips that will never be used lose their files but keep their record; other footage is kept", () => {
   store.updateSettings({ scenes: ["airport terminal"], onlySituations: true });
   clip("beach", { scene: "other", sourceId: "AF1Qbeach" });
-  clip("edited", { scene: "airport terminal", edited: true });
+  clip("edited", { scene: "airport terminal", edited: true, sourceId: "AF1Qedited" });
   clip("good", { scene: "airport terminal" });
   clip("fixedByHand", { scene: "other", sceneSetBy: "creator" });
   clip("fresh", { scene: "other", importedAt: new Date().toISOString() });
-  assert.equal(archiveUnusable(), 2);
-  assert.equal(store.clip("beach")!.status, "archived");
-  assert.equal(fs.existsSync(path.join(config.mediaDir, "beach.mp4")), false);
+  assert.equal(archiveUnusable(), 1);
   assert.equal(store.clip("edited")!.status, "archived");
-  for (const id of ["good", "fixedByHand", "fresh"]) assert.equal(store.clip(id)!.status, "ready", id);
-  assert.equal(store.hasSource("AF1Qbeach"), true); // never imported again
+  assert.equal(fs.existsSync(path.join(config.mediaDir, "edited.mp4")), false);
+  // Footage outside the airport situations stays: it's for outside videos and themes switched on later.
+  for (const id of ["beach", "good", "fixedByHand", "fresh"]) assert.equal(store.clip(id)!.status, "ready", id);
+  assert.equal(store.hasSource("AF1Qedited"), true); // never imported again
 });

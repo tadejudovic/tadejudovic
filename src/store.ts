@@ -45,6 +45,9 @@ export interface Settings {
   captionAudience: CaptionAudience;
   /** The creator's cloned voice (ElevenLabs), for voiceovers they don't record themselves. */
   voice?: { id: string; createdAt: string; sampleSeconds: number };
+  /** Themes beyond the airport (outside footage), and themes and situations switched off for videos. */
+  outsideThemes: string[];
+  themesOff: string[];
   /** Scenes the creator has asked for in voiceovers ("/ Lex inside airplane"), most recent first, to reuse. */
   shotTags?: string[];
   /** The call to action at the end of educational videos (on screen) and in their description. */
@@ -83,6 +86,7 @@ export interface Settings {
   ctaAddedV1?: boolean;
   zigzagV1?: boolean;
   zigzagV2?: boolean;
+  themesV1?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */
   pastFeedback?: ReviewFeedback;
 }
@@ -98,6 +102,9 @@ export const DEFAULT_SCENES = [
   "inside the airplane",
   "under the airplane seat",
 ];
+
+/** Themes beyond the airport that clips are also sorted into (the journey: places, walks, nature). */
+export const DEFAULT_OUTSIDE_THEMES = ["city walk", "nature & hiking", "beach", "café & restaurant", "hotel & home", "road trip", "park"];
 
 const DEFAULT_SETTINGS: Settings = {
   petName: "Lex",
@@ -125,6 +132,8 @@ const DEFAULT_SETTINGS: Settings = {
     "one adventure at a time. We share the real side of traveling the world with a dog, so more pets get to come " +
     "along instead of staying home.",
   scenes: DEFAULT_SCENES,
+  outsideThemes: DEFAULT_OUTSIDE_THEMES,
+  themesOff: [],
   aiMonthlyBudget: Number(process.env.AI_MONTHLY_BUDGET) || 20,
   maxVideosPerDay: 5,
   onlySituations: true,
@@ -370,3 +379,9 @@ export const store = {
     return db.settings;
   },
 };
+
+/** Every situation and theme clips are sorted into: the airport ones, then the outside ones. */
+export function allScenes(): string[] {
+  const { scenes, outsideThemes } = store.settings();
+  return [...new Set([...scenes, ...(outsideThemes ?? [])])];
+}

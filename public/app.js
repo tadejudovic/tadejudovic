@@ -2422,3 +2422,39 @@ setInterval(async () => {
   }
 }, 2000);
 state.roundTicks = 0;
+
+// ---- Themes for videos -----------------------------------------------------------------
+
+async function refreshThemes() {
+  const t = await api("/api/themes").catch(() => null);
+  if (!t) return;
+  state.themes = t;
+  const off = new Set([...t.travel, ...t.outside].filter((x) => !x.on).map((x) => x.name));
+  const chip = (x, removable) =>
+    h("span", { class: `theme-chip ${x.on ? "on" : ""}` },
+      h("button", { type: "button", class: "theme-toggle", onclick: async () => {
+        x.on ? off.add(x.name) : off.delete(x.name);
+        await api("/api/themes", { method: "PUT", body: { themesOff: [...off] } });
+        refreshThemes();
+      } }, x.on ? "✓ " : "", x.name, h("span", { class: "theme-count" }, ` ${x.unused}/${x.clips}`)),
+      removable ? h("button", { type: "button", class: "theme-x", "aria-label": `Remove ${x.name}`, onclick: async () => {
+        if (!confirm(`Remove the theme “${x.name}”? Its clips go back to unsorted.`)) return;
+        await api("/api/themes", { method: "PUT", body: { outsideThemes: t.outside.map((o) => o.name).filter((n) => n !== x.name) } });
+        refreshThemes();
+      } }, "×") : null);
+  $("#themes-travel").replaceChildren(...t.travel.map((x) => chip(x, false)));
+  $("#themes-outside").replaceChildren(...t.outside.map((x) => chip(x, true)));
+  $("#themes-unsorted").textContent = t.unsorted ? `${t.unsorted} clip(s) don't fit any theme yet.` : "";
+  const on = [...t.travel, ...t.outside].filter((x) => x.on).length;
+  $("#sum-themes").textContent = `${on} on`;
+}
+$("#theme-add").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = e.currentTarget.theme.value.trim().toLowerCase();
+  if (!name || !state.themes) return;
+  await api("/api/themes", { method: "PUT", body: { outsideThemes: [...state.themes.outside.map((o) => o.name), name] } });
+  e.currentTarget.reset();
+  banner(`Added “${name}”. Clips that fit it are being sorted in; give it a minute.`, "ok");
+  setTimeout(refreshThemes, 1500);
+});
+refreshThemes();

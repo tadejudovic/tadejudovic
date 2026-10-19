@@ -74,6 +74,26 @@ export function reviewFeedback(limit = 15): ReviewFeedback {
  * sorted into one of the creator's situations (airport, plane…), not "other" (beach, random).
  * Without the AI there are no situations, so everything counts.
  */
+/**
+ * Footage beyond the airport situations that's worth a video: not an edit, not landscape, long enough
+ * to breathe, not used yet; the longest and strongest moments first.
+ */
+export function outsideClips(): Clip[] {
+  // From the outside themes switched on (not unsorted "other" footage).
+  const { outsideThemes, themesOff } = store.settings();
+  const on = new Set((outsideThemes ?? []).filter((t) => !themesOff?.includes(t)));
+  return store
+    .clips()
+    .filter(
+      (c) =>
+        c.status === "ready" && c.kind === "video" && c.height >= c.width && c.uses === 0 && !c.disliked &&
+        !c.edited && !c.duplicateOf && c.duration >= 5 && !!c.scene && on.has(c.scene),
+    )
+    .map((c) => ({ c, s: Math.min(c.duration, 20) / 20 + Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score)) }))
+    .sort((a, b) => b.s - a.s)
+    .map((x) => x.c);
+}
+
 /** Clips shorter than this are too short to build a video on (a second or two of footage). */
 export const MIN_CLIP_SECONDS = 3;
 
@@ -82,7 +102,8 @@ export function onTopic(c: Clip): boolean {
   // that's in two albums is only used once.
   if (c.edited || c.duplicateOf) return false;
   if (c.kind === "video" && c.duration < MIN_CLIP_SECONDS) return false;
-  const { onlySituations, scenes } = store.settings();
+  const { onlySituations, scenes, themesOff } = store.settings();
+  if (c.scene && themesOff?.includes(c.scene)) return false;
   if (!onlySituations || !config.claude.enabled) return true;
   return !!c.scene && scenes.includes(c.scene);
 }
@@ -309,15 +330,26 @@ export async function plan(
       for (let j = 0; j < chosen.length; j++) if (kinds[j] !== "tips" && chosen[j].duration > chosen[best].duration) best = j;
       [chosen[i], chosen[best]] = [chosen[best], chosen[i]];
     });
+    // Once a day, the inspirational video is made from footage beyond the airport situations (walks,
+    // cities, nature, the places we go): the meaningful side of the journey.
+    const outsideToday = store.renders().some((r) => r.plan.outside && localDate(new Date(r.createdAt)) === localDate(new Date()));
+    const outsidePool = outsideClips().filter((c) => !chosen.includes(c));
+    if (!req.clipIds?.length || req.pickFromPool) {
+      const i = kinds.indexOf("inspire");
+      if (i >= 0 && !outsideToday && outsidePool.length) chosen[i] = outsidePool[0];
+    }
+    const outside = new Set(outsidePool.map((c) => c.id));
     // Extra footage for videos whose clip is too short: other unused clips, the same situation first.
     // (From all unused footage, also when the video was asked for one specific clip.)
-    const spare = all.filter(
-      (c) => !chosen.includes(c) && c.kind === "video" && c.uses === 0 && !c.disliked && onTopic(c) && c.duration >= MIN_CLIP_SECONDS,
-    );
+    const spare = [
+      ...all.filter((c) => !chosen.includes(c) && c.kind === "video" && c.uses === 0 && !c.disliked && onTopic(c) && c.duration >= MIN_CLIP_SECONDS),
+      ...outsidePool.filter((c) => !chosen.includes(c)),
+    ];
     const taken = new Set<string>();
     const extrasFor = (clip: Clip): Clip[] => {
       const pick = [...spare]
-        .filter((c) => !taken.has(c.id))
+        // Outside footage is combined with outside footage; airport footage with airport footage.
+        .filter((c) => !taken.has(c.id) && outside.has(c.id) === outside.has(clip.id))
         .sort((a, b) => Number(b.scene === clip.scene) - Number(a.scene === clip.scene) || b.duration - a.duration)
         .slice(0, 3);
       for (const c of pick) taken.add(c.id);
@@ -354,8 +386,18 @@ export async function plan(
             format: kind,
             // Too short for the video? Combined with other clips of the moment instead of replayed.
             extraClips: extrasFor(clip),
+            ...(outside.has(clip.id)
+              ? {
+                  brief: [
+                    ctx.brief,
+                    "This footage is from the journey beyond the airport: a place, a walk, nature, a moment together. " +
+                      "Make it about where we are and what it means to be here together, not about flying.",
+                  ].filter(Boolean).join(" "),
+                }
+              : {}),
             ...(kind === "tips" ? { faq, pillar, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           });
+          if (outside.has(clip.id)) p.outside = true;
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);
           if (p.topic) covered.unshift(p.topic);
@@ -891,7 +933,9 @@ export async function remakeRejected(id: string): Promise<Render | undefined> {
   const used = new Set(r.plan.segments.map((s) => s.clipId));
   const main = store.clip(r.plan.segments[0]?.clipId ?? "");
   let clip: Clip | undefined = main;
-  if (r.rejectReason === "clip" || !main || main.status !== "ready") {
+  if ((r.rejectReason === "clip" || !main || main.status !== "ready") && r.plan.outside) {
+    clip = outsideClips().find((c) => !used.has(c.id));
+  } else if (r.rejectReason === "clip" || !main || main.status !== "ready") {
     clip = store
       .clips()
       .filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && c.uses === 0 && !c.disliked && onTopic(c) && !used.has(c.id))

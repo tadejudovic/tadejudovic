@@ -56,3 +56,25 @@ test("every point stays on screen long enough to read; a too-short video asks fo
   for (const p of ok.overlays.slice(1)) assert.ok(Math.min(p.end, short.need + 2) - p.start >= readSeconds(p.text) - 1e-9);
   for (let i = 2; i < ok.overlays.length; i++) assert.ok(Math.abs(ok.overlays[i].start - ok.overlays[i - 1].end) < 1e-9);
 });
+
+test("a short clip is never played more than twice, however many times the video is lengthened", async () => {
+  const { replayOnce, lengthenFootage } = await import("../src/overlayLayout.ts");
+  let segs = [{ clipId: "a", start: 0, end: 9.38, speed: 1 }];
+  segs = replayOnce(segs, 17); // reading time
+  segs = lengthenFootage(segs, 25, () => 9.38); // then the call to action
+  const plays = segs.filter((s) => s.clipId === "a" && s.start === 0).length;
+  assert.ok(plays <= 2, `played ${plays} times`);
+  assert.ok(segs.reduce((a, s) => a + (s.end - s.start), 0) <= 18.8);
+});
+
+test("points without an arrow each take a clearly different spot", () => {
+  const o = spreadPoints([
+    { text: "h", start: 0, end: 20 },
+    { text: "1", start: 2, end: 6, y: 0.3, x: 0.34 },
+    { text: "2", start: 6, end: 10, y: 0.74, x: 0.6 },
+    { text: "3", start: 10, end: 20, y: 0.3, x: 0.46 },
+  ]);
+  const spots = o.slice(1).map((p) => `${p.x},${p.y}`);
+  assert.equal(new Set(spots).size, 3);
+  assert.ok(o.slice(1).every((p) => p.y! >= 0.38));
+});

@@ -6,10 +6,21 @@ import type { Overlay, Segment } from "./types.ts";
  * frame, the last staying to the end.
  */
 
-/** Where points sit, in turn (center of the text, 0 top … 1 bottom): never twice in the same spot. */
-export const POINT_Y = [0.62, 0.42, 0.72, 0.5, 0.66, 0.46];
-/** And across: left, right, middle… so the points move over the screen one after another. */
-export const POINT_X = [0.34, 0.6, 0.46, 0.36, 0.58, 0.44];
+/**
+ * Where points sit, in turn: each in a clearly different part of the frame from the one before
+ * (center of the text; x 0 left … 1 right, y 0 top … 1 bottom), all below the headline and inside
+ * the apps' safe zone.
+ */
+export const POINT_SPOTS: { x: number; y: number }[] = [
+  { x: 0.35, y: 0.4 },
+  { x: 0.6, y: 0.62 },
+  { x: 0.38, y: 0.7 },
+  { x: 0.58, y: 0.45 },
+  { x: 0.4, y: 0.56 },
+  { x: 0.6, y: 0.68 },
+];
+export const POINT_Y = POINT_SPOTS.map((p) => p.y);
+export const POINT_X = POINT_SPOTS.map((p) => p.x);
 
 /** Seconds a line needs on screen to be read comfortably (about 3 words a second, at least 2s). */
 export function readSeconds(text: string): number {
@@ -28,15 +39,17 @@ export function timePoints(overlays: Overlay[], total: number): { overlays: Over
   const hookAlone = 2.5;
   const reads = points.map((p) => readSeconds(p.text));
   const need = hookAlone + reads.reduce((a, b) => a + b, 0);
-  if (total < need - 0.2) return { overlays, need };
-  const spare = (total - need) / points.length;
-  let t = hookAlone;
+  // Not enough footage for the full reading time: share what there is in proportion (the caller adds
+  // footage first when it can).
+  const scale = total < need - 0.2 ? Math.max(0, total - hookAlone) / (need - hookAlone) : 1;
+  const spare = scale < 1 ? 0 : (total - need) / points.length;
+  let t = Math.min(hookAlone, total * 0.2);
   const timed = points.map((p, i) => {
     const start = t;
-    t += reads[i] + spare;
+    t += reads[i] * scale + spare;
     return { ...p, start, end: i === points.length - 1 ? total + 1 : t };
   });
-  return { overlays: [{ ...hook, start: 0, end: total + 1 }, ...timed], need };
+  return { overlays: [{ ...hook, start: 0, end: total + 1 }, ...timed], need: scale < 1 ? need : 0 };
 }
 
 /** Seconds needed to read a hook and `points` points one after another. */
@@ -65,17 +78,15 @@ export function layoutPoints(texts: string[], total: number): Overlay[] {
 /** Points the AI placed all in one spot (or not at all) get spread over the frame instead. */
 export function spreadPoints(overlays: Overlay[]): Overlay[] {
   const points = overlays.slice(1);
-  if (points.length < 2) return overlays;
-  const spots = new Set(points.map((o) => (o.y === undefined ? "none" : o.y.toFixed(2))));
-  const spread = spots.size >= Math.min(points.length, 2) && !spots.has("none");
+  if (!points.length) return overlays;
   return [
     overlays[0],
-    ...points.map((o, i) => ({
-      ...o,
-      ...(spread || o.pointTo ? {} : { y: POINT_Y[i % POINT_Y.length] }),
-      // Across the frame too: toward the thing an arrow points at, otherwise left, right, middle in turn.
-      x: o.x ?? (o.pointTo ? Math.max(0.36, Math.min(0.58, o.pointTo.x)) : POINT_X[i % POINT_X.length]),
-    })),
+    ...points.map((o, i) =>
+      // A point with an arrow stays by the thing it points at; the others take turns over the frame.
+      o.pointTo
+        ? { ...o, x: o.x ?? Math.max(0.36, Math.min(0.58, o.pointTo.x)) }
+        : { ...o, ...POINT_SPOTS[i % POINT_SPOTS.length] },
+    ),
   ];
 }
 
@@ -91,8 +102,27 @@ export function lengthenFootage(segments: Segment[], seconds: number, clipDurati
     const room = clipDuration(lastSeg.clipId) - lastSeg.end;
     lastSeg.end += Math.max(0, Math.min(room, (seconds - len(out)) * (lastSeg.speed ?? 1)));
   }
-  const once = out.map((s) => ({ ...s, speed: 1 }));
-  // One replay at most: footage on a loop looks like a loop.
-  if (len(out) < seconds - 0.3) out = [...out, ...once];
+  return replayOnce(out, seconds);
+}
+
+/**
+ * Replay footage to reach `seconds`, but only as much as is missing, and never any part more than
+ * twice in the whole video: footage on a loop looks like a loop. May stay shorter than asked.
+ */
+export function replayOnce(segments: Segment[], seconds: number): Segment[] {
+  const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+  const key = (s: Segment) => `${s.clipId}:${s.start.toFixed(2)}`;
+  const plays = new Map<string, number>();
+  for (const s of segments) plays.set(key(s), (plays.get(key(s)) ?? 0) + 1);
+  const out = [...segments];
+  for (const s of segments) {
+    const missing = seconds - len(out);
+    if (missing < 0.3) break;
+    if ((plays.get(key(s)) ?? 0) >= 2) continue;
+    const take = Math.min(s.end - s.start, missing);
+    if (take < 1) continue;
+    out.push({ ...s, end: s.start + take, speed: 1 });
+    plays.set(key(s), (plays.get(key(s)) ?? 0) + 1);
+  }
   return out;
 }

@@ -1,4 +1,4 @@
-import { lengthenFootage, spreadPoints, timePoints } from "../overlayLayout.ts";
+import { lengthenFootage, replayOnce, spreadPoints, timePoints } from "../overlayLayout.ts";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
@@ -313,13 +313,9 @@ export async function fittingClips(concept: string, main: Clip, extras: Clip[], 
 
 /** Too short for the text to be read: play the footage again (videos loop anyway) rather than slow it down. */
 export function fillByRepeating(segments: Segment[], minSeconds: number): Segment[] {
-  const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
-  const once = len(segments);
-  if (!segments.length || once <= 0) return segments;
-  const out = [...segments];
-  // At most one replay: footage on a loop looks like a loop.
-  if (len(out) < minSeconds - 0.5) out.push(...segments.map((s) => ({ ...s, speed: 1 })));
-  return out;
+  if (!segments.length) return segments;
+  // Only what's missing, and no part played more than twice in the whole video.
+  return replayOnce(segments, minSeconds);
 }
 
 /**
@@ -923,10 +919,13 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   if (ctx.format === "tips" && ctx.cta?.overlay) {
     segments = lengthenFootage(fillWithClips(segments, total + 3, ctx.extraClips ?? []), total + 3, (id) => known.get(id)?.duration ?? 0);
     const longer = lengthOf(segments);
+    // The call to action gets the last 3s, also when there was no more footage to add.
+    const ctaStart = Math.max(0, Math.min(total, longer - 3));
     overlays.forEach((o, i) => {
-      if (o.end > total) overlays[i] = { ...o, end: i === 0 ? longer + 1 : total };
+      if (i === 0) overlays[i] = { ...o, end: longer + 1 };
+      else if (o.end > ctaStart) overlays[i] = { ...o, end: Math.max(o.start + 1.5, ctaStart) };
     });
-    overlays.push({ text: ctx.cta.overlay, start: total, end: longer + 1, y: 0.6 });
+    overlays.push({ text: ctx.cta.overlay, start: ctaStart, end: longer + 1, y: 0.6 });
     total = longer;
   }
   const caption =

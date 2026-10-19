@@ -1373,6 +1373,26 @@ if (!paused && !store.settings().zigzagV2) {
   zigzagExisting();
 }
 
+// Once: the creator asked for the airport potty video (34d625ab05316488) to be made again: same first
+// clip, footage that shows each point, text off Lex's face, a short hook. It goes back to Review.
+if (!paused && !store.settings().remakePottyV1) {
+  store.updateSettings({ remakePottyV1: true });
+  const id = "34d625ab05316488";
+  const r = store.render(id);
+  if (r && !r.remadeAs) {
+    store.updateRender(id, {
+      review: "rejected",
+      reviewedAt: new Date().toISOString(),
+      rejectReason: "other",
+      rejectNote:
+        "Keep the first clip, but the points are about peeing and pooping: show footage of that (Lex walking outside the " +
+        "airport, a potty break), not only the inside of the plane. Keep the text off Lex's face. The hook must be much " +
+        "shorter and snappier and speak to the viewer (like \"Flying with a dog? Potty first\"), never \"people always ask\".",
+    });
+    setTimeout(() => remakeRejected(id, { force: true }).catch((err) => console.warn("[remake]", err)), 20_000);
+  }
+}
+
 // Once: this month's bandwidth before the counter existed (Render: over 70% of 5 GB by Oct 19).
 if (!store.settings().bandwidthSeedV1) {
   store.updateSettings({ bandwidthSeedV1: true });

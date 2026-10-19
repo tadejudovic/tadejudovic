@@ -106,6 +106,25 @@ export function noteInspireIssue(message: string | null) {
   inspireIssue = message ? { at: new Date().toISOString(), message: message.slice(0, 300) } : null;
 }
 
+/**
+ * Footage an educational video's points can cut to (a walk outside for a potty break): unused,
+ * vertical, described clips from the situations and the outside themes, most recent first, not the
+ * round's own main clips.
+ */
+export function brollPool(main: Clip, roundClips: Clip[] = []): Clip[] {
+  const skip = new Set([main.id, ...roundClips.map((c) => c.id)]);
+  const outside = new Set(outsideClips().map((c) => c.id));
+  return store
+    .clips()
+    .filter(
+      (c) =>
+        !skip.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width && c.uses === 0 && !c.disliked &&
+        !c.edited && !c.duplicateOf && c.duration >= 2 && !!c.ai?.summary && (onTopic(c) || outside.has(c.id)),
+    )
+    .sort((a, b) => filmedWeek(b) - filmedWeek(a))
+    .slice(0, 40);
+}
+
 /** The country a clip was filmed in is switched off in Themes ("place:Portugal"). */
 export function placeOff(c: Clip): boolean {
   const country = countryOf(c.place);
@@ -510,7 +529,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { broll: brollPool(clip, chosen), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           });
           if (outside.has(clip.id)) p.outside = true;
           applyHashtags(p, clip.scene);
@@ -1082,7 +1101,7 @@ const REMAKE_BRIEF: Record<string, (text: string, note?: string) => string> = {
  * same clip, a new cut, or the same idea on other footage, with the creator's words as direction.
  * Replacements don't count against the daily limit (they replace one that did); at most 3 in a row.
  */
-export async function remakeRejected(id: string): Promise<Render | undefined> {
+export async function remakeRejected(id: string, { force = false } = {}): Promise<Render | undefined> {
   const r = store.render(id);
   // Every rejected video is replaced by another of its kind (so each day ends with one of each),
   // also without a reason; videos made on request (stories, vlogs) aren't.
@@ -1090,7 +1109,7 @@ export async function remakeRejected(id: string): Promise<Render | undefined> {
   if (!videosLeftToday()) return undefined;
   // A new one of its kind is already on its way (the reason came after the next was started): the
   // reason still counts as feedback, but no second video of the kind.
-  if (r.plan.format && waitingOf(r.plan.format) > 0) return undefined;
+  if (!force && r.plan.format && waitingOf(r.plan.format) > 0) return undefined;
   if (!config.claude.enabled || !aiAvailable()) return undefined;
   const depth = (r.plan.remakeDepth ?? 0) + 1;
   if (depth > 3) return undefined;

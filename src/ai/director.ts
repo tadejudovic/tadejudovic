@@ -322,6 +322,93 @@ export function fillByRepeating(segments: Segment[], minSeconds: number): Segmen
  * Too short for the text: add more footage of the same kind of moment (other clips, their best
  * part), instead of replaying the same few seconds. Takes clips from `extras` as it uses them.
  */
+/**
+ * For each point of an educational video, the clip that best shows what it's about (or none: the
+ * main clip stays). Small model, from what the AI wrote about each clip; each clip used once.
+ */
+export async function pickBroll(points: string[], concept: string, main: Clip, pool: Clip[]): Promise<(Clip | undefined)[]> {
+  const described = pool.filter((c) => c.ai?.summary && c.id !== main.id).slice(0, 40);
+  if (!points.length || !described.length) return points.map(() => undefined);
+  const r = await structured<{ points: { n: number; clip: number }[] }>({
+    system: "You are a video editor picking b-roll for an educational short video.",
+    content: [
+      {
+        type: "text",
+        text:
+          `The video: ${concept}\nMain clip (shown under the headline): ${main.ai?.summary ?? main.scene ?? ""}\n\n` +
+          `Points, each shown on screen for a few seconds:\n${points.map((p, i) => `${i + 1}. ${p}`).join("\n")}\n\n` +
+          `Clips available:\n` +
+          described.map((c, i) => `${i + 1}. ${c.ai!.summary}${c.scene ? ` [${c.scene}]` : ""}${c.place ? ` (${c.place})` : ""}`).join("\n") +
+          `\n\nFor each point, the clip that SHOWS what the point is about (e.g. a walk outside or on grass for a potty ` +
+          `break, the carrier for a point about the carrier, the check-in desk for a check-in point), so the footage ` +
+          `changes with the points instead of staying in one place. 0 when no clip clearly shows it (the main clip ` +
+          `stays). Never the same clip for two points.`,
+      },
+    ],
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["points"],
+      properties: {
+        points: {
+          type: "array",
+          items: { type: "object", additionalProperties: false, required: ["n", "clip"], properties: { n: { type: "integer" }, clip: { type: "integer" } } },
+        },
+      },
+    },
+    effort: "low",
+    model: config.claude.fastModel,
+  });
+  const used = new Set<string>();
+  return points.map((_, i) => {
+    const c = described[(r.points.find((p) => p.n === i + 1)?.clip ?? 0) - 1];
+    if (!c || used.has(c.id)) return undefined;
+    used.add(c.id);
+    return c;
+  });
+}
+
+/**
+ * The cut with b-roll: the main footage, except while a point with its own clip is on screen, when
+ * that clip's best moment plays instead. Same length as before, so the text timing still holds.
+ */
+export function withBroll(main: Segment[], windows: { start: number; end: number; clip?: Clip }[], total: number): Segment[] {
+  const out: Segment[] = [];
+  // The main footage plays on from where it left off (from the top again if it runs out).
+  let mi = 0;
+  let mOff = 0;
+  const takeMain = (len: number) => {
+    let left = len;
+    for (let guard = 0; left > 0.05 && main.length && guard < 50; guard++) {
+      const s = main[mi % main.length];
+      const speed = s.speed ?? 1;
+      const avail = (s.end - s.start) / speed - mOff;
+      const take = Math.min(avail, left);
+      if (take > 0.05) out.push({ ...s, start: s.start + mOff * speed, end: s.start + (mOff + take) * speed });
+      left -= take;
+      mOff += take;
+      if (mOff >= (s.end - s.start) / speed - 0.05) {
+        mi++;
+        mOff = 0;
+      }
+    }
+  };
+  let t = 0;
+  for (const w of windows.filter((x) => x.clip && x.end - x.start >= 1).sort((a, b) => a.start - b.start)) {
+    if (w.start < t) continue;
+    takeMain(w.start - t);
+    const c = w.clip!;
+    const len = Math.min(w.end - w.start, c.duration);
+    const m = [...(c.ai?.moments ?? c.moments ?? [])].sort((a, b) => b.score - a.score)[0];
+    const start = Math.max(0, Math.min(m ? m.start : (c.duration - len) / 2, c.duration - len));
+    out.push({ clipId: c.id, start, end: start + len, speed: 1 });
+    takeMain(w.end - w.start - len);
+    t = w.end;
+  }
+  takeMain(total - t);
+  return out;
+}
+
 export function fillWithClips(segments: Segment[], minSeconds: number, extras: Clip[]): Segment[] {
   const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
   const out = [...segments];
@@ -455,6 +542,8 @@ export interface DirectContext {
   covered?: string[];
   /** Other clips of the same kind of moment, to add when this one is too short (instead of replaying it). */
   extraClips?: Clip[];
+  /** Educational: footage that could show what each point is about (a walk outside for a potty break). */
+  broll?: Clip[];
   /** Educational: the call to action at the end (on screen) and in the description. */
   cta?: { site: string; overlay: string; caption: string };
   /** Make this a collab version for a brand partner. */
@@ -521,8 +610,9 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
           `rules; never add others): ${faq.a.trim()}`
         : `\nThe creator hasn't written their answer yet: keep it general and useful (what to look for, how we ` +
           `think about it) and name no brands, airlines, places or country rules.`) +
-      `\nThe hook can play on the question, as a headline, not as speech: "The bag ${petName} flies in", "Which ` +
-      `airline? Wrong question", "Our #1 question, answered". The "you always ask…" setup belongs in the description.`
+      `\nThe hook answers the question for the viewer, it never quotes it or says who asks: not "how does ` +
+      `${petName} go potty on a plane??", "you always ask…", "our #1 question", "people ask me…", but "Flying with a ` +
+      `dog? Potty first" or "Where dogs pee at the airport". The question can open the description.`
     : "";
   return (
     `\n\nFORMAT FOR THIS VIDEO: EDUCATIONAL. Teach something real about flying or traveling with a pet` +
@@ -538,11 +628,12 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `\n- what we pack / what we check before a flight;` +
     `\n- "nobody tells you…" followed by the thing nobody tells you.` +
     `\n\nTHE HOOK matters most: it's alone on screen for the first ~2.5s, then stays on top as the header, so it ` +
-    `must stop the scroll AND be read at a glance. It's a headline, not a spoken sentence: ONE idea, 4–8 words, no ` +
-    `" / " line breaks, no setup clause ("You always ask…, but…", "If you're flying with your dog, …"). Specific, ` +
-    `curious or a little high-stakes: e.g. "3 seats to avoid with a dog", "The seat matters more than the airline", ` +
-    `"Stop doing this before a flight", "Nobody warned us about security". Never a bland title like "Tips for ` +
-    `flying with a dog". The conversational version, the setup and the why go in the description.` +
+    `must stop the scroll AND be read at a glance. It's a headline, not a spoken sentence: ONE idea, 3–7 words, no ` +
+    `" / " line breaks. Speak to the viewer's situation, snappy: "Flying with a dog? Do this first", "Flying ` +
+    `with your dog? Book this seat", "3 seats to avoid with a dog", "Before your dog's first flight", "Where dogs ` +
+    `pee at the airport", "Stop doing this before a flight". Never quote a question, never "you always ask", "the ` +
+    `#1 question", "people ask me", "POV", and never a bland title like "Tips for flying with a dog". The setup, ` +
+    `the story and the why go in the description.` +
     `\n\nON SCREEN, the way top creators do it:` +
     `\n- The hook is one overlay that stays at the top for the WHOLE video (start 0, end = the video's length, y -1).` +
     `\n- Then each point is its own overlay, shown alone (never repeating earlier points), one after another, each ` +
@@ -824,7 +915,8 @@ export async function proofreadText(lines: string[], petName: string, kind?: str
           `say ("Call the airline", not "Call airline")` +
           (kind === "tips" || kind === "educational"
             ? `; on-screen text reads as text, not speech: the first line (the hook, which stays on screen as the ` +
-              `header) is ONE idea in at most 8 words with no setup clause ("You always ask X, but Y" → "Y"), and a ` +
+              `header) is ONE idea in at most 7 words, never a quoted question and never "you always ask", "our #1 ` +
+              `question", "people ask me" (rewrite it to speak to the viewer, e.g. "Flying with a dog? Potty first"), and a ` +
               `numbered point is at most 7 words (shorten them if not; the one case where a line may get much shorter)`
             : "") +
           `. Be strict: a reader shouldn't ` +
@@ -970,6 +1062,19 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       timed = timePoints(overlays, total);
     }
     overlays.splice(0, overlays.length, ...timed.overlays);
+  }
+  // Educational: each point over footage that shows it, when there's a clip for it.
+  if (ctx.format === "tips" && ctx.broll?.length) {
+    const points = overlays.filter((o) => o.y !== undefined);
+    const picks = await pickBroll(points.map((o) => o.text), r.concept, clip, ctx.broll).catch((err) => {
+      console.warn("[broll]", (err as Error).message);
+      return [] as (Clip | undefined)[];
+    });
+    if (picks.some(Boolean)) {
+      segments = withBroll(segments, points.map((o, i) => ({ start: o.start, end: Math.min(o.end, total), clip: picks[i] })), total);
+      for (const c of picks) if (c) known.set(c.id, c);
+      total = lengthOf(segments);
+    }
   }
   // Educational: end on the creator's call to action (their site, link in bio) for the last 3s.
   if (ctx.format === "tips" && ctx.cta?.overlay) {

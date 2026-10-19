@@ -8,7 +8,7 @@ import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
 import { directClip, planVideos, proofreadText, writeCaption, type DirectContext } from "./ai/director.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
-import { renderVideo } from "./media/render.ts";
+import { basePath, baseKey, renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue } from "./queue.ts";
 import type { Clip, DailyMix, EduPillar, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
@@ -863,6 +863,10 @@ export function deleteRender(id: string) {
   if (!r) return;
   for (const f of [r.file, r.thumb]) if (f) fs.rmSync(f, { force: true });
   store.removeRender(id);
+  // Its text-free footage goes too, unless another video (e.g. its re-made version) uses the same.
+  const clips = new Map(store.clips().map((c) => [c.id, c]));
+  const key = baseKey(r.plan, clips);
+  if (key && !store.renders().some((x) => baseKey(x.plan, clips) === key)) fs.rmSync(basePath(key), { force: true });
 }
 
 /**

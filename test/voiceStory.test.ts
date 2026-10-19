@@ -131,3 +131,21 @@ test("scenes used in voiceovers are kept as reusable tags, newest first, no dupl
   rememberShots(["Lex inside airplane", "lex at security"]);
   assert.deepEqual(store.settings().shotTags, ["lex at security", "Lex inside airplane"]);
 });
+
+test("changing only the text reuses the cut footage instead of cutting every clip again", async () => {
+  const { baseKey, basePath } = await import("../src/media/render.ts");
+  const clips = new Map(store.clips().map((c) => [c.id, c]));
+  const plan = {
+    template: "auto", title: "t", hook: "First", postCaption: "", hashtags: [],
+    segments: [{ clipId: "airport", start: 0, end: 3, speed: 1 }],
+    overlays: [{ text: "First", start: 0, end: 4 }],
+  } as any;
+  const key = baseKey(plan, clips)!;
+  const first = await renderVideo("txt1", plan, clips, { keepOriginalAudio: true, textStyle: "yellowbox" } as any, () => {});
+  assert.ok(fs.existsSync(basePath(key)));
+  const before = fs.statSync(basePath(key)).mtimeMs;
+  const second = await renderVideo("txt2", { ...plan, overlays: [{ text: "Second", start: 0, end: 4 }] }, clips, { keepOriginalAudio: true, textStyle: "yellowbox" } as any, () => {});
+  assert.equal(fs.statSync(basePath(key)).mtimeMs, before); // not cut again
+  assert.ok(Math.abs(second.duration - first.duration) < 0.1);
+  assert.equal(baseKey({ ...plan, segments: [{ clipId: "airport", start: 1, end: 3, speed: 1 }] }, clips) === key, false);
+});

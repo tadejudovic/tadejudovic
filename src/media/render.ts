@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import opentype from "opentype.js";
 import { writeArrow } from "./arrow.ts";
 import fs from "node:fs";
@@ -186,6 +187,20 @@ export interface RenderResult {
   duration: number;
 }
 
+/**
+ * The cut footage without any text (the clips trimmed, scaled and joined) is kept per video, keyed by
+ * exactly which footage it is, so changing only the text or its look redraws the text on it instead
+ * of cutting every clip again.
+ */
+const baseDir = () => path.join(config.rendersDir, "base");
+export function baseKey(plan: VideoPlan, clips: Map<string, Clip>): string | undefined {
+  // Per-segment captions are drawn while cutting, so those videos can't reuse a text-free base.
+  if (!plan.overlays?.length) return undefined;
+  const footage = plan.segments.map((s) => [s.clipId, clips.get(s.clipId)?.file, s.start.toFixed(3), s.end.toFixed(3), s.speed ?? 1]);
+  return crypto.createHash("sha1").update(JSON.stringify([footage, W, H, FPS])).digest("hex").slice(0, 20);
+}
+export const basePath = (key: string) => path.join(baseDir(), `${key}.mp4`);
+
 export async function renderVideo(
   id: string,
   plan: VideoPlan,
@@ -208,6 +223,14 @@ export async function renderVideo(
   if (!font) throw new Error("No font available for on-screen text. Pick a font or set FONT_FILE.");
   const steps = plan.segments.length + 2;
   try {
+    const key = baseKey(plan, clips);
+    const cached = key && fs.existsSync(basePath(key)) ? basePath(key) : undefined;
+    let joined = path.join(tmp, "joined.mp4");
+    if (cached) {
+      // Same footage as before (only the text or its look changed): just redraw the text.
+      joined = cached;
+      onProgress((steps - 1) / steps);
+    } else {
     const parts: string[] = [];
     for (const [i, seg] of plan.segments.entries()) {
       const clip = clips.get(seg.clipId);
@@ -222,9 +245,13 @@ export async function renderVideo(
 
     const list = path.join(tmp, "list.txt");
     fs.writeFileSync(list, parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
-    const joined = path.join(tmp, "joined.mp4");
     await run("ffmpeg", ["-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", joined]);
+    if (key) {
+      fs.mkdirSync(baseDir(), { recursive: true });
+      fs.copyFileSync(joined, basePath(key));
+    }
     onProgress((steps - 1) / steps);
+    }
 
     const { duration } = await probe(joined);
     const file = path.join(config.rendersDir, `${id}.mp4`);

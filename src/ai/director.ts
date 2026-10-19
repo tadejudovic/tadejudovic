@@ -448,6 +448,8 @@ export interface DirectContext {
   faq?: { q: string; a?: string };
   /** Educational: this video's theme, and the topics already covered (never repeated). */
   pillar?: EduPillar;
+  /** Educational: the angle within the theme (e.g. "the bag"). */
+  angle?: string;
   covered?: string[];
   /** Other clips of the same kind of moment, to add when this one is too short (instead of replaying it). */
   extraClips?: Clip[];
@@ -458,22 +460,28 @@ export interface DirectContext {
 }
 
 const PILLAR_TEXT: Record<EduPillar, string> = {
-  destination:
-    "a DESTINATION: how we got Lex to a specific place (a country or city), what it took, what to know before " +
-    "going, e.g. \"How I flew my dog to Brazil\", \"What it takes to bring a dog to Japan\"",
   airline:
-    "an AIRLINE: flying with a specific airline or choosing one, what the pet policy is like in practice, e.g. " +
-    "\"Flying LATAM with a dog\", \"The airline that let Lex sit on my lap\"",
-  gear:
-    "something WE TRAVEL WITH: the backpack/carrier, the health tracker, the documents, a travel essential, e.g. " +
-    "\"The backpack Lex has flown 42,000km in\", \"3 things I never fly without\"",
+    "FLIGHTS & AIRLINES: flying with a specific airline, or how to deal with airlines as a dog owner, e.g. " +
+    "\"Flying LATAM with a dog\", \"How to actually get a pet spot on your flight\"",
+  destination:
+    "DESTINATIONS: what it takes to bring a dog somewhere (the rules and papers), or the places that welcome dogs, " +
+    "e.g. \"What it takes to bring a dog to Japan\", \"The most dog-friendly city we've been to\"",
+  airport:
+    "AT THE AIRPORT: getting through it with a dog, from check-in and security to the gate and layovers, e.g. " +
+    "\"How security works with a dog\", \"Where your dog can pee at the airport\"",
+  prep:
+    "PREP & GEAR: accessories, the bag, getting ready for a flight, and the flight itself, e.g. \"The bag Lex " +
+    "has flown 42,000km in\", \"What I do the morning before we fly\", \"How Lex stays calm under the seat\"",
+  gear: "PREP & GEAR: accessories, the bag, getting ready for a flight, and the flight itself",
 };
 
 /** The educational theme for this video, and what's been covered already. */
-function pillarText(pillar: EduPillar | undefined, covered: string[]): string {
+function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: string): string {
   return (
     (pillar
-      ? `\n\nTHEME FOR THIS VIDEO: ${PILLAR_TEXT[pillar]}. Specific names (places, airlines, brands, rules) only from ` +
+      ? `\n\nTHEME FOR THIS VIDEO: ${PILLAR_TEXT[pillar]}.` +
+        (angle ? ` This time the angle is ${angle}.` : "") +
+        ` Specific names (places, airlines, brands, rules) only from ` +
         `the creator's own answers or the account's story; otherwise stay with what you can see and general advice.`
       : "") +
     (covered.length
@@ -849,7 +857,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : ctx.format === "tips" ? "" : audienceText(ctx.audience, ctx.petName, ctx.format)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`
@@ -964,7 +972,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     scene: clip.scene,
     ...(ctx.format ? { format: ctx.format } : {}),
     ...(ctx.format === "tips" && ctx.faq ? { faq: ctx.faq.q } : {}),
-    ...(ctx.format === "tips" ? { pillar: ctx.pillar, topic: r.topic?.trim() || undefined } : {}),
+    ...(ctx.format === "tips" ? { pillar: ctx.pillar, angle: ctx.angle, topic: r.topic?.trim() || undefined } : {}),
     ...(ctx.audience && ctx.format !== "tips" && !ctx.collab ? { audience: ctx.audience } : {}),
     ...(r.subjectBottom > r.subjectTop && r.subjectTop >= 0 && r.subjectBottom <= 1 && r.subjectBottom - r.subjectTop < 0.9
       ? { keepClear: { top: r.subjectTop, bottom: r.subjectBottom } }

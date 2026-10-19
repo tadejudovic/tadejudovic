@@ -1336,6 +1336,9 @@ if (!paused && !store.settings().zigzagV2) {
   zigzagExisting();
 }
 
+// Once: every day one educational, one fun and one inspirational video, and no more.
+if (!store.settings().mixV2) store.updateSettings({ mixV2: true, dailyMix: { fun: 1, educational: 1, inspirational: 1 }, maxVideosPerDay: 3 });
+
 // Once: educational videos waiting get the numbered-point look (number tab, one width, hook as header).
 if (!paused && !store.settings().numberTabsV1) {
   store.updateSettings({ numberTabsV1: true });

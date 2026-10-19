@@ -171,8 +171,9 @@ export interface VideoPlan {
   format?: PostFormat;
   /** The follower question an educational video answers. */
   faq?: string;
-  /** Educational: the theme (destination, airline, gear) and the specific topic, so it isn't repeated. */
+  /** Educational: the theme (airline, destination, airport, prep), the angle within it, and the specific topic, so it isn't repeated. */
   pillar?: EduPillar;
+  angle?: string;
   topic?: string;
   /** A day vlog: the clips of this day ("2026-10-12"), in the order they were filmed. */
   vlogDay?: string;
@@ -256,7 +257,8 @@ export type RenderStatus = "queued" | "rendering" | "done" | "error";
 export type ReviewStatus = "pending" | "approved" | "rejected";
 /** Why the creator swiped a video away: what to change next time. */
 /** Educational themes, in rotation: how to get to a place, airlines, what we travel with. */
-export type EduPillar = "destination" | "airline" | "gear";
+/** Educational themes, rotated over the week ("gear" is the old name of "prep", on older videos). */
+export type EduPillar = "airline" | "destination" | "airport" | "prep" | "gear";
 
 export type RejectReason = "text" | "clip" | "edit" | "other";
 
@@ -321,6 +323,8 @@ export interface GenerateRequest {
   pickFromPool?: boolean;
   /** Make this kind of video (instead of following the daily mix). */
   format?: PostFormat;
+  /** Educational: keep this theme (a remake stays in the theme of the video it replaces). */
+  pillar?: EduPillar;
   useAi: boolean;
   options: RenderOptions;
 }

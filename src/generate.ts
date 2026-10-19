@@ -241,27 +241,70 @@ export function madeTodayByKind(): Partial<Record<PostFormat, number>> {
 }
 
 /** Educational themes in rotation, and which follower questions belong to each. */
-export const PILLARS: EduPillar[] = ["destination", "airline", "gear"];
+export const PILLARS: EduPillar[] = ["airline", "destination", "airport", "prep"];
 const PILLAR_FAQ: Record<EduPillar, RegExp> = {
-  destination: /where|destination|requirement|countr|travel(ed)? to|get to|fly to/i,
-  airline: /airline/i,
+  airline: /airline|cabin|pet spot|book/i,
+  destination: /where have you|where to|destination|requirement|countr|travel(ed)? to|get to|fly to|paper|document|passport|vaccin|rabies|import|dog.friendly/i,
+  airport: /airport|security|check.?in|layover|transit|gate|pee|poo|potty|toilet|relief/i,
+  prep: /bag|carrier|backpack|pack|gear|bring|tracker|accessor|prep|before the flight|during|calm|stress|anxious|nervous|sedat|food|water|sleep/i,
   gear: /bag|carrier|backpack|pack|gear|bring|tracker|accessor/i,
 };
+/** The angles within each theme, taken in turn so a theme doesn't keep coming back the same way. */
+export const PILLAR_ANGLES: Record<EduPillar, string[]> = {
+  airline: [
+    "a specific airline: what flying it with a dog is really like (cabin or hold, weight limit, fees, how strict they are)",
+    "a how-to with airlines: getting the pet spot, booking and calling to add the dog, checking in with a pet, what they ask for",
+  ],
+  destination: [
+    "the rules and papers to bring a dog into a country: microchip, rabies, health certificate, titer test, timelines",
+    "the best dog-friendly places: where dogs are welcome (cafés, trains, hotels, beaches) and what made it easy",
+  ],
+  airport: [
+    "getting through the airport with a dog: check-in, security (carrier through the scanner, dog in your arms), boarding",
+    "waiting at the airport: relief areas, layovers and transfers, the gate",
+  ],
+  prep: [
+    "accessories we travel with: the things that make a travel day easier",
+    "the bag: the carrier that fits under the seat, what makes a good one, how to get the dog used to it",
+    "flight prep: the days and hours before a flight (exercise, food and water, the last walk, getting used to the carrier)",
+    "during the flight: keeping the dog calm and comfortable under the seat, what to do if they get restless",
+  ],
+  gear: [],
+};
+const pillarOf = (p?: EduPillar) => (p === "gear" ? "prep" : p);
 
-/** The theme furthest behind in recent educational videos (not one already used in this round). */
+/**
+ * The theme furthest behind in recent educational videos (not one already used in this round), so
+ * over a week each comes up about equally: airline, destination, airport, prep.
+ */
 export function nextPillar(skip = new Set<EduPillar>()): EduPillar {
   const recent = store
     .renders()
-    .filter((r) => r.plan.format === "tips" && r.plan.pillar)
+    .filter((r) => r.plan.format === "tips" && r.plan.pillar && r.review !== "rejected")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 9);
-  const count = (p: EduPillar) => recent.filter((r) => r.plan.pillar === p).length;
+    .slice(0, PILLARS.length * 2);
+  const count = (p: EduPillar) => recent.filter((r) => pillarOf(r.plan.pillar) === p).length;
   const lastUsed = (p: EduPillar) => {
-    const i = recent.findIndex((r) => r.plan.pillar === p);
+    const i = recent.findIndex((r) => pillarOf(r.plan.pillar) === p);
     return i === -1 ? Infinity : i;
   };
   const options = PILLARS.filter((p) => !skip.has(p));
-  return (options.length ? options : PILLARS).sort((a, b) => count(a) - count(b) || lastUsed(b) - lastUsed(a))[0];
+  return [...(options.length ? options : PILLARS)].sort((a, b) => count(a) - count(b) || lastUsed(b) - lastUsed(a))[0];
+}
+
+/** The angle within a theme used least recently (rejected videos don't count). */
+export function nextAngle(pillar: EduPillar): string | undefined {
+  const angles = PILLAR_ANGLES[pillar];
+  if (!angles?.length) return undefined;
+  const recent = store
+    .renders()
+    .filter((r) => r.plan.format === "tips" && pillarOf(r.plan.pillar) === pillar && r.plan.angle && r.review !== "rejected")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const lastUsed = (a: string) => {
+    const i = recent.findIndex((r) => r.plan.angle === a);
+    return i === -1 ? Infinity : i;
+  };
+  return [...angles].sort((a, b) => lastUsed(b) - lastUsed(a))[0];
 }
 
 /** Topics of educational videos already made (and not rejected): never made again. */
@@ -426,7 +469,7 @@ export async function plan(
     const pillarsThisRound = new Set<EduPillar>();
     const pillars = kinds.map((k) => {
       if (k !== "tips") return undefined;
-      const p = nextPillar(pillarsThisRound);
+      const p = req.pillar && req.pillar !== "gear" ? req.pillar : nextPillar(pillarsThisRound);
       pillarsThisRound.add(p);
       return p;
     });
@@ -455,7 +498,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { faq, pillar, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           });
           if (outside.has(clip.id)) p.outside = true;
           applyHashtags(p, clip.scene);
@@ -1055,6 +1098,7 @@ export async function remakeRejected(id: string): Promise<Render | undefined> {
       clipIds: [clip.id],
       useAi: true,
       format: kind,
+      pillar: pillarOf(r.plan.pillar),
       brief: REMAKE_BRIEF[r.rejectReason](oldText, r.rejectNote),
       options,
     });

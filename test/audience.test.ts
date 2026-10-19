@@ -4,20 +4,18 @@ import os from "node:os";
 import path from "node:path";
 
 process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-audience-${process.pid}-${Date.now()}`);
-const { isQuestion, dedupeQuestions } = await import("../src/audience.ts");
+const { worthReading, dedupeQuestions } = await import("../src/audience.ts");
 
 const c = (text: string, likes = 0, author = "someone") => ({ text, likes, author, post: "p" });
 
-test("only real questions of a few words count", () => {
-  assert.ok(isQuestion(c("Which airline do you fly with?")));
-  assert.ok(isQuestion(c("how did you get him into Japan")));
-  assert.ok(isQuestion(c("what bag is that, it looks so comfy")));
-  assert.ok(!isQuestion(c("so cute 😍😍")));
-  assert.ok(!isQuestion(c("@anna look!!")));
-  assert.ok(!isQuestion(c("airline?"))); // too short to learn from
-  assert.ok(!isQuestion(c("He is the cutest dog ever honestly")));
-  // The creator's own replies don't count.
-  assert.ok(!isQuestion(c("Which airline do you think it was?", 0, "lex.poodle"), "@lex.poodle"));
+test("comments of a few words of their own get a closer look; emojis, tags and the creator's replies don't", () => {
+  assert.ok(worthReading(c("Which airline do you fly with?")));
+  assert.ok(worthReading(c("need the link to that bag pls")));
+  assert.ok(worthReading(c("I'd love to take mine to Japan")));
+  assert.ok(!worthReading(c("so cute 😍😍")));
+  assert.ok(!worthReading(c("@anna @mark look at this")));
+  assert.ok(!worthReading(c("airline?")));
+  assert.ok(!worthReading(c("Which airline do you think it was?", 0, "lex.poodle"), "@lex.poodle"));
 });
 
 test("the same question asked twice counts once, the most liked copy kept", () => {

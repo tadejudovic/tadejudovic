@@ -19,6 +19,7 @@ import { healPlan, lengthenFootage, spreadPoints } from "./overlayLayout.ts";
 import { countryOf } from "./geo.ts";
 import { planDayVlog } from "./ai/vlog.ts";
 import { searchTopicsFor } from "./searchDemand.ts";
+import { reviewVideo, type EditorVerdict } from "./ai/editor.ts";
 import { previewFor, removePreview } from "./media/preview.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
@@ -45,7 +46,7 @@ export function withResearchedTags(researched: string[], fallback: string[]): st
 export function reviewFeedback(limit = 15): ReviewFeedback {
   const reviewed = store
     .renders()
-    .filter((r) => r.review !== "pending" && r.status === "done" && r.plan.hook)
+    .filter((r) => r.review !== "pending" && r.status === "done" && r.plan.hook && !r.rejectedBy)
     .sort((a, b) => Date.parse(b.reviewedAt ?? b.createdAt) - Date.parse(a.reviewedAt ?? a.createdAt));
   const item = (r: Render) => ({
     text: r.plan.overlays?.map((o) => o.text).join(" / ") || r.plan.hook,
@@ -947,9 +948,12 @@ function enqueueRenderJob(id: string, urgent = true) {
       const result = await renderVideo(id, render.plan, clips, render.options, (p) =>
         store.updateRender(id, { progress: Math.round(p * 100) / 100 }),
       );
-      store.updateRender(id, { status: "done", progress: 1, ...result });
+      // Daily videos get the editor's review before they reach Review (still "making" meanwhile).
+      const review = needsEditor(render);
+      store.updateRender(id, { status: review ? "rendering" : "done", progress: review ? 0.97 : 1, ...result });
       // The light copy the app plays, so even the first viewing doesn't download the full file.
       previewFor(`render-${id}`, result.file);
+      if (review) void editorPass(id, result.duration);
       if (render.countUse !== false && !render.usesCounted) {
         for (const clipId of new Set(render.plan.segments.map((s) => s.clipId))) {
           const c = store.clip(clipId);
@@ -962,6 +966,67 @@ function enqueueRenderJob(id: string, urgent = true) {
       store.updateRender(id, { status: "error", error: (err as Error).message });
     }
   }, { kind: "render", id });
+}
+
+/** Who reviews finished videos (swappable in tests). */
+export const editorReviewer = { review: reviewVideo };
+
+/** The editor's review is for the daily videos (not stories, vlogs or collabs), when the AI is on. */
+function needsEditor(r: Render): boolean {
+  return config.claude.enabled && aiAvailable() && ["tips", "fun", "inspire"].includes(r.plan.format ?? "") && !r.plan.collab;
+}
+
+/**
+ * The editor's review of a finished video: passed on to Review, or sent back once (the text fixed,
+ * or the video made again with the editor's notes). A video that still falls short after that
+ * reaches the creator with the notes, so a hard case never loops or runs up costs.
+ */
+export async function editorPass(id: string, duration: number): Promise<void> {
+  const r = store.render(id);
+  if (!r?.file) return;
+  const finish = (patch: Partial<Render> = {}) => store.render(id) && store.updateRender(id, { status: "done", progress: 1, ...patch });
+  let v: EditorVerdict;
+  try {
+    v = await editorReviewer.review(r, duration, new Map(store.clips().map((c) => [c.id, c])), store.settings().petName);
+  } catch (err) {
+    console.warn(`[editor] ${id}:`, (err as Error).message);
+    return void finish();
+  }
+  if (!store.render(id)) return; // deleted meanwhile
+  const pass = r.plan.editorPass ?? 0;
+  const base = { at: new Date().toISOString(), scores: v.scores, verdict: v.verdict, issues: v.issues.slice(0, 8) };
+  console.log(`[editor] ${id} (${r.plan.format}): ${v.verdict} ${JSON.stringify(v.scores)}${v.issues.length ? ` – ${v.issues.join("; ")}` : ""}`);
+  if (v.verdict === "pass") return void finish({ editor: { ...base, outcome: "passed" } });
+  if (pass >= 1) return void finish({ editor: { ...base, outcome: "let_through" } });
+  const overlays = r.plan.overlays ?? [];
+  if (v.verdict === "fix_text" && overlays.length && v.texts.length === overlays.length) {
+    // Only the words change: the text is drawn again on the same footage (cached, quick).
+    const fixed = overlays.map((o, i) => ({ ...o, text: v.texts[i]?.trim() || o.text }));
+    const plan = healPlan({ ...r.plan, overlays: fixed, hook: fixed[0].text, editorPass: pass + 1 }, store.settings().cta?.site);
+    const fresh = queueRender(plan, r.options, r.batch, { countUse: false });
+    store.updateRender(fresh.id, { editor: { ...base, outcome: "text_fixed" } });
+    deleteRender(id);
+    console.log(`[editor] ${id}: text fixed → ${fresh.id}`);
+    return;
+  }
+  // Footage, cut or pacing: made again with the editor's notes (not counted as the creator's feedback).
+  store.updateRender(id, {
+    status: "done",
+    progress: 1,
+    review: "rejected",
+    reviewedAt: new Date().toISOString(),
+    rejectReason: "other",
+    rejectNote: `Editor's review: ${v.remakeBrief || v.issues.join("; ")}`.slice(0, 600),
+    rejectedBy: "editor",
+    editor: { ...base, outcome: "remade" },
+  });
+  syncClipUses(id);
+  const fresh = await remakeRejected(id, { force: true, editorPass: pass + 1 }).catch(() => undefined);
+  if (!fresh) {
+    // Couldn't make it again (no footage, the day's cap): the creator gets it, with the notes.
+    store.updateRender(id, { review: "pending", reviewedAt: undefined, rejectReason: undefined, rejectNote: undefined, rejectedBy: undefined, editor: { ...base, outcome: "let_through" } });
+    syncClipUses(id);
+  }
 }
 
 export function deleteRender(id: string) {
@@ -1108,7 +1173,7 @@ const REMAKE_BRIEF: Record<string, (text: string, note?: string) => string> = {
  * same clip, a new cut, or the same idea on other footage, with the creator's words as direction.
  * Replacements don't count against the daily limit (they replace one that did); at most 3 in a row.
  */
-export async function remakeRejected(id: string, { force = false } = {}): Promise<Render | undefined> {
+export async function remakeRejected(id: string, { force = false, editorPass = 0 } = {}): Promise<Render | undefined> {
   const r = store.render(id);
   // Every rejected video is replaced by another of its kind (so each day ends with one of each),
   // also without a reason; videos made on request (stories, vlogs) aren't.
@@ -1151,7 +1216,7 @@ export async function remakeRejected(id: string, { force = false } = {}): Promis
     });
     const p = plans[0];
     if (!p) throw new Error("no plan");
-    const fresh = queueRender({ ...p, remakeOf: r.id, remakeDepth: depth }, options, localDate(new Date()));
+    const fresh = queueRender({ ...p, remakeOf: r.id, remakeDepth: depth, ...(editorPass ? { editorPass } : {}) }, options, localDate(new Date()));
     store.updateRender(id, { remadeAs: fresh.id });
     console.log(`[remake] ${r.id} (${r.rejectReason}) → ${fresh.id}`);
     return fresh;

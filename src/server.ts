@@ -433,6 +433,8 @@ app.get("/api/renders/:id/diagnostics", (req, res) => {
     })),
     subjectBand: p.keepClear,
     hookBasedOn: p.basedOn,
+    editorReview: r.editor ?? null,
+    editorPasses: p.editorPass ?? 0,
     concept: p.concept,
     aiNote: p.aiNote,
     look: { style: r.options?.textStyle, size: r.options?.textSize, font: r.options?.fontId, music: Boolean(r.options?.musicFile) },

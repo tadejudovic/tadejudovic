@@ -962,6 +962,13 @@ function detailsBody(r) {
         h("span", { class: "d-play" }, "Play ›"),
       ),
     ) : null,
+    r.editor ? h("section", { class: "d-sec" },
+      h("div", { class: "d-sec-head" }, h("span", {}, "Editor's review")),
+      h("div", { class: "muted" },
+        `${{ passed: "Passed", text_fixed: "Text fixed, then checked again", remade: "Made again", let_through: "Let through with notes" }[r.editor.outcome] ?? ""} · ` +
+          Object.entries(r.editor.scores).map(([k, v]) => `${{ hook: "hook", firstSecond: "first second", textPlacement: "text placement", footage: "footage", pacing: "pacing", readability: "readability" }[k] ?? k} ${v}`).join(", ")),
+      r.editor.issues?.length ? h("ul", { class: "editor-issues" }, ...r.editor.issues.map((x) => h("li", {}, x))) : null,
+    ) : null,
     b ? h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Inspired by")),
       h("div", { class: "d-proof" },

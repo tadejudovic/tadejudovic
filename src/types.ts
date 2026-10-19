@@ -187,6 +187,8 @@ export interface VideoPlan {
   /** A remake of a video the creator rejected (that video's id), and how many remakes deep. */
   remakeOf?: string;
   remakeDepth?: number;
+  /** How many times the editor's review already sent this video back (fixed text or remade). */
+  editorPass?: number;
   /** Who the text speaks to (fun and inspirational alternate between the two). */
   audience?: "pets" | "everyone";
   /** The part of the frame (top to bottom, 0..1) where the subject is: Lex, faces. Text stays out of it. */
@@ -302,6 +304,10 @@ export interface Render {
   madeWith?: string;
   /** The creator's own words on what they didn't like. */
   rejectNote?: string;
+  /** Rejected by the editor's review (not by the creator). */
+  rejectedBy?: "editor";
+  /** The editor's review of the finished video. */
+  editor?: EditorReview;
   reviewedAt?: string;
   /** The video file was downloaded. */
   downloaded?: boolean;
@@ -458,4 +464,14 @@ export interface ReviewFeedback {
   rejected: (FeedbackItem & { reason?: RejectReason; note?: string })[];
   /** Posted videos with real stats, best first. */
   performance?: (FeedbackItem & { platform: Platform; views: number; likes?: number; shares?: number; saves?: number })[];
+}
+
+/** A top TikTok editor's look at a finished video, before it reaches the creator. */
+export interface EditorReview {
+  at: string;
+  scores: { hook: number; firstSecond: number; textPlacement: number; footage: number; pacing: number; readability: number };
+  verdict: "pass" | "fix_text" | "remake";
+  issues: string[];
+  /** What happened: passed on, text fixed, remade, or let through after a fix with notes. */
+  outcome: "passed" | "text_fixed" | "remade" | "let_through";
 }

@@ -6,6 +6,10 @@ import path from "node:path";
 import { config, canDecode4K } from "../config.ts";
 import { run, frameAt, probe } from "./ffmpeg.ts";
 import { fontPath } from "../fonts.ts";
+import { facesDuring } from "../ai/faces.ts";
+
+/** How faces are found (swappable in tests). */
+export const faceFinder = { find: facesDuring };
 import type { Clip, Overlay, RenderOptions, VideoPlan } from "../types.ts";
 
 const { width: W, height: H, fps: FPS } = config.output;
@@ -89,9 +93,9 @@ interface TextOpts {
  * One drawtext filter per line so every line is centered. Text goes through
  * files (textfile=) so quotes, colons and % never need filter escaping.
  */
-export function textFilters(text: string, opts: TextOpts): { filters: string[]; height: number; top: number } {
+export function textFilters(text: string, opts: TextOpts): { filters: string[]; height: number; top: number; left: number; width: number } {
   const clean = screenText(text);
-  if (!clean) return { filters: [], height: 0, top: 0 };
+  if (!clean) return { filters: [], height: 0, top: 0, left: 0, width: 0 };
   const boxed = !opts.style || opts.style === "yellowbox" || opts.style === "box";
   const padX = Math.round(opts.size * 0.55);
   const padY = Math.round(opts.size * 0.38);
@@ -123,7 +127,7 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
       opts.enable ? `enable='${opts.enable}'` : "",
     ].filter(Boolean).join(":");
     const ink = textFilters(text, { ...opts, yTop: top, maxChars: chars, style: "ink" as RenderOptions["textStyle"] });
-    return { filters: [box, ...ink.filters], height: ink.height, top };
+    return { filters: [box, ...ink.filters], height: ink.height, top, left: Math.round(cx - w / 2), width: w };
   }
   const style = {
     ink: "fontcolor=0x111111",
@@ -150,7 +154,8 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
       .filter(Boolean)
       .join(":");
   });
-  return { filters, height: lines.length * lineH, top };
+  const textW = Math.round(Math.max(...lines.map((l) => textWidth(opts.font, l, opts.size))));
+  return { filters, height: lines.length * lineH, top, left: Math.round(cx - textW / 2), width: textW };
 }
 
 /** "1. Call the airline" → ["1", "Call the airline"]; text that isn't a numbered point → undefined. */
@@ -186,7 +191,7 @@ function fitLines(text: string, maxTextW: number, size: number, font: string, ma
  * left-aligned in the box beside it, the box `boxW` wide (the same for every point of the video).
  * Same return as textFilters: the text block's height and top, without the box padding.
  */
-export function pointFilters(num: string, text: string, opts: TextOpts & { boxW: number }): { filters: string[]; height: number; top: number } {
+export function pointFilters(num: string, text: string, opts: TextOpts & { boxW: number }): { filters: string[]; height: number; top: number; left: number; width: number } {
   const size = opts.size;
   const padX = Math.round(size * 0.5);
   const padY = Math.round(size * 0.38);
@@ -222,7 +227,7 @@ export function pointFilters(num: string, text: string, opts: TextOpts & { boxW:
       `x=${left + badgeW + padX}`, `y=${top + i * lineH}`, enable,
     ]),
   ].map((parts) => parts.filter(Boolean).join(":"));
-  return { filters, height: lines.length * lineH, top };
+  return { filters, height: lines.length * lineH, top, left, width: w };
 }
 
 /**
@@ -440,6 +445,16 @@ async function finalize(
     (a, b) => Number(overlays[a].y !== undefined) - Number(overlays[b].y !== undefined) || overlays[a].start - overlays[b].start,
   );
   let lastPointY: number | undefined;
+  // Where faces (the dog's head, people's) are while each text is on screen: text goes beside them.
+  const faces = await faceFinder.find(input, overlays.map((o) => ({ start: o.start, end: Math.min(o.end, duration) })), duration);
+  const faceBoxes = (o: Overlay) => faces[overlays.indexOf(o)] ?? [];
+  /** How much of a text box (px) lies on faces. */
+  const onFaces = (o: Overlay, left: number, top: number, width: number, height: number) =>
+    faceBoxes(o).reduce((a, f) => {
+      const w = Math.min(left + width, f.x1 * W) - Math.max(left, f.x0 * W);
+      const h = Math.min(top + height, f.y1 * H) - Math.max(top, f.y0 * H);
+      return a + (w > 0 && h > 0 ? w * h : 0);
+    }, 0);
   for (const i of order) {
     const o = overlays[i];
     const px = headers.has(o)
@@ -450,8 +465,9 @@ async function finalize(
     // Placed by the AI next to what it's about (educational points), maybe with an arrow pointing at it.
     if (o.y !== undefined) {
       const num = numbered.includes(o) ? splitNumber(screenText(o.text)) : undefined;
-      const draw = (y: number) => {
-        const opts = { yFrac: y, xFrac: o.x, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` };
+      let xNow = o.x;
+      const draw = (y: number, x = xNow) => {
+        const opts = { yFrac: y, xFrac: x, size: px, maxChars: charsFor(px, 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` };
         return num ? pointFilters(num[0], num[1], { ...opts, boxW: pointW }) : textFilters(o.text, opts);
       };
       let y = o.y;
@@ -473,21 +489,30 @@ async function finalize(
       if (!o.pointTo) {
         const others = placed.filter((p) => p.o.start < o.end && o.start < p.end);
         const prev = lastPointY;
-        const score = (cy: number) => {
-          const t = cy * H - height / 2 - boxPad;
-          const b = cy * H + height / 2 + boxPad;
-          const band = plan.keepClear ? Math.max(0, Math.min(b, plan.keepClear.bottom * H) - Math.max(t, plan.keepClear.top * H)) : 0;
-          const textHit = others.some((p) => p.top < b + 20 && t - 20 < p.bottom) ? 10_000 : 0;
-          const sameAsBefore = prev !== undefined && Math.abs(cy - prev) < 0.12 ? 5_000 : 0;
-          const unsafe = t < H * SAFE.top || b > H * SAFE.bottom ? 20_000 : 0;
-          return band + textHit + sameAsBefore + unsafe + Math.abs(cy - y) * 200;
-        };
-        const candidates = [y, 0.34, 0.4, 0.46, 0.52, 0.58, 0.64, 0.7];
-        const best = candidates.reduce((a, c) => (score(c) < score(a) ? c : a), y);
-        if (best !== y) {
-          y = best;
-          ({ filters: f, height, top: drawnTop } = draw(y));
+        const knowFaces = faceBoxes(o).length > 0;
+        // Every height on both sides of the frame (and where the AI put it); the lowest score wins.
+        const xs = [o.x, 0.3, 0.63].filter((v, k, all) => all.indexOf(v) === k);
+        let best: { x: number | undefined; y: number; s: number } | undefined;
+        for (const cx of xs) {
+          for (const cy of [y, 0.34, 0.4, 0.46, 0.52, 0.58, 0.64, 0.7]) {
+            const d = draw(cy, cx);
+            const t = d.top - boxPad;
+            const b = d.top + d.height + boxPad;
+            const face = onFaces(o, d.left - 12, t, d.width + 24, b - t);
+            // On a face: almost never. The body band only matters when faces weren't found.
+            const faceHit = face > 0 ? 15_000 + face / 50 : 0;
+            const bandPx = plan.keepClear ? Math.max(0, Math.min(b, plan.keepClear.bottom * H) - Math.max(t, plan.keepClear.top * H)) : 0;
+            const band = knowFaces ? bandPx * 0.2 : bandPx;
+            const textHit = others.some((p) => p.top < b + 20 && t - 20 < p.bottom) ? 10_000 : 0;
+            const sameAsBefore = prev !== undefined && Math.abs(cy - prev) < 0.12 ? 5_000 : 0;
+            const unsafe = t < H * SAFE.top || b > H * SAFE.bottom ? 20_000 : 0;
+            const s = faceHit + band + textHit + sameAsBefore + unsafe + Math.abs(cy - y) * 200 + (cx === o.x ? 0 : 800);
+            if (!best || s < best.s) best = { x: cx, y: cy, s };
+          }
         }
+        y = best!.y;
+        xNow = best!.x;
+        ({ filters: f, height, top: drawnTop } = draw(y));
         lastPointY = y;
       } else if (plan.keepClear) {
         const top = clearOfSubject(drawnTop, height, boxPad, plan.keepClear);
@@ -535,11 +560,15 @@ async function finalize(
     const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
     const drawAt = (top: number) =>
       textFilters(o.text, { yFrac, yTop: top, size: px, maxChars: charsFor(px, headers.has(o) ? 26 : 24), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
-    let { filters: f, height, top: drawnTop } = drawAt(base + offset);
-    // The first text in its place (the hook) moves above or below the subject if it would cover it.
-    if (!offset && o.at !== "caption" && !headers.has(o) && plan.keepClear) {
-      const top = Math.round(clearOfSubject(base, height, boxPad, plan.keepClear));
-      if (top !== base) {
+    let { filters: f, height, top: drawnTop, left: drawnLeft, width: drawnWidth } = drawAt(base + offset);
+    // The first text in its place (the hook, or its header) moves above or below what it would cover:
+    // the faces seen while it's on screen, or else the subject's band.
+    const hitFaces = faceBoxes(o).filter((b) => b.x1 * W > drawnLeft && b.x0 * W < drawnLeft + drawnWidth && b.y1 * H > drawnTop - boxPad && b.y0 * H < drawnTop + height + boxPad);
+    const faceBand = hitFaces.length ? { top: Math.min(...hitFaces.map((b) => b.y0)), bottom: Math.max(...hitFaces.map((b) => b.y1)) } : undefined;
+    const avoid = faceBand ?? (faceBoxes(o).length || headers.has(o) ? undefined : plan.keepClear);
+    if (!offset && o.at !== "caption" && avoid) {
+      const top = Math.round(clearOfSubject(drawnTop, height, boxPad, avoid));
+      if (top !== drawnTop) {
         base = top;
         ({ filters: f, height, top: drawnTop } = drawAt(base));
       }

@@ -45,6 +45,8 @@ export const config = {
     actor: process.env.APIFY_TIKTOK_ACTOR ?? "clockworks~tiktok-scraper",
     /** Reads a hashtag's total number of posts (TikTok blocks reading it directly). */
     hashtagActor: process.env.APIFY_HASHTAG_ACTOR ?? "crawlerbros~tiktok-hashtag-scraper",
+    /** Reads the comments of TikTok videos (only the creator's own, to learn what their audience asks). */
+    commentsActor: process.env.APIFY_COMMENTS_ACTOR ?? "clockworks~tiktok-comments-scraper",
     /** Reads a public Instagram post's numbers (plays, likes, comments). */
     instagramActor: process.env.APIFY_INSTAGRAM_ACTOR ?? "apify~instagram-scraper",
   },

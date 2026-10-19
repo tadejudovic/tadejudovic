@@ -104,6 +104,19 @@ export interface Settings {
   keywordTopicsAt?: string;
   /** Every Keyword Planner search added so far (exports add up; the newest numbers win). */
   keywordQueries?: { query: string; clicks: number; impressions: number }[];
+  /** Learned from the creator's own TikTok: questions in the comments (as topics) and the posts people
+   * saved and shared most. */
+  audience?: {
+    at: string;
+    days: number;
+    posts: number;
+    commentsRead: number;
+    questions: { text: string; likes: number; post: string }[];
+    topics: SearchTopic[];
+    topPosts: { url: string; text: string; views: number; saves: number; shares: number }[];
+    /** Posts whose comments were read, and when (old ones aren't read again). */
+    scanned: Record<string, string>;
+  };
   themesV1?: boolean;
   geoV1?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */

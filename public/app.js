@@ -152,7 +152,10 @@ function openSubpage(id) {
 const THEME_LABEL = { airline: "Flights & airlines", destination: "Destinations", airport: "At the airport", prep: "Prep & gear" };
 
 async function loadSearchTopics() {
-  const { topics, at, googleAt } = await api("/api/search-demand");
+  const { topics, at, googleAt, audience } = await api("/api/search-demand");
+  $("#audience-at").textContent = audience
+    ? `Read ${new Date(audience.at).toLocaleDateString()}: ${audience.posts} posts from the last ${audience.days} days, ${audience.questions} questions from ${audience.commentsRead} comments. Refreshed weekly.`
+    : "Not read yet.";
   const when = (d) => new Date(d).toLocaleDateString();
   $("#search-at").textContent = at || googleAt
     ? [at && `TikTok: added ${when(at)}`, googleAt && `Google: added ${when(googleAt)}`].filter(Boolean).join(" · ")
@@ -174,7 +177,7 @@ async function loadSearchTopics() {
             h(
               "span",
               { class: "muted" },
-              `${t.source === "google" ? `Google · ${t.impressions.toLocaleString()}/month` : `TikTok · ${t.impressions.toLocaleString()} seen`}` +
+              `${t.source === "google" ? `Google · ${t.impressions.toLocaleString()}/month` : t.source === "comments" ? `Your comments · ${t.queries.length} question${t.queries.length === 1 ? "" : "s"}` : `TikTok · ${t.impressions.toLocaleString()} seen`}` +
                 `${t.used ? " · covered" : ""} · ${t.queries.slice(0, 3).join(", ")}`,
             ),
           ),
@@ -183,6 +186,16 @@ async function loadSearchTopics() {
     }),
   );
 }
+
+$("#audience-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.currentTarget;
+  withBusy(f.querySelector("button"), "Reading… (a few minutes)", async () => {
+    const r = await api("/api/audience/learn", { method: "POST", body: { days: Number(f.days.value) || 90 } });
+    toast(`${r.posts} posts read: ${r.questions} questions, ${r.topics} topics`, "check");
+    loadSearchTopics();
+  });
+});
 
 $("#search-upload").addEventListener("change", async (e) => {
   const file = e.target.files[0];

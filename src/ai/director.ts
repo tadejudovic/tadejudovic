@@ -547,6 +547,8 @@ export interface DirectContext {
   angle?: string;
   /** Educational: what people search for in this theme, most searched first. */
   search?: SearchTopic[];
+  /** Educational: the creator's posts people saved and shared most (for their views). */
+  topPosts?: { text: string; views: number; saves: number; shares: number }[];
   covered?: string[];
   /** Other clips of the same kind of moment, to add when this one is too short (instead of replaying it). */
   extraClips?: Clip[];
@@ -581,11 +583,11 @@ function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: st
       ? `\n\nTHEME FOR THIS VIDEO: ${PILLAR_TEXT[pillar]}.` +
         (angle && !search.length ? ` This time the angle is ${angle}.` : "") +
         (search.length
-          ? `\n\nWHAT PEOPLE SEARCH FOR in this theme (Google searches, most searched first):\n` +
+          ? `\n\nWHAT PEOPLE ASK AND SEARCH FOR in this theme (most asked first):\n` +
             search
               .map(
                 (t, i) =>
-                  `${i + 1}. ${t.topic} (${t.source === "google" ? `${t.impressions.toLocaleString("en")} searches a month` : "searches that brought people to the creator's TikToks"}), ` +
+                  `${i + 1}. ${t.topic} (${t.source === "google" ? `${t.impressions.toLocaleString("en")} searches a month` : t.source === "comments" ? "asked in the comments on the creator's own videos" : "searches that brought people to the creator's TikToks"}), ` +
                   `searched as: ${t.queries.map((q) => `"${q}"`).join(", ")}`,
               )
               .join("\n") +
@@ -606,6 +608,19 @@ function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: st
     `\nSet "topic" to this video's specific topic in a few words (e.g. "Kato backpack", "flying Lex to Brazil").` +
     `\nThe video ends with the creator's call to action (their website), added after your text: don't write one ` +
     `yourself, on screen or in the description.`
+  );
+}
+
+/** Educational: what the audience found worth keeping (saves and shares for the views). */
+function savedText(posts: { text: string; views: number; saves: number; shares: number }[]): string {
+  if (!posts.length) return "";
+  return (
+    `\n\nTHE CREATOR'S POSTS PEOPLE SAVED AND SHARED MOST (for their views), what this audience finds worth ` +
+    `keeping; make this lesson just as useful:\n` +
+    posts
+      .slice(0, 6)
+      .map((p) => `- "${p.text.slice(0, 140)}" (${p.views.toLocaleString("en")} views, ${p.saves} saves, ${p.shares} shares)`)
+      .join("\n")
   );
 }
 
@@ -1003,7 +1018,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : ctx.format === "tips" ? "" : audienceText(ctx.audience, ctx.petName, ctx.format)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle, ctx.search) + footageText(ctx.broll ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle, ctx.search) + footageText(ctx.broll ?? []) + savedText(ctx.topPosts ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`

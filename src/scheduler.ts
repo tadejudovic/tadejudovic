@@ -6,6 +6,7 @@ import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { syncProfiles } from "./postMatch.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
 import { daySetDone, kindsToMake } from "./daySet.ts";
+import { learnFromTikTok } from "./audience.ts";
 
 /**
  * The day runs until one video of each kind (educational, fun, inspirational) is kept: each kind not
@@ -55,6 +56,7 @@ let lastAttempt = 0;
 let lastTopUp = 0;
 let lastArchive = 0;
 let lastStats = 0;
+let lastAudience = 0;
 let researching = false;
 let lastRelook = Date.now(); // startup already queues them
 const TOP_UP_EVERY_MS = 2 * 60_000;
@@ -113,6 +115,12 @@ async function runDue({ afterReview = false } = {}) {
     lastTopUp = Date.now();
     const { newItems } = await syncAll();
     if (newItems) console.log(`[scheduler] topping up: importing ${newItems} more album item(s)`);
+  }
+  // Once a week: what the audience asks on the creator's TikTok (new posts' comments only; cents).
+  const aud = store.settings().audience;
+  if (aud && apifyEnabled() && Date.now() - Date.parse(aud.at) > 7 * 86400_000 && Date.now() - lastAudience > 3600_000) {
+    lastAudience = Date.now();
+    void learnFromTikTok(aud.days).catch((err) => console.warn("[audience]", (err as Error).message));
   }
   // The day's set: a video of each kind not kept yet waits in Review, from midnight on, so they're
   // ready in the morning. Failures retry every 10 minutes (or as soon as more clips are sorted).

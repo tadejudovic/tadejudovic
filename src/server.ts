@@ -15,6 +15,7 @@ import { vlogDays } from "./ai/vlog.ts";
 import { previewFor } from "./media/preview.ts";
 import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playbackPaused, seedBandwidth } from "./bandwidth.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
+import { learnFromTikTok } from "./audience.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
@@ -955,8 +956,13 @@ app.post(
 // ---- What people search (TikTok search analytics) ---------------------------------------
 
 app.get("/api/search-demand", (_req, res) => {
-  const { searchTopicsAt, keywordTopicsAt } = store.settings();
-  res.json({ at: searchTopicsAt ?? null, googleAt: keywordTopicsAt ?? null, topics: allSearchTopics().map((t) => ({ ...t, used: searchTopicUsed(t) })) });
+  const { searchTopicsAt, keywordTopicsAt, audience } = store.settings();
+  res.json({
+    at: searchTopicsAt ?? null,
+    googleAt: keywordTopicsAt ?? null,
+    audience: audience ? { at: audience.at, days: audience.days, posts: audience.posts, commentsRead: audience.commentsRead, questions: audience.questions.length, topPosts: audience.topPosts } : null,
+    topics: allSearchTopics().map((t) => ({ ...t, used: searchTopicUsed(t) })),
+  });
 });
 
 app.post(
@@ -970,6 +976,19 @@ app.post(
       res.status(400).json({ error: (err as Error).message });
     } finally {
       fs.rmSync(req.file.path, { force: true });
+    }
+  }),
+);
+
+app.post(
+  "/api/audience/learn",
+  h(async (req, res) => {
+    const days = Math.max(7, Math.min(365, Math.round(Number(req.body?.days) || 90)));
+    try {
+      const a = await learnFromTikTok(days);
+      res.json({ posts: a.posts, questions: a.questions.length, topics: a.topics.length });
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
     }
   }),
 );

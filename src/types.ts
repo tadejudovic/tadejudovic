@@ -276,8 +276,9 @@ export interface SearchTopic {
   /** TikTok: times the account showed up for these searches; Google: monthly searches. */
   impressions: number;
   clicks: number;
-  /** Where it comes from: TikTok's search analytics (this account) or Google Ads Keyword Planner (everyone). */
-  source?: "tiktok" | "google";
+  /** Where it comes from: TikTok's search analytics (this account), Google Ads Keyword Planner
+   * (everyone), or questions in the comments on the creator's own videos. */
+  source?: "tiktok" | "google" | "comments";
 }
 
 /** Educational themes, rotated over the week ("gear" is the old name of "prep", on older videos). */

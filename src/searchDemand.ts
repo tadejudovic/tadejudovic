@@ -17,7 +17,7 @@ export interface SearchQuery {
   impressions: number;
 }
 
-export type SearchSource = "tiktok" | "google";
+export type SearchSource = "tiktok" | "google" | "comments";
 
 /** The files in a zip archive (stored or deflated entries; enough for TikTok's export). */
 export function unzip(buf: Buffer): Map<string, Buffer> {
@@ -138,7 +138,9 @@ export async function groupQueries(queries: SearchQuery[], source: SearchSource 
         text:
           (source === "google"
             ? `What people search on Google, with average monthly searches (Google Ads Keyword Planner):\n`
-            : `What people searched on Google before finding the creator's TikToks (with how often they saw it):\n`) +
+            : source === "comments"
+              ? `Questions people asked in the comments on the creator's own TikToks (with 1 + the comment's likes):\n`
+              : `What people searched on Google before finding the creator's TikToks (with how often they saw it):\n`) +
           top.map((x, i) => `${i + 1}. ${x.query} (${x.impressions})`).join("\n") +
           `\n\nGroup the searches that ask the same thing into topics an educational video could answer, e.g. "easyJet pet ` +
           `policy" for "does easyjet allow pets in cabin", "easyjet dog policy", "can you take a dog on easyjet". Leave out ` +
@@ -218,8 +220,8 @@ export function mergeQueries(before: SearchQuery[], added: SearchQuery[]): Searc
 
 /** Both lists: TikTok's (what brought people to this account) and Google's (what everyone searches). */
 export function allSearchTopics(): SearchTopic[] {
-  const { searchTopics, keywordTopics } = store.settings();
-  return [...(searchTopics ?? []).map((t) => ({ ...t, source: t.source ?? ("tiktok" as const) })), ...(keywordTopics ?? [])];
+  const { searchTopics, keywordTopics, audience } = store.settings();
+  return [...(audience?.topics ?? []), ...(searchTopics ?? []).map((t) => ({ ...t, source: t.source ?? ("tiktok" as const) })), ...(keywordTopics ?? [])];
 }
 
 /** Whether an educational video in the last 45 days already answered this topic. */
@@ -247,15 +249,13 @@ export function searchTopicsFor(pillar: EduPillar | undefined, n = 3): SearchTop
     .filter((r) => r.plan.format === "tips" && r.review !== "rejected" && (r.plan.pillar === "gear" ? "prep" : r.plan.pillar) === p)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   if (last?.plan.searchTopic) return [];
-  // The two sources take turns, each in its own order (their numbers aren't comparable).
-  const { searchTopics, keywordTopics } = store.settings();
+  // The sources take turns, each in its own order (their numbers aren't comparable): what the
+  // audience asked in the comments first, then what brought people to the account, then Google.
+  const { searchTopics, keywordTopics, audience } = store.settings();
   const open = (list?: SearchTopic[]) => (list ?? []).filter((t) => t.pillar === p && !searchTopicUsed(t));
-  const a = open(searchTopics);
-  const b = open(keywordTopics);
+  const lists = [open(audience?.topics), open(searchTopics), open(keywordTopics)];
   const out: SearchTopic[] = [];
-  for (let i = 0; out.length < n && (i < a.length || i < b.length); i++) {
-    if (a[i]) out.push(a[i]);
-    if (b[i] && out.length < n) out.push(b[i]);
-  }
+  for (let i = 0; out.length < n && lists.some((l) => i < l.length); i++)
+    for (const l of lists) if (l[i] && out.length < n) out.push(l[i]);
   return out;
 }

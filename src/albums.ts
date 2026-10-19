@@ -38,16 +38,15 @@ export function importPause(): string | undefined {
 }
 
 /**
- * Usable footage the next five rounds still need. When an album's date range is used up, older
- * videos are imported (newest first) only as far as this, since a whole album can be years of
- * video and the disk holds a few hundred clips.
+ * How many more videos to import, going back in time from the newest: the album keeps being
+ * scanned backwards (within the daily import budget and the disk guard) until this many unused clips
+ * are waiting, so there's always plenty of recent footage to choose from.
  */
-const ROUNDS_AHEAD = 5;
-const SPARE_CLIPS = 2;
+const MAX_UNUSED = 400;
 export function footageNeeded(): number {
-  const unused = store.clips().filter((c) => c.status === "ready" && c.uses === 0 && !c.disliked && c.height >= c.width && onTopic(c)).length;
+  const unused = store.clips().filter((c) => c.status === "ready" && c.uses === 0 && !c.disliked && c.height >= c.width).length;
   const inFlight = store.clips().filter((c) => c.status === "importing" || c.status === "analyzing").length;
-  return Math.max(0, store.auto().dailyCount * ROUNDS_AHEAD + SPARE_CLIPS - unused - inFlight);
+  return Math.max(0, MAX_UNUSED - unused - inFlight);
 }
 
 export function importBudget(): number {
@@ -175,7 +174,7 @@ export async function syncAlbum(id: string, { reread = false } = {}): Promise<{ 
     const newestFirst = recent.sort((a, b) => (b.takenAt ?? 0) - (a.takenAt ?? 0));
     const budget = importBudget();
     const inRange = newestFirst.slice(0, budget);
-    // The date range is used up: reach back into older videos, newest first, as far as the next rounds need.
+    // The date range is used up: keep going back into older videos, newest first.
     const older = unseen.filter((it) => it.takenAt && it.takenAt < cutoff).sort((a, b) => (b.takenAt ?? 0) - (a.takenAt ?? 0));
     const reach = inRange.length < recent.length ? 0 : Math.min(older.length, budget - inRange.length, Math.max(0, footageNeeded() - inRange.length));
     const fresh = [...inRange, ...older.slice(0, reach)];

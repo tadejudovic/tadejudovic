@@ -15,33 +15,16 @@ globalThis.fetch = (async (input: any) => {
 const { store } = await import("../src/store.ts");
 const { addAlbum, setRecentDays, syncAlbum } = await import("../src/albums.ts");
 
-test("new albums only import videos from the last 30 days; older ones come in only when the range is used up", async () => {
-  // The fixture's items are from 2024.
-  const scene = store.settings().scenes[0];
-  const base = { source: "upload", filename: "x.mp4", file: "/x", kind: "video", importedAt: "", duration: 5, width: 1080, height: 1920, hasAudio: true, status: "ready", scene } as any;
-  store.updateAuto({ dailyCount: 0 }); // the next rounds need 2 spare clips
-  store.addClip({ ...base, id: "have1", uses: 0 });
-  store.addClip({ ...base, id: "have2", uses: 0 });
+test("albums are scanned backwards: the last 30 days first, then older videos, newest first", async () => {
+  // The fixture's items are from 2024, so all of them are older than the range.
   const album = addAlbum("https://photos.app.goo.gl/WindowTest");
   assert.equal(album.recentDays, 30);
-  assert.deepEqual(await syncAlbum(album.id), { newItems: 0 });
-  assert.equal(store.album(album.id)!.tooOld, 3);
-  assert.equal(store.album(album.id)!.seen.length, 0);
-
-  // Everything in range is used: the newest older videos come in, only as many as needed.
-  store.updateClip("have1", { uses: 1 });
-  store.updateClip("have2", { uses: 1 });
-  assert.deepEqual(await syncAlbum(album.id), { newItems: 2 });
-  assert.equal(store.album(album.id)!.tooOld, 1);
-  assert.equal(store.album(album.id)!.reachedBack, 2);
+  // Nothing in range to wait for: the scan carries on back in time.
+  assert.deepEqual(await syncAlbum(album.id), { newItems: 3 });
+  assert.equal(store.album(album.id)!.tooOld, 0);
+  assert.equal(store.album(album.id)!.reachedBack, 3);
   await new Promise((r) => setTimeout(r, 300));
   for (const c of store.clips()) if (c.source === "shared_album") store.removeClip(c.id);
-
-  // Widening the window picks up the rest.
-  setRecentDays(album.id, 0);
-  const r = await syncAlbum(album.id);
-  assert.ok(r.newItems >= 1);
-  assert.equal(store.album(album.id)!.tooOld, 0);
   globalThis.fetch = realFetch;
 });
 

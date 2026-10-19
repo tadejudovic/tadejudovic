@@ -988,7 +988,11 @@ export const editorReviewer = { review: reviewVideo };
 
 /** The editor's review is for the daily videos (not stories, vlogs or collabs), when the AI is on. */
 function needsEditor(r: Render): boolean {
-  return config.claude.enabled && aiAvailable() && ["tips", "fun", "inspire"].includes(r.plan.format ?? "") && !r.plan.collab;
+  // Not for a video the creator already kept or edited, or one only redrawn with a new look.
+  return (
+    config.claude.enabled && aiAvailable() && ["tips", "fun", "inspire"].includes(r.plan.format ?? "") && !r.plan.collab &&
+    r.review !== "approved" && (r.plan.editorPass ?? 0) < EDITOR_ATTEMPTS
+  );
 }
 
 /** Attempts per video: the first, then up to two more made from the editor's notes. */
@@ -1123,7 +1127,8 @@ export async function refreshDesigns({ proofread = false } = {}): Promise<number
       if (fixed) plan = { ...plan, overlays: old.map((o, i) => ({ ...o, text: fixed[i] })), hook: fixed[0] };
     }
     if (!store.render(r.id)) continue; // deleted meanwhile
-    const fresh = queueRender(healPlan(plan, store.settings().cta?.site), { ...r.options, textStyle, textSize, fontId }, r.batch, { countUse: false });
+    // Only the look changes: no new editor's review (it could replace a video the creator kept).
+    const fresh = queueRender(healPlan({ ...plan, editorPass: EDITOR_ATTEMPTS }, store.settings().cta?.site), { ...r.options, textStyle, textSize, fontId }, r.batch, { countUse: false });
     if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
     deleteRender(r.id);
     n++;

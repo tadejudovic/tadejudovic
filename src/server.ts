@@ -15,7 +15,7 @@ import { vlogDays } from "./ai/vlog.ts";
 import { previewFor } from "./media/preview.ts";
 import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playbackPaused, seedBandwidth } from "./bandwidth.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -1134,7 +1134,8 @@ app.post("/api/renders/:id/rerender", (req, res) => {
   if (!b.options?.musicId) options.musicFile = r.options.musicFile;
   // A corrected video comes back to Review for a fresh yes or no, even if it was in Ready.
   // Re-made under today's rules (footage played at most twice, points spread and timed, call to action last).
-  const fresh = queueRender(healPlan(next, store.settings().cta?.site), options, r.batch, { countUse: false });
+  // The creator's own edit: no editor's review to second-guess it.
+  const fresh = queueRender(healPlan({ ...next, editorPass: EDITOR_ATTEMPTS }, store.settings().cta?.site), options, r.batch, { countUse: false });
   deleteRender(r.id);
   res.json(fresh);
 });

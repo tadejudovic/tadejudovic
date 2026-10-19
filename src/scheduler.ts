@@ -1,7 +1,7 @@
 import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { footageNeeded, importBudget, syncAll } from "./albums.ts";
-import { plan, queueRender, isPortrait, onTopic, postsDueForStats, refreshPostStats } from "./generate.ts";
+import { plan, queueRender, isPortrait, onTopic, outsideClips, postsDueForStats, refreshPostStats } from "./generate.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { syncProfiles } from "./postMatch.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
@@ -179,7 +179,9 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
       await waitForIngest(5 * 60_000);
     }
     const ready = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c));
-    if (!ready.length) {
+    // Footage from the outside themes can still make the day's inspirational video.
+    const outsideLeft = outsideClips().length > 0;
+    if (!ready.length && !outsideLeft) {
       const any = store.clips().some((c) => c.status === "ready");
       throw new Error(
         any && store.settings().onlySituations
@@ -189,7 +191,7 @@ export async function runDailyBatch(opts: { force?: boolean } = {}) {
     }
     // Each clip is used once (a rejected video hands its clips back), so a round only draws on unused footage.
     const pool = ready.filter((c) => c.uses === 0);
-    if (!pool.length) throw new Error("Every clip has been used. Older footage from your albums is being imported now; the next round starts as soon as it's sorted.");
+    if (!pool.length && !outsideLeft) throw new Error("Every clip has been used. Older footage from your albums is being imported now; the next round starts as soon as it's sorted.");
 
     const { fontId, textStyle, textSize } = store.settings();
     const options: RenderOptions = { keepOriginalAudio: true, textStyle, textSize, fontId };

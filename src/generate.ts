@@ -180,7 +180,12 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
 }
 
 /** The kind of each video in a round: fun, educational, inspirational, fun, … as far as the mix allows. */
-export function mixSequence(mix: DailyMix, n: number, made: Partial<Record<PostFormat, number>> = {}): PostFormat[] {
+export function mixSequence(
+  mix: DailyMix,
+  n: number,
+  made: Partial<Record<PostFormat, number>> = {},
+  lastMade: Partial<Record<PostFormat, number>> = {},
+): PostFormat[] {
   const want: [PostFormat, number][] = [["fun", mix.fun ?? 0], ["tips", mix.educational ?? 0], ["inspire", mix.inspirational ?? 0]];
   const kinds = want.filter(([, w]) => w > 0);
   if (!kinds.length) return Array(n).fill("fun");
@@ -190,9 +195,24 @@ export function mixSequence(mix: DailyMix, n: number, made: Partial<Record<PostF
   const out: PostFormat[] = [];
   while (out.length < n) {
     let best = kinds[0];
-    for (const k of kinds) if (have.get(k[0])! / k[1] < have.get(best[0])! / best[1]) best = k;
+    // Ties go to the kind made longest ago, so with fewer clips than kinds the same one isn't always dropped.
+    for (const k of kinds) {
+      const a = have.get(k[0])! / k[1];
+      const b = have.get(best[0])! / best[1];
+      if (a < b || (a === b && (lastMade[k[0]] ?? 0) < (lastMade[best[0]] ?? 0))) best = k;
+    }
     out.push(best[0]);
     have.set(best[0], have.get(best[0])! + 1);
+  }
+  return out;
+}
+
+/** When each kind of video was last made (ms). */
+export function lastMadeByKind(): Partial<Record<PostFormat, number>> {
+  const out: Partial<Record<PostFormat, number>> = {};
+  for (const r of store.renders()) {
+    const f = r.plan.format;
+    if (f && f !== "story") out[f] = Math.max(out[f] ?? 0, Date.parse(r.createdAt));
   }
   return out;
 }
@@ -250,11 +270,14 @@ export function coveredTopics(): string[] {
 export function nextAudience(format: PostFormat): "pets" | "everyone" {
   const { captionAudience } = store.settings();
   if (captionAudience === "everyone" || captionAudience === "pets") return captionAudience;
-  const last = store
+  // Mostly for everyone (two in three), now and then for dog lovers: the account grows beyond pet people.
+  const lastTwo = store
     .renders()
     .filter((r) => r.plan.format === format && r.plan.audience)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-  return last?.plan.audience === "everyone" ? "pets" : "everyone";
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 2)
+    .map((r) => r.plan.audience);
+  return lastTwo.length === 2 && lastTwo.every((a) => a === "everyone") ? "pets" : "everyone";
 }
 
 /** Which situations suit which kind of question (footage that shows what the answer is about). */
@@ -290,7 +313,8 @@ export async function plan(
   const all = store.clips().filter((c) => c.status === "ready" && isPortrait(c));
   // Footage the creator rejected is only used when they pick it themselves.
   const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => c.uses === 0 && !c.disliked && onTopic(c));
-  if (!clips.length) throw new Error("No analyzed portrait clips available. Import some vertical footage first.");
+  // Out of airport footage but there's footage from the outside themes: the inspirational video still gets made.
+  if (!clips.length && !(req.pickFromPool && outsideClips().length)) throw new Error("No analyzed portrait clips available. Import some vertical footage first.");
   const { petName, handle } = store.settings();
   const aiOn = req.useAi && config.claude.enabled;
   let warning = req.useAi && !config.claude.enabled ? "ANTHROPIC_API_KEY is not set; used the heuristic planner." : undefined;
@@ -330,22 +354,36 @@ export async function plan(
     const { captionAudience } = store.settings();
     // The daily mix: fun, educational and inspirational candidates, alternating so a round always
     // has at least one of each (the creator keeps the best of each kind).
-    const kinds = req.format ? chosen.map(() => req.format!) : mixSequence(store.settings().dailyMix, chosen.length, madeTodayByKind());
+    // The round's kinds, then a clip for each: once a day the inspirational one is made from footage
+    // beyond the airport situations (walks, cities, nature, the places we go); the others share the
+    // airport clips. So the inspirational video isn't dropped when airport footage runs short.
+    const auto = !req.clipIds?.length || req.pickFromPool;
+    const roundSize = auto && !req.format ? Math.max(chosen.length, req.count) : chosen.length;
+    const wanted = req.format ? chosen.map(() => req.format!) : mixSequence(store.settings().dailyMix, roundSize, madeTodayByKind(), lastMadeByKind());
+    const outsideToday = store.renders().some((r) => r.plan.outside && localDate(new Date(r.createdAt)) === localDate(new Date()));
+    const outsideAll = outsideClips();
+    const airport = [...chosen];
+    const kinds: PostFormat[] = [];
+    chosen.length = 0;
+    let outsideUsed = outsideToday;
+    for (const k of wanted) {
+      const out = auto && k === "inspire" && !outsideUsed ? outsideAll.find((c) => !chosen.includes(c)) : undefined;
+      const clip = out ?? airport.shift();
+      if (!clip) continue;
+      if (out) outsideUsed = true;
+      chosen.push(clip);
+      kinds.push(k);
+    }
     // Educational videos need time to read: they get the longest of the round's clips.
     kinds.forEach((k, i) => {
       if (k !== "tips") return;
       let best = i;
-      for (let j = 0; j < chosen.length; j++) if (kinds[j] !== "tips" && chosen[j].duration > chosen[best].duration) best = j;
+      const outsideIds = new Set(outsideAll.map((c) => c.id));
+      for (let j = 0; j < chosen.length; j++)
+        if (kinds[j] !== "tips" && !outsideIds.has(chosen[j].id) && chosen[j].duration > chosen[best].duration) best = j;
       [chosen[i], chosen[best]] = [chosen[best], chosen[i]];
     });
-    // Once a day, the inspirational video is made from footage beyond the airport situations (walks,
-    // cities, nature, the places we go): the meaningful side of the journey.
-    const outsideToday = store.renders().some((r) => r.plan.outside && localDate(new Date(r.createdAt)) === localDate(new Date()));
-    const outsidePool = outsideClips().filter((c) => !chosen.includes(c));
-    if (!req.clipIds?.length || req.pickFromPool) {
-      const i = kinds.indexOf("inspire");
-      if (i >= 0 && !outsideToday && outsidePool.length) chosen[i] = outsidePool[0];
-    }
+    const outsidePool = outsideAll;
     const outside = new Set(outsidePool.map((c) => c.id));
     // Extra footage for videos whose clip is too short: other unused clips, the same situation first.
     // (From all unused footage, also when the video was asked for one specific clip.)

@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -86,6 +86,7 @@ app.get("/api/diagnostics", (_req, res) => {
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     queuePending: ingestQueue.pending,
     yourCorrections: store.edits().slice(0, 10),
+    today: { byKind: madeTodayByKind(), outsideClipsAvailable: outsideClips().length },
     look: {
       setting: store.settings().textStyle,
       font: store.settings().fontId,

@@ -43,3 +43,9 @@ test("small rounds don't all start with fun: the kind furthest behind today goes
   }
   assert.deepEqual(seq, ["fun", "tips", "inspire", "fun", "tips", "inspire"]);
 });
+
+test("with fewer clips than kinds, the kind made longest ago goes first (inspirational isn't always the one left out)", () => {
+  const mix = { fun: 1, educational: 1, inspirational: 1 };
+  const now = Date.now();
+  assert.deepEqual(mixSequence(mix, 2, {}, { fun: now, tips: now - 1000 }), ["inspire", "tips"]);
+});

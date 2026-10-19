@@ -26,9 +26,11 @@ test("topics already made are never made again (rejected ones may come back)", (
   assert.ok(!covered.includes("Kato backpack"));
 });
 
-test("fun and inspirational take turns between dog lovers and everyone", () => {
+test("fun and inspirational are mostly for everyone, now and then for dog lovers (2 to 1)", () => {
   assert.equal(nextAudience("fun"), "everyone");
   add({ format: "fun", audience: "everyone", hook: "f" });
+  assert.equal(nextAudience("fun"), "everyone");
+  add({ format: "fun", audience: "everyone", hook: "f2" });
   assert.equal(nextAudience("fun"), "pets");
   add({ format: "inspire", audience: "pets", hook: "i" });
   assert.equal(nextAudience("inspire"), "everyone");

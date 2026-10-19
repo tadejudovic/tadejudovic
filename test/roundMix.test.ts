@@ -24,3 +24,11 @@ test("a round of three is one fun, one educational and one inspirational, from d
   assert.equal(clips.filter((c) => c.startsWith("seat")).length, 1); // one take of the flight, not three
   assert.ok(clips.includes("sec") && clips.includes("term"));
 });
+
+test("recent footage is picked before older footage", async () => {
+  const { rankClips } = await import("../src/generate.ts");
+  const mk = (id: string, capturedAt: string, score: number) =>
+    ({ id, capturedAt, importedAt: capturedAt, uses: 0, moments: [{ start: 0, end: 2, score }] }) as any;
+  const order = rankClips([mk("old-strong", "2025-01-10T00:00:00Z", 0.99), mk("new-weak", "2026-10-10T00:00:00Z", 0.4), mk("new-strong", "2026-10-11T00:00:00Z", 0.9)]);
+  assert.deepEqual(order.map((c: any) => c.id), ["new-strong", "new-weak", "old-strong"]);
+});

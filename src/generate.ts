@@ -91,7 +91,8 @@ export function outsideClips(): Clip[] {
         !c.edited && !c.duplicateOf && c.duration >= 5 && !!c.scene && on.has(c.scene) && !placeOff(c),
     )
     .map((c) => ({ c, s: Math.min(c.duration, 20) / 20 + Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score)) }))
-    .sort((a, b) => b.s - a.s)
+    // Recent footage first, then the strongest.
+    .sort((a, b) => filmedWeek(b.c) - filmedWeek(a.c) || b.s - a.s)
     .map((x) => x.c);
 }
 
@@ -125,7 +126,14 @@ export const isPortrait = (c: Clip) => c.height >= c.width;
  */
 export function rankClips(clips: Clip[]): Clip[] {
   const best = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
-  return [...clips].sort((a, b) => a.uses - b.uses || best(b) - best(a));
+  // Recent footage first (by the week it was filmed), and within a week the strongest moment.
+  return [...clips].sort((a, b) => a.uses - b.uses || filmedWeek(b) - filmedWeek(a) || best(b) - best(a));
+}
+
+/** The week a clip was filmed (or imported, if the date is unknown), for newest-first ordering. */
+export function filmedWeek(c: Clip): number {
+  const t = Date.parse(c.capturedAt ?? c.importedAt) || 0;
+  return Math.floor(t / (7 * 86400_000));
 }
 
 /**

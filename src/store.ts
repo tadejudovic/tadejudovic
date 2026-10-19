@@ -91,6 +91,9 @@ export interface Settings {
   /** What people search for before finding the account (TikTok search analytics), grouped into topics. */
   searchTopics?: SearchTopic[];
   searchTopicsAt?: string;
+  /** What people search on Google (Keyword Planner export), grouped into topics the same way. */
+  keywordTopics?: SearchTopic[];
+  keywordTopicsAt?: string;
   themesV1?: boolean;
   geoV1?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */

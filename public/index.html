@@ -321,9 +321,9 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
       <div class="subpage" id="sp-search" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>What people search</h2></header>
         <div class="sp-body">
-          <p class="hint top">The searches that bring people to your TikToks. Educational videos answer the most-searched topic of their theme that isn't covered yet, in the searchers' own words, so they come up for those searches.</p>
-          <p class="hint top">To update: TikTok Studio → Analytics → Search → Export, then add the zip here (or its Queries.csv).</p>
-          <label class="btn" id="search-upload-label">Add TikTok search export<input type="file" id="search-upload" accept=".zip,.csv" hidden /></label>
+          <p class="hint top">What people search for, grouped into topics per theme. Every other educational video answers the most-searched topic of its theme that isn't covered yet, in the searchers' own words, so it comes up for those searches. Searches that aren't about traveling with a dog are left out.</p>
+          <p class="hint top">Two sources, each kept until you add a newer one: <b>TikTok</b> (TikTok Studio → Analytics → Search → Export: the zip) for what brought people to your videos, and <b>Google</b> (Google Ads Keyword Planner → download keyword ideas: the .csv) for what everyone searches.</p>
+          <label class="btn" id="search-upload-label">Add an export<input type="file" id="search-upload" accept=".zip,.csv,.tsv" hidden /></label>
           <p class="muted" id="search-at"></p>
           <div id="search-topics"></div>
         </div>

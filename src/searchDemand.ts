@@ -13,8 +13,11 @@ import type { EduPillar, SearchTopic } from "./types.ts";
 export interface SearchQuery {
   query: string;
   clicks: number;
+  /** TikTok: impressions; Google Keyword Planner: average monthly searches. */
   impressions: number;
 }
+
+export type SearchSource = "tiktok" | "google";
 
 /** The files in a zip archive (stored or deflated entries; enough for TikTok's export). */
 export function unzip(buf: Buffer): Map<string, Buffer> {
@@ -72,42 +75,77 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((f) => f.trim()));
 }
 
-/** The search queries in TikTok's export (the zip, or its Queries.csv). */
+/**
+ * The searches in an export: TikTok Studio's search analytics (the zip, or its Queries.csv), or
+ * Google Ads Keyword Planner's keyword stats (UTF-16, tab-separated, two title lines on top).
+ */
 export function readQueries(buf: Buffer, filename = ""): SearchQuery[] {
-  let csv: string;
+  return readExport(buf, filename).queries;
+}
+
+export function readExport(buf: Buffer, filename = ""): { source: SearchSource; queries: SearchQuery[] } {
+  let text: string;
   if (buf.readUInt32LE(0) === 0x04034b50 || /\.zip$/i.test(filename)) {
     const files = unzip(buf);
     const entry = [...files.entries()].find(([name]) => /(^|\/)queries\.csv$/i.test(name));
     if (!entry) throw new Error("No Queries.csv in that zip. Export it from TikTok Studio → Analytics → Search.");
-    csv = entry[1].toString("utf8");
-  } else csv = buf.toString("utf8");
-  const [head, ...rows] = parseCsv(csv.replace(/^﻿/, ""));
+    text = entry[1].toString("utf8");
+  } else if (buf[0] === 0xff && buf[1] === 0xfe) text = buf.subarray(2).toString("utf16le");
+  else text = buf.toString("utf8");
+  text = text.replace(/^\uFEFF/, "");
+  // Keyword Planner: tab-separated, the header row starts with "Keyword".
+  const lines = text.split(/\r?\n/);
+  const kp = lines.findIndex((l) => /^Keyword\t/.test(l));
+  if (kp >= 0) {
+    const head = lines[kp].split("\t");
+    const k = head.indexOf("Keyword");
+    const v = head.findIndex((h) => /avg\. monthly searches/i.test(h));
+    if (v < 0) throw new Error("That Keyword Planner file has no monthly searches column.");
+    const queries = lines
+      .slice(kp + 1)
+      .map((l) => l.split("\t"))
+      .map((r) => ({ query: r[k]?.trim() ?? "", clicks: 0, impressions: Number((r[v] ?? "").replace(/[,\s]/g, "")) || 0 }))
+      .filter((r) => r.query);
+    return { source: "google", queries };
+  }
+  const [head, ...rows] = parseCsv(text);
   const col = (re: RegExp) => head.findIndex((h) => re.test(h));
   const q = col(/quer/i);
   const c = col(/click/i);
   const im = col(/impression/i);
-  if (q < 0 || im < 0) throw new Error("That file doesn't look like TikTok's search queries export.");
-  return rows
+  if (q < 0 || im < 0) throw new Error("That file isn't a TikTok search export or a Google Keyword Planner export.");
+  const queries = rows
     .map((r) => ({ query: r[q]?.trim() ?? "", clicks: Number(r[c]) || 0, impressions: Number(r[im]) || 0 }))
     .filter((r) => r.query && !/^site:/i.test(r.query));
+  return { source: "tiktok", queries };
 }
 
 const THEMES: EduPillar[] = ["airline", "destination", "airport", "prep"];
 
 /** Groups the queries into topics for the educational themes (off-topic searches are dropped). */
-export async function groupQueries(queries: SearchQuery[]): Promise<SearchTopic[]> {
-  const top = [...queries].sort((a, b) => b.impressions - a.impressions).slice(0, 300);
+export async function groupQueries(queries: SearchQuery[], source: SearchSource = "tiktok"): Promise<SearchTopic[]> {
+  // Searches only about other animals would take the places of dog ones in the 300 looked at.
+  const otherAnimal = /\b(cats?|kittens?|rabbits?|bunny|bunnies|birds?|hamsters?|ferrets?|guinea pigs?)\b/i;
+  const top = queries
+    .filter((q) => !otherAnimal.test(q.query))
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, 300);
   const r = await structured<{ topics: { topic: string; key: string; theme: string; queries: number[] }[] }>({
     system: "You plan educational videos for a creator who travels the world with their dog.",
     content: [
       {
         type: "text",
         text:
-          `What people searched on Google before finding the creator's TikToks (with how often they saw it):\n` +
+          (source === "google"
+            ? `What people search on Google, with average monthly searches (Google Ads Keyword Planner):\n`
+            : `What people searched on Google before finding the creator's TikToks (with how often they saw it):\n`) +
           top.map((x, i) => `${i + 1}. ${x.query} (${x.impressions})`).join("\n") +
           `\n\nGroup the searches that ask the same thing into topics an educational video could answer, e.g. "easyJet pet ` +
           `policy" for "does easyjet allow pets in cabin", "easyjet dog policy", "can you take a dog on easyjet". Leave out ` +
-          `searches that aren't about traveling with a pet (breeds, puppies for sale, unrelated travel). For each topic: ` +
+          `searches that aren't about traveling with a dog: breeds, puppies for sale, unrelated travel, and searches only about ` +
+          `cats, rabbits, birds or hamsters (general "pet" searches stay). Buying-intent searches for gear ("dog carrier", ` +
+          `"airline approved dog carrier") become topics a creator can answer ("What makes a carrier airline-approved"). ` +
+          `Getting around by car or train with a dog (car sickness, trains) counts as prep. For each topic: ` +
           `a short name in the searchers' words, a "key" (the one or two words that identify it in a video's text, e.g. ` +
           `"easyJet", "weight limit"), the theme (airline: flights & airlines; destination: a country's rules and papers ` +
           `or dog-friendly places; airport: at the airport; prep: accessories, the bag, flight prep, during the flight), ` +
@@ -148,20 +186,28 @@ export async function groupQueries(queries: SearchQuery[]): Promise<SearchTopic[
         queries: qs.sort((a, b) => b.impressions - a.impressions).slice(0, 6).map((x) => x.query),
         impressions: qs.reduce((a, x) => a + x.impressions, 0),
         clicks: qs.reduce((a, x) => a + x.clicks, 0),
+        source,
       };
     })
     .filter((t) => t.topic && t.queries.length)
     .sort((a, b) => b.impressions - a.impressions);
 }
 
-export async function importSearchExport(buf: Buffer, filename?: string): Promise<SearchTopic[]> {
+export async function importSearchExport(buf: Buffer, filename?: string): Promise<{ source: SearchSource; topics: SearchTopic[] }> {
   if (!config.claude.enabled) throw new Error("Sorting searches into topics needs the AI (ANTHROPIC_API_KEY).");
-  const queries = readQueries(buf, filename);
+  const { source, queries } = readExport(buf, filename);
   if (!queries.length) throw new Error("No searches in that file.");
-  const topics = await groupQueries(queries);
-  store.updateSettings({ searchTopics: topics, searchTopicsAt: new Date().toISOString() });
-  console.log(`[search] ${queries.length} searches → ${topics.length} topic(s)`);
-  return topics;
+  const topics = await groupQueries(queries, source);
+  const at = new Date().toISOString();
+  store.updateSettings(source === "google" ? { keywordTopics: topics, keywordTopicsAt: at } : { searchTopics: topics, searchTopicsAt: at });
+  console.log(`[search] ${source}: ${queries.length} searches → ${topics.length} topic(s)`);
+  return { source, topics };
+}
+
+/** Both lists: TikTok's (what brought people to this account) and Google's (what everyone searches). */
+export function allSearchTopics(): SearchTopic[] {
+  const { searchTopics, keywordTopics } = store.settings();
+  return [...(searchTopics ?? []).map((t) => ({ ...t, source: t.source ?? ("tiktok" as const) })), ...(keywordTopics ?? [])];
 }
 
 /** Whether an educational video in the last 45 days already answered this topic. */
@@ -189,5 +235,15 @@ export function searchTopicsFor(pillar: EduPillar | undefined, n = 3): SearchTop
     .filter((r) => r.plan.format === "tips" && r.review !== "rejected" && (r.plan.pillar === "gear" ? "prep" : r.plan.pillar) === p)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   if (last?.plan.searchTopic) return [];
-  return (store.settings().searchTopics ?? []).filter((t) => t.pillar === p && !searchTopicUsed(t)).slice(0, n);
+  // The two sources take turns, each in its own order (their numbers aren't comparable).
+  const { searchTopics, keywordTopics } = store.settings();
+  const open = (list?: SearchTopic[]) => (list ?? []).filter((t) => t.pillar === p && !searchTopicUsed(t));
+  const a = open(searchTopics);
+  const b = open(keywordTopics);
+  const out: SearchTopic[] = [];
+  for (let i = 0; out.length < n && (i < a.length || i < b.length); i++) {
+    if (a[i]) out.push(a[i]);
+    if (b[i] && out.length < n) out.push(b[i]);
+  }
+  return out;
 }

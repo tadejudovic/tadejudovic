@@ -139,8 +139,11 @@ function openSubpage(id) {
 const THEME_LABEL = { airline: "Flights & airlines", destination: "Destinations", airport: "At the airport", prep: "Prep & gear" };
 
 async function loadSearchTopics() {
-  const { topics, at } = await api("/api/search-demand");
-  $("#search-at").textContent = at ? `From the export added ${new Date(at).toLocaleDateString()}.` : "No export added yet.";
+  const { topics, at, googleAt } = await api("/api/search-demand");
+  const when = (d) => new Date(d).toLocaleDateString();
+  $("#search-at").textContent = at || googleAt
+    ? [at && `TikTok: added ${when(at)}`, googleAt && `Google: added ${when(googleAt)}`].filter(Boolean).join(" · ")
+    : "No export added yet.";
   const box = $("#search-topics");
   box.replaceChildren(
     ...Object.entries(THEME_LABEL).map(([k, label]) => {
@@ -155,7 +158,12 @@ async function loadSearchTopics() {
             "div",
             { class: "search-topic" + (t.used ? " used" : "") },
             h("b", {}, t.topic),
-            h("span", { class: "muted" }, `${t.impressions.toLocaleString()} searches seen${t.used ? " · covered" : ""} · ${t.queries.slice(0, 3).join(", ")}`),
+            h(
+              "span",
+              { class: "muted" },
+              `${t.source === "google" ? `Google · ${t.impressions.toLocaleString()}/month` : `TikTok · ${t.impressions.toLocaleString()} seen`}` +
+                `${t.used ? " · covered" : ""} · ${t.queries.slice(0, 3).join(", ")}`,
+            ),
           ),
         ),
       );
@@ -172,14 +180,14 @@ $("#search-upload").addEventListener("change", async (e) => {
   try {
     const fd = new FormData();
     fd.append("file", file);
-    const { topics } = await api("/api/search-demand", { method: "POST", body: fd });
-    toast(`${topics.length} search topics added`, "check");
+    const { topics, source } = await api("/api/search-demand", { method: "POST", body: fd });
+    toast(`${topics.length} ${source === "google" ? "Google" : "TikTok"} search topics added`, "check");
     loadSearchTopics();
   } catch (err) {
     toast(err.message || "Couldn't read that file");
   } finally {
     label.classList.remove("busy");
-    label.firstChild.textContent = "Add TikTok search export";
+    label.firstChild.textContent = "Add an export";
     e.target.value = "";
   }
 });
@@ -240,7 +248,8 @@ function renderSummaries() {
   const s = state.status;
   if (!s) return;
   const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-  set("sum-search", s.settings?.searchTopics?.length ? `${s.settings.searchTopics.length} topics` : "add export");
+  const searchN = (s.settings?.searchTopics?.length ?? 0) + (s.settings?.keywordTopics?.length ?? 0);
+  set("sum-search", searchN ? `${searchN} topics` : "add export");
   const n = state.albumCount ?? 0;
   set("sum-album", n ? `${n} album${n === 1 ? "" : "s"}` : "Not connected");
   const ready = state.clips.filter((c) => c.status === "ready").length;

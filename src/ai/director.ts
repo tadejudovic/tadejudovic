@@ -484,9 +484,14 @@ function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: st
       ? `\n\nTHEME FOR THIS VIDEO: ${PILLAR_TEXT[pillar]}.` +
         (angle && !search.length ? ` This time the angle is ${angle}.` : "") +
         (search.length
-          ? `\n\nWHAT PEOPLE SEARCH FOR in this theme (Google searches that led to the creator's TikToks, most ` +
-            `searched first):\n` +
-            search.map((t, i) => `${i + 1}. ${t.topic}, searched as: ${t.queries.map((q) => `"${q}"`).join(", ")}`).join("\n") +
+          ? `\n\nWHAT PEOPLE SEARCH FOR in this theme (Google searches, most searched first):\n` +
+            search
+              .map(
+                (t, i) =>
+                  `${i + 1}. ${t.topic} (${t.source === "google" ? `${t.impressions.toLocaleString("en")} searches a month` : "searches that brought people to the creator's TikToks"}), ` +
+                  `searched as: ${t.queries.map((q) => `"${q}"`).join(", ")}`,
+              )
+              .join("\n") +
             `\nMake this video answer the first one (another only if the first clearly can't work with this footage). ` +
             `Use the searchers' own words in the hook and in the first line of the description, so the video comes up ` +
             `for that search. You may name the airline, place or product the search is about, and state only facts you ` +

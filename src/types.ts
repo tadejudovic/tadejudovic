@@ -266,8 +266,11 @@ export interface SearchTopic {
   key: string;
   pillar: EduPillar;
   queries: string[];
+  /** TikTok: times the account showed up for these searches; Google: monthly searches. */
   impressions: number;
   clicks: number;
+  /** Where it comes from: TikTok's search analytics (this account) or Google Ads Keyword Planner (everyone). */
+  source?: "tiktok" | "google";
 }
 
 /** Educational themes, rotated over the week ("gear" is the old name of "prep", on older videos). */

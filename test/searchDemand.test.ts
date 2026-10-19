@@ -23,6 +23,18 @@ test("reads TikTok's search export from the zip or the csv", () => {
   assert.deepEqual(readQueries(Buffer.from(CSV), "Queries.csv"), fromZip);
 });
 
+test("reads Google Ads Keyword Planner's export (UTF-16, tab-separated, title lines on top)", async () => {
+  const { readExport } = await import("../src/searchDemand.ts");
+  const tsv =
+    "Keyword Stats 2026-10-19 at 01_45_32\n1 October 2025 - 30 September 2026\n" +
+    "Keyword\tCurrency\tAvg. monthly searches\t3-month change\n" +
+    "flying with a dog\tEUR\t14800\t0%\npet carriers for cats\tEUR\t110000\t0%\n";
+  const buf = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(tsv, "utf16le")]);
+  const r = readExport(buf, "Keyword_Stats.csv");
+  assert.equal(r.source, "google");
+  assert.deepEqual(r.queries.map((q) => [q.query, q.impressions]), [["flying with a dog", 14800], ["pet carriers for cats", 110000]]);
+});
+
 test("each theme offers its most-searched topics that weren't covered yet", () => {
   store.updateSettings({
     searchTopics: [
@@ -38,4 +50,7 @@ test("each theme offers its most-searched topics that weren't covered yet", () =
   store.addRender({ id: "e2", createdAt: new Date(Date.now() + 1000).toISOString(), status: "done", progress: 1, review: "pending", options: {} as any, plan: { format: "tips", pillar: "airline", topic: "x", searchTopic: "Vueling pet policy", hook: "h", segments: [], hashtags: [] } } as any);
   assert.deepEqual(searchTopicsFor("airline"), []);
   assert.deepEqual(searchTopicsFor("gear").map((t) => t.topic), ["Kato dog backpack"]);
+  // With Google topics too, the two sources take turns.
+  store.updateSettings({ keywordTopics: [{ topic: "Airline-approved dog carrier", key: "airline approved", pillar: "prep", queries: ["airline approved dog carrier"], impressions: 9900, clicks: 0, source: "google" }] } as any);
+  assert.deepEqual(searchTopicsFor("prep").map((t) => t.topic), ["Kato dog backpack", "Airline-approved dog carrier"]);
 });

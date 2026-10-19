@@ -12,7 +12,7 @@ import { createSession, getSession, listPicked, deleteSession } from "./google/p
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { vlogDays } from "./ai/vlog.ts";
-import { importSearchExport, searchTopicUsed } from "./searchDemand.ts";
+import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
@@ -918,8 +918,8 @@ app.post(
 // ---- What people search (TikTok search analytics) ---------------------------------------
 
 app.get("/api/search-demand", (_req, res) => {
-  const { searchTopics, searchTopicsAt } = store.settings();
-  res.json({ at: searchTopicsAt ?? null, topics: (searchTopics ?? []).map((t) => ({ ...t, used: searchTopicUsed(t) })) });
+  const { searchTopicsAt, keywordTopicsAt } = store.settings();
+  res.json({ at: searchTopicsAt ?? null, googleAt: keywordTopicsAt ?? null, topics: allSearchTopics().map((t) => ({ ...t, used: searchTopicUsed(t) })) });
 });
 
 app.post(
@@ -928,8 +928,7 @@ app.post(
   h(async (req, res) => {
     if (!req.file) return void res.status(400).json({ error: "No file" });
     try {
-      const topics = await importSearchExport(fs.readFileSync(req.file.path), req.file.originalname);
-      res.json({ topics });
+      res.json(await importSearchExport(fs.readFileSync(req.file.path), req.file.originalname));
     } catch (err) {
       res.status(400).json({ error: (err as Error).message });
     } finally {

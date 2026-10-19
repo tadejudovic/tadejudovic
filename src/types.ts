@@ -469,7 +469,12 @@ export interface ReviewFeedback {
 /** A top TikTok editor's look at a finished video, before it reaches the creator. */
 export interface EditorReview {
   at: string;
-  scores: { hook: number; firstSecond: number; textPlacement: number; footage: number; pacing: number; readability: number };
+  /** Each part's overall score (1-10): the first 3 seconds, the body, the ending (call to action). */
+  scores: { hook: number; body: number; ending: number };
+  /** Per part: visual, text, motion (cuts, movement, pacing), sound, each 1-10, and a note. */
+  parts?: Record<"hook" | "body" | "ending", { visual: number; text: number; motion: number; sound: number; note: string }>;
+  /** Where viewers would most likely leave, and why. */
+  dropOff?: { at: number; why: string }[];
   verdict: "pass" | "fix_text" | "remake";
   issues: string[];
   /** What happened: passed on, text fixed, remade, or let through after a fix with notes. */

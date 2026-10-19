@@ -994,7 +994,7 @@ export async function editorPass(id: string, duration: number): Promise<void> {
   }
   if (!store.render(id)) return; // deleted meanwhile
   const pass = r.plan.editorPass ?? 0;
-  const base = { at: new Date().toISOString(), scores: v.scores, verdict: v.verdict, issues: v.issues.slice(0, 8) };
+  const base = { at: new Date().toISOString(), scores: v.scores, parts: v.parts, dropOff: v.dropOff?.slice(0, 3), verdict: v.verdict, issues: v.issues.slice(0, 8) };
   console.log(`[editor] ${id} (${r.plan.format}): ${v.verdict} ${JSON.stringify(v.scores)}${v.issues.length ? ` – ${v.issues.join("; ")}` : ""}`);
   if (v.verdict === "pass") return void finish({ editor: { ...base, outcome: "passed" } });
   if (pass >= 1) return void finish({ editor: { ...base, outcome: "let_through" } });

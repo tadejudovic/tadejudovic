@@ -7,7 +7,9 @@ process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-editor-${process.pid}-$
 const { store } = await import("../src/store.ts");
 const { editorPass, editorReviewer } = await import("../src/generate.ts");
 
-const scores = { hook: 8, firstSecond: 8, textPlacement: 8, footage: 8, pacing: 8, readability: 8 };
+const scores = { hook: 8, body: 8, ending: 8 };
+const p = { visual: 8, text: 8, motion: 8, sound: 8, note: "" };
+const parts = { hook: p, body: p, ending: p };
 const add = (id: string, plan: object = {}) =>
   store.addRender({
     id, createdAt: new Date().toISOString(), status: "rendering", progress: 0.97, review: "pending", file: "/nope.mp4", options: {} as any,
@@ -16,7 +18,7 @@ const add = (id: string, plan: object = {}) =>
 
 test("a video that passes goes to Review with the editor's scores", async () => {
   add("p1");
-  editorReviewer.review = async () => ({ scores, verdict: "pass", issues: [], texts: [], remakeBrief: "" });
+  editorReviewer.review = async () => ({ scores, parts, dropOff: [], verdict: "pass", issues: [], texts: [], remakeBrief: "" });
   await editorPass("p1", 8);
   const r = store.render("p1")!;
   assert.equal(r.status, "done");
@@ -25,7 +27,7 @@ test("a video that passes goes to Review with the editor's scores", async () => 
 
 test("a weak hook gets its text fixed once; after that it's let through with notes", async () => {
   add("t1");
-  editorReviewer.review = async () => ({ scores: { ...scores, hook: 4 }, verdict: "fix_text", issues: ["Hook is label-style"], texts: ["Where do dogs pee when they fly?", "1. One"], remakeBrief: "" });
+  editorReviewer.review = async () => ({ scores: { ...scores, hook: 4 }, parts, dropOff: [{ at: 1, why: "label-style hook" }], verdict: "fix_text", issues: ["Hook is label-style"], texts: ["Where do dogs pee when they fly?", "1. One"], remakeBrief: "" });
   await editorPass("t1", 8);
   assert.equal(store.render("t1"), undefined);
   const fixed = store.renders().find((r) => r.plan.hook === "Where do dogs pee when they fly?")!;

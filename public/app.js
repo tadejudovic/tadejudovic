@@ -966,7 +966,8 @@ function detailsBody(r) {
       h("div", { class: "d-sec-head" }, h("span", {}, "Editor's review")),
       h("div", { class: "muted" },
         `${{ passed: "Passed", text_fixed: "Text fixed, then checked again", remade: "Made again", let_through: "Let through with notes" }[r.editor.outcome] ?? ""} · ` +
-          Object.entries(r.editor.scores).map(([k, v]) => `${{ hook: "hook", firstSecond: "first second", textPlacement: "text placement", footage: "footage", pacing: "pacing", readability: "readability" }[k] ?? k} ${v}`).join(", ")),
+          Object.entries(r.editor.scores).map(([k, v]) => `${{ hook: "first 3s", body: "body", ending: "ending" }[k] ?? k} ${v}/10`).join(" · ")),
+      r.editor.dropOff?.length ? h("div", { class: "muted" }, `Most likely to lose viewers at ${r.editor.dropOff[0].at.toFixed(1)}s: ${r.editor.dropOff[0].why}`) : null,
       r.editor.issues?.length ? h("ul", { class: "editor-issues" }, ...r.editor.issues.map((x) => h("li", {}, x))) : null,
     ) : null,
     b ? h("section", { class: "d-sec" },

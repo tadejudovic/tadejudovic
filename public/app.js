@@ -267,7 +267,7 @@ function renderClips() {
   const strict = st?.onlySituations && state.status?.claude?.enabled;
   const notUsed = (c) =>
     c.status === "ready" && !c.uses &&
-    (c.width > c.height || c.edited || c.duplicateOf || (strict && c.scene && !st.scenes.includes(c.scene)));
+    (c.width > c.height || c.edited || c.duplicateOf || (c.kind === "video" && c.duration < 3) || (strict && c.scene && !st.scenes.includes(c.scene)));
   const main = state.clips.filter((c) => !notUsed(c));
   const parked = state.clips.filter(notUsed);
   const card = (c) => {

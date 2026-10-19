@@ -73,10 +73,14 @@ export function reviewFeedback(limit = 15): ReviewFeedback {
  * sorted into one of the creator's situations (airport, plane…), not "other" (beach, random).
  * Without the AI there are no situations, so everything counts.
  */
+/** Clips shorter than this are too short to build a video on (a second or two of footage). */
+export const MIN_CLIP_SECONDS = 3;
+
 export function onTopic(c: Clip): boolean {
   // Videos that are already edits (text on them) are never re-edited automatically, and a video
   // that's in two albums is only used once.
   if (c.edited || c.duplicateOf) return false;
+  if (c.kind === "video" && c.duration < MIN_CLIP_SECONDS) return false;
   const { onlySituations, scenes } = store.settings();
   if (!onlySituations || !config.claude.enabled) return true;
   return !!c.scene && scenes.includes(c.scene);
@@ -305,7 +309,7 @@ export async function plan(
       [chosen[i], chosen[best]] = [chosen[best], chosen[i]];
     });
     // Extra footage for videos whose clip is too short: other unused clips, the same situation first.
-    const spare = clips.filter((c) => !chosen.includes(c) && c.kind === "video" && !c.edited && !c.duplicateOf);
+    const spare = clips.filter((c) => !chosen.includes(c) && c.kind === "video" && !c.edited && !c.duplicateOf && c.duration >= MIN_CLIP_SECONDS);
     const taken = new Set<string>();
     const extrasFor = (clip: Clip): Clip[] => {
       const pick = [...spare]
@@ -344,7 +348,9 @@ export async function plan(
             proven: provenCaptions(clip.scene),
             audience: kind === "tips" ? (captionAudience === "pets" ? "pets" : "everyone") : audiences[i],
             format: kind,
-            ...(kind === "tips" ? { faq, pillar, covered, cta: store.settings().cta, extraClips: extrasFor(clip), minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            // Too short for the video? Combined with other clips of the moment instead of replayed.
+            extraClips: extrasFor(clip),
+            ...(kind === "tips" ? { faq, pillar, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           });
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);

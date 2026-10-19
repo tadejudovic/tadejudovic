@@ -35,3 +35,12 @@ test("videos that are already edits (text on them) are never used automatically"
   assert.equal(onTopic(edit), false);
   store.updateSettings({ onlySituations: true });
 });
+
+test("clips of a second or two are never used to build a video", () => {
+  store.updateSettings({ onlySituations: false });
+  const tiny = store.addClip({ ...base, id: "tiny", duration: 1.8, kind: "video" });
+  const ok = store.addClip({ ...base, id: "ok", duration: 4, kind: "video" });
+  assert.equal(onTopic(tiny), false);
+  assert.equal(onTopic(ok), true);
+  store.updateSettings({ onlySituations: true });
+});

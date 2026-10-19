@@ -349,6 +349,66 @@ function clearVideos(): number {
   return renders.length;
 }
 
+/**
+ * Everything about how one video was put together, to paste into a chat when something looks off:
+ * the footage used (and how long each clip is), every piece of text with its timing and place, the
+ * AI's choices, and the look. No file paths.
+ */
+app.get("/api/renders/:id/diagnostics", (req, res) => {
+  const r = store.render(String(req.params.id));
+  if (!r) return res.sendStatus(404);
+  const p = r.plan;
+  const round = (n: number | undefined) => (typeof n === "number" ? Math.round(n * 100) / 100 : n);
+  const segments = p.segments.map((s) => {
+    const c = store.clip(s.clipId);
+    return {
+      clip: s.clipId,
+      from: round(s.start),
+      to: round(s.end),
+      speed: s.speed ?? 1,
+      seconds: round((s.end - s.start) / (s.speed ?? 1)),
+      clipLength: round(c?.duration),
+      scene: c?.scene,
+      filmed: c?.capturedAt?.slice(0, 10),
+      clipSummary: c?.ai?.summary,
+    };
+  });
+  const length = segments.reduce((a, s) => a + (s.seconds ?? 0), 0);
+  res.json({
+    app: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
+    video: r.id,
+    made: r.createdAt,
+    status: r.status,
+    error: r.error,
+    review: r.review,
+    rejectReason: r.rejectReason,
+    rejectNote: r.rejectNote,
+    kind: p.format,
+    audience: p.audience,
+    educational: p.format === "tips" ? { theme: p.pillar, topic: p.topic, question: p.faq } : undefined,
+    collab: p.collab?.name,
+    length: round(length),
+    renderedLength: round(r.duration),
+    footage: segments,
+    sameClipRepeated: segments.length !== new Set(segments.map((s) => `${s.clip}:${s.from}`)).size,
+    text: (p.overlays ?? [{ text: p.hook, start: 0, end: length }]).map((o) => ({
+      text: o.text,
+      from: round(o.start),
+      to: round(Math.min(o.end, length)),
+      onScreen: round(Math.min(o.end, length) - o.start),
+      place: o.y === undefined ? (o.at ?? "default") : { y: round(o.y), x: round(o.x) },
+      arrowTo: o.pointTo,
+    })),
+    subjectBand: p.keepClear,
+    hookBasedOn: p.basedOn,
+    concept: p.concept,
+    aiNote: p.aiNote,
+    look: { style: r.options?.textStyle, size: r.options?.textSize, font: r.options?.fontId, music: Boolean(r.options?.musicFile) },
+    description: p.postCaption,
+    hashtags: p.hashtags,
+  });
+});
+
 /** Proofread a video's text as a stranger would and re-make it if anything didn't add up. */
 app.post(
   "/api/renders/:id/proofread",

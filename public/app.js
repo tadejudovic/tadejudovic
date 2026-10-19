@@ -796,6 +796,16 @@ function detailsBody(r) {
           await refreshRenders();
           banner("Fixed the text. Re-making the video now; it comes back in a minute or two.", "ok");
         }) }, "Fix the text"),
+        h("button", { class: "d-link", onclick: (e) => withBusy(e.currentTarget, "Copying…", async () => {
+          const d = await api(`/api/renders/${r.id}/diagnostics`);
+          const text = JSON.stringify(d, null, 1);
+          try {
+            await navigator.clipboard.writeText(text);
+            banner("This video's diagnostics are copied. Paste them into the chat.", "ok");
+          } catch {
+            h("a", { href: URL.createObjectURL(new Blob([text], { type: "text/plain" })), download: `video-${r.id}-diagnostics.txt` }).click();
+          }
+        }) }, "Copy diagnostics"),
         h("button", { class: "d-link", onclick: () => (styleEdit.hidden = !styleEdit.hidden) }, "Text style"),
         h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version"),
       ),

@@ -775,3 +775,10 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .vlog-thumbs img:first-child { margin-left: 0; }
 .vlog-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; }
 .vlog-meta .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+
+/* What people search */
+.search-topic { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid rgba(127,127,127,.15); font-size: 14px; }
+.search-topic .muted { font-size: 12px; }
+.search-topic.used b { opacity: .55; }
+#search-upload-label { display: inline-block; margin: 4px 0 8px; cursor: pointer; }
+#search-upload-label.busy { opacity: .6; pointer-events: none; }

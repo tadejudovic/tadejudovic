@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { config } from "./config.ts";
-import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem, DailyMix, StoryDraft, ReviewFeedback, EditRecord } from "./types.ts";
+import type { AlbumSource, AutoSettings, Clip, Example, Render, SceneResearch, TextSize, TextStyle, Trends, CaptionAudience, Partner, FaqItem, DailyMix, StoryDraft, ReviewFeedback, EditRecord, SearchTopic } from "./types.ts";
 
 /**
  * Tiny JSON-file store. Good enough for a single creator running this locally;
@@ -88,6 +88,9 @@ export interface Settings {
   zigzagV2?: boolean;
   numberTabsV1?: boolean;
   mixV2?: boolean;
+  /** What people search for before finding the account (TikTok search analytics), grouped into topics. */
+  searchTopics?: SearchTopic[];
+  searchTopicsAt?: string;
   themesV1?: boolean;
   geoV1?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */

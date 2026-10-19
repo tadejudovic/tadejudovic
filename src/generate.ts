@@ -17,6 +17,7 @@ import { aiAvailable } from "./ai/budget.ts";
 import { healPlan, lengthenFootage, spreadPoints } from "./overlayLayout.ts";
 import { countryOf } from "./geo.ts";
 import { planDayVlog } from "./ai/vlog.ts";
+import { searchTopicsFor } from "./searchDemand.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
@@ -475,12 +476,18 @@ export async function plan(
     });
     const covered = coveredTopics();
     const askedThisRound = new Set<string>();
+    const searchedThisRound = new Set<string>();
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {
         try {
           const kind = kinds[i] ?? "fun";
           const pillar = pillars[i];
-          const faq = kind === "tips" ? nextQuestion(clip.scene, askedThisRound, pillar) : undefined;
+          // What people search for in this theme comes first; a follower question only joins in when the
+          // creator wrote their answer to it (it's the source of specifics).
+          const search = kind === "tips" ? searchTopicsFor(pillar).filter((t) => !searchedThisRound.has(t.topic)) : [];
+          if (search[0]) searchedThisRound.add(search[0].topic);
+          const question = kind === "tips" ? nextQuestion(clip.scene, askedThisRound, pillar) : undefined;
+          const faq = search.length && !question?.a?.trim() ? undefined : question;
           if (faq) askedThisRound.add(faq.q);
           const p = await directClip(clip, {
             ...ctx,
@@ -498,7 +505,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           });
           if (outside.has(clip.id)) p.outside = true;
           applyHashtags(p, clip.scene);

@@ -174,6 +174,8 @@ export interface VideoPlan {
   /** Educational: the theme (airline, destination, airport, prep), the angle within it, and the specific topic, so it isn't repeated. */
   pillar?: EduPillar;
   angle?: string;
+  /** Educational: the search topic offered for this video (from TikTok's search analytics). */
+  searchTopic?: string;
   topic?: string;
   /** A day vlog: the clips of this day ("2026-10-12"), in the order they were filmed. */
   vlogDay?: string;
@@ -257,6 +259,17 @@ export type RenderStatus = "queued" | "rendering" | "done" | "error";
 export type ReviewStatus = "pending" | "approved" | "rejected";
 /** Why the creator swiped a video away: what to change next time. */
 /** Educational themes, in rotation: how to get to a place, airlines, what we travel with. */
+/** A topic people search for (from TikTok's search analytics), for educational videos. */
+export interface SearchTopic {
+  topic: string;
+  /** The word(s) that identify it in a video's text, e.g. "easyJet". */
+  key: string;
+  pillar: EduPillar;
+  queries: string[];
+  impressions: number;
+  clicks: number;
+}
+
 /** Educational themes, rotated over the week ("gear" is the old name of "prep", on older videos). */
 export type EduPillar = "airline" | "destination" | "airport" | "prep" | "gear";
 

@@ -12,6 +12,7 @@ import { createSession, getSession, listPicked, deleteSession } from "./google/p
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { vlogDays } from "./ai/vlog.ts";
+import { importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
@@ -911,6 +912,29 @@ app.post(
   h(async (req, res) => {
     const seconds = clamp(Math.round(Number(req.body?.seconds) || 20), 10, 45);
     res.json(await makeStoryVideo(String(req.body?.storyline ?? "").slice(0, 2000), seconds));
+  }),
+);
+
+// ---- What people search (TikTok search analytics) ---------------------------------------
+
+app.get("/api/search-demand", (_req, res) => {
+  const { searchTopics, searchTopicsAt } = store.settings();
+  res.json({ at: searchTopicsAt ?? null, topics: (searchTopics ?? []).map((t) => ({ ...t, used: searchTopicUsed(t) })) });
+});
+
+app.post(
+  "/api/search-demand",
+  upload.single("file"),
+  h(async (req, res) => {
+    if (!req.file) return void res.status(400).json({ error: "No file" });
+    try {
+      const topics = await importSearchExport(fs.readFileSync(req.file.path), req.file.originalname);
+      res.json({ topics });
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
+    } finally {
+      fs.rmSync(req.file.path, { force: true });
+    }
   }),
 );
 

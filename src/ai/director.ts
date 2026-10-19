@@ -4,7 +4,7 @@ import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
 import { frameBuffer } from "../media/ffmpeg.ts";
 import { TEMPLATES } from "../templates.ts";
-import type { EditRecord, EduPillar, PostFormat, Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Segment, TemplateId, TrendFormat, VideoPlan } from "../types.ts";
+import type { EditRecord, EduPillar, PostFormat, Clip, Example, Moment, Overlay, ProvenCaption, ReviewFeedback, Segment, TemplateId, TrendFormat, VideoPlan, SearchTopic } from "../types.ts";
 
 /**
  * The "AI director": Claude watches sampled frames of each clip once (cached on
@@ -450,6 +450,8 @@ export interface DirectContext {
   pillar?: EduPillar;
   /** Educational: the angle within the theme (e.g. "the bag"). */
   angle?: string;
+  /** Educational: what people search for in this theme, most searched first. */
+  search?: SearchTopic[];
   covered?: string[];
   /** Other clips of the same kind of moment, to add when this one is too short (instead of replaying it). */
   extraClips?: Clip[];
@@ -476,12 +478,23 @@ const PILLAR_TEXT: Record<EduPillar, string> = {
 };
 
 /** The educational theme for this video, and what's been covered already. */
-function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: string): string {
+function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: string, search: SearchTopic[] = []): string {
   return (
     (pillar
       ? `\n\nTHEME FOR THIS VIDEO: ${PILLAR_TEXT[pillar]}.` +
-        (angle ? ` This time the angle is ${angle}.` : "") +
-        ` Specific names (places, airlines, brands, rules) only from ` +
+        (angle && !search.length ? ` This time the angle is ${angle}.` : "") +
+        (search.length
+          ? `\n\nWHAT PEOPLE SEARCH FOR in this theme (Google searches that led to the creator's TikToks, most ` +
+            `searched first):\n` +
+            search.map((t, i) => `${i + 1}. ${t.topic}, searched as: ${t.queries.map((q) => `"${q}"`).join(", ")}`).join("\n") +
+            `\nMake this video answer the first one (another only if the first clearly can't work with this footage). ` +
+            `Use the searchers' own words in the hook and in the first line of the description, so the video comes up ` +
+            `for that search. You may name the airline, place or product the search is about, and state only facts you ` +
+            `are sure are current (e.g. whether pets fly in the cabin at all, the weight limit with the carrier); leave ` +
+            `out anything you're unsure of, and say in the description that rules change, so check before booking.` +
+            ` Set "topic" to the search topic you answered.`
+          : "") +
+        ` Other specific names (places, airlines, brands, rules) only from ` +
         `the creator's own answers or the account's story; otherwise stay with what you can see and general advice.`
       : "") +
     (covered.length
@@ -857,7 +870,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : ctx.format === "tips" ? "" : audienceText(ctx.audience, ctx.petName, ctx.format)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle, ctx.search) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`
@@ -972,7 +985,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     scene: clip.scene,
     ...(ctx.format ? { format: ctx.format } : {}),
     ...(ctx.format === "tips" && ctx.faq ? { faq: ctx.faq.q } : {}),
-    ...(ctx.format === "tips" ? { pillar: ctx.pillar, angle: ctx.angle, topic: r.topic?.trim() || undefined } : {}),
+    ...(ctx.format === "tips" ? { pillar: ctx.pillar, angle: ctx.angle, searchTopic: ctx.search?.[0]?.topic, topic: r.topic?.trim() || undefined } : {}),
     ...(ctx.audience && ctx.format !== "tips" && !ctx.collab ? { audience: ctx.audience } : {}),
     ...(r.subjectBottom > r.subjectTop && r.subjectTop >= 0 && r.subjectBottom <= 1 && r.subjectBottom - r.subjectTop < 0.9
       ? { keepClear: { top: r.subjectTop, bottom: r.subjectBottom } }

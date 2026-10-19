@@ -12,12 +12,12 @@ import type { Overlay, Segment } from "./types.ts";
  * the apps' safe zone.
  */
 export const POINT_SPOTS: { x: number; y: number }[] = [
-  { x: 0.35, y: 0.4 },
-  { x: 0.6, y: 0.62 },
-  { x: 0.38, y: 0.7 },
-  { x: 0.58, y: 0.45 },
-  { x: 0.4, y: 0.56 },
-  { x: 0.6, y: 0.68 },
+  { x: 0.3, y: 0.4 },
+  { x: 0.63, y: 0.62 },
+  { x: 0.34, y: 0.7 },
+  { x: 0.62, y: 0.46 },
+  { x: 0.32, y: 0.56 },
+  { x: 0.63, y: 0.68 },
 ];
 export const POINT_Y = POINT_SPOTS.map((p) => p.y);
 export const POINT_X = POINT_SPOTS.map((p) => p.x);

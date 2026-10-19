@@ -345,7 +345,10 @@ async function finalize(
   const smaller = new Set(overlays.filter((o) => o.text.split(/\s+\/\s+/).length >= 3).map((o) => o.at ?? ""));
   const arrows: { file: string; start: number; end: number }[] = [];
   // Text in its usual place first (the hook), then text placed by the AI, which must stay clear of it.
-  const order = [...overlays.keys()].sort((a, b) => Number(overlays[a].y !== undefined) - Number(overlays[b].y !== undefined));
+  const order = [...overlays.keys()].sort(
+    (a, b) => Number(overlays[a].y !== undefined) - Number(overlays[b].y !== undefined) || overlays[a].start - overlays[b].start,
+  );
+  let lastPointY: number | undefined;
   for (const i of order) {
     const o = overlays[i];
     const px = smaller.has(o.at ?? "") ? Math.round(textPx(options) * 0.82) : textPx(options);
@@ -368,8 +371,29 @@ async function finalize(
           ({ filters: f, height, top: drawnTop } = draw(y));
         }
       }
-      // Off the subject (the dog, faces).
-      if (plan.keepClear) {
+      // Points without an arrow: the best of several heights. Off the subject (the dog, faces) as much
+      // as possible, clear of other text on screen, and never at the height of the point before, so
+      // they move over the frame even when the dog fills the middle of it.
+      if (!o.pointTo) {
+        const others = placed.filter((p) => p.o.start < o.end && o.start < p.end);
+        const prev = lastPointY;
+        const score = (cy: number) => {
+          const t = cy * H - height / 2 - boxPad;
+          const b = cy * H + height / 2 + boxPad;
+          const band = plan.keepClear ? Math.max(0, Math.min(b, plan.keepClear.bottom * H) - Math.max(t, plan.keepClear.top * H)) : 0;
+          const textHit = others.some((p) => p.top < b + 20 && t - 20 < p.bottom) ? 10_000 : 0;
+          const sameAsBefore = prev !== undefined && Math.abs(cy - prev) < 0.12 ? 5_000 : 0;
+          const unsafe = t < H * SAFE.top || b > H * SAFE.bottom ? 20_000 : 0;
+          return band + textHit + sameAsBefore + unsafe + Math.abs(cy - y) * 200;
+        };
+        const candidates = [y, 0.34, 0.4, 0.46, 0.52, 0.58, 0.64, 0.7];
+        const best = candidates.reduce((a, c) => (score(c) < score(a) ? c : a), y);
+        if (best !== y) {
+          y = best;
+          ({ filters: f, height, top: drawnTop } = draw(y));
+        }
+        lastPointY = y;
+      } else if (plan.keepClear) {
         const top = clearOfSubject(drawnTop, height, boxPad, plan.keepClear);
         if (top !== drawnTop) {
           y = Math.max(0.08, Math.min(0.9, (top + height / 2) / H));

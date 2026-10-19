@@ -144,7 +144,8 @@ app.get("/api/status", (req, res) => {
     awaitingReview: awaitingReview(),
     lastRoundError,
     roundStage,
-    settings: store.settings(),
+    // The raw keyword list is only for regrouping; the app shows the topics.
+    settings: { ...store.settings(), keywordQueries: undefined },
     templates: Object.values(TEMPLATES).map(({ id, name, description }) => ({ id, name, description })),
     music: listMusic(),
   });

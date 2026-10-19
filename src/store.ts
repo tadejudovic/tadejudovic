@@ -94,6 +94,8 @@ export interface Settings {
   /** What people search on Google (Keyword Planner export), grouped into topics the same way. */
   keywordTopics?: SearchTopic[];
   keywordTopicsAt?: string;
+  /** Every Keyword Planner search added so far (exports add up; the newest numbers win). */
+  keywordQueries?: { query: string; clicks: number; impressions: number }[];
   themesV1?: boolean;
   geoV1?: boolean;
   /** What reviews and post stats taught before the videos were deleted (still fed to the AI). */

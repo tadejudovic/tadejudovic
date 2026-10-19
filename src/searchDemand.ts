@@ -129,7 +129,7 @@ export async function groupQueries(queries: SearchQuery[], source: SearchSource 
   const top = queries
     .filter((q) => !otherAnimal.test(q.query))
     .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 300);
+    .slice(0, 400);
   const r = await structured<{ topics: { topic: string; key: string; theme: string; queries: number[] }[] }>({
     system: "You plan educational videos for a creator who travels the world with their dog.",
     content: [
@@ -143,7 +143,8 @@ export async function groupQueries(queries: SearchQuery[], source: SearchSource 
           `\n\nGroup the searches that ask the same thing into topics an educational video could answer, e.g. "easyJet pet ` +
           `policy" for "does easyjet allow pets in cabin", "easyjet dog policy", "can you take a dog on easyjet". Leave out ` +
           `searches that aren't about traveling with a dog: breeds, puppies for sale, unrelated travel, and searches only about ` +
-          `cats, rabbits, birds or hamsters (general "pet" searches stay). Buying-intent searches for gear ("dog carrier", ` +
+          `cats, rabbits, birds or hamsters (general "pet" searches stay), and "fly" in the other senses (flies the ` +
+          `insect, flyball, a dog snapping at flies). Buying-intent searches for gear ("dog carrier", ` +
           `"airline approved dog carrier") become topics a creator can answer ("What makes a carrier airline-approved"). ` +
           `Getting around by car or train with a dog (car sickness, trains) counts as prep. For each topic: ` +
           `a short name in the searchers' words, a "key" (the one or two words that identify it in a video's text, e.g. ` +
@@ -195,13 +196,24 @@ export async function groupQueries(queries: SearchQuery[], source: SearchSource 
 
 export async function importSearchExport(buf: Buffer, filename?: string): Promise<{ source: SearchSource; topics: SearchTopic[] }> {
   if (!config.claude.enabled) throw new Error("Sorting searches into topics needs the AI (ANTHROPIC_API_KEY).");
-  const { source, queries } = readExport(buf, filename);
-  if (!queries.length) throw new Error("No searches in that file.");
+  const { source, queries: added } = readExport(buf, filename);
+  if (!added.length) throw new Error("No searches in that file.");
+  // Keyword Planner exports add up (each one is a different set of seed words); TikTok's replaces the last.
+  const queries = source === "google" ? mergeQueries(store.settings().keywordQueries ?? [], added) : added;
   const topics = await groupQueries(queries, source);
   const at = new Date().toISOString();
-  store.updateSettings(source === "google" ? { keywordTopics: topics, keywordTopicsAt: at } : { searchTopics: topics, searchTopicsAt: at });
-  console.log(`[search] ${source}: ${queries.length} searches → ${topics.length} topic(s)`);
+  store.updateSettings(
+    source === "google" ? { keywordTopics: topics, keywordTopicsAt: at, keywordQueries: queries } : { searchTopics: topics, searchTopicsAt: at },
+  );
+  console.log(`[search] ${source}: ${added.length} searches added, ${queries.length} in all → ${topics.length} topic(s)`);
   return { source, topics };
+}
+
+/** Searches of several exports together, one row per search (the newest export's numbers). */
+export function mergeQueries(before: SearchQuery[], added: SearchQuery[]): SearchQuery[] {
+  const byQuery = new Map(before.map((q) => [q.query.toLowerCase(), q]));
+  for (const q of added) byQuery.set(q.query.toLowerCase(), q);
+  return [...byQuery.values()];
 }
 
 /** Both lists: TikTok's (what brought people to this account) and Google's (what everyone searches). */

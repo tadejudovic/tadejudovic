@@ -35,6 +35,15 @@ test("reads Google Ads Keyword Planner's export (UTF-16, tab-separated, title li
   assert.deepEqual(r.queries.map((q) => [q.query, q.impressions]), [["flying with a dog", 14800], ["pet carriers for cats", 110000]]);
 });
 
+test("Keyword Planner exports add up, newest numbers winning", async () => {
+  const { mergeQueries } = await import("../src/searchDemand.ts");
+  const merged = mergeQueries(
+    [{ query: "flying with a dog", clicks: 0, impressions: 14800 }, { query: "dog carrier", clicks: 0, impressions: 33100 }],
+    [{ query: "Flying with a dog", clicks: 0, impressions: 12100 }, { query: "cost to fly a dog", clicks: 0, impressions: 880 }],
+  );
+  assert.deepEqual(merged.map((q) => [q.query, q.impressions]), [["Flying with a dog", 12100], ["dog carrier", 33100], ["cost to fly a dog", 880]]);
+});
+
 test("each theme offers its most-searched topics that weren't covered yet", () => {
   store.updateSettings({
     searchTopics: [

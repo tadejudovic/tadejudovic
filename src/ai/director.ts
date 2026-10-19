@@ -275,6 +275,38 @@ export function arrowTarget(text: string, pointAt: string): boolean {
   return named.some((w) => [...seen].some((s) => s === w || (w.length >= 5 && s.length >= 5 && (s.startsWith(w.slice(0, 5)) || w.startsWith(s.slice(0, 5))))));
 }
 
+/**
+ * Of the clips offered to lengthen a video, the ones that show the same kind of place and moment as
+ * its main clip and fit what the video is about. Text only (what's in each clip), small model.
+ */
+export async function fittingClips(concept: string, main: Clip, extras: Clip[]): Promise<Clip[]> {
+  const described = extras.filter((c) => c.ai?.summary);
+  if (!described.length) return [];
+  const r = await structured<{ fits: number[] }>({
+    system: "You are a video editor checking whether extra footage belongs in a short video.",
+    content: [
+      {
+        type: "text",
+        text:
+          `The video: ${concept}\nIts main clip: ${main.ai?.summary ?? main.scene ?? ""}${main.place ? ` (${main.place})` : ""}\n\n` +
+          `Extra clips that could be added to make it longer:\n` +
+          described.map((c, i) => `${i + 1}. ${c.ai!.summary}${c.place ? ` (${c.place})` : ""}`).join("\n") +
+          `\n\nWhich ones show the same kind of place and moment and fit this video, so a viewer wouldn't notice a jump? ` +
+          `A different setting (a car instead of a plane, a street instead of an airport) does NOT fit. List their numbers.`,
+      },
+    ],
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["fits"],
+      properties: { fits: { type: "array", items: { type: "integer" } } },
+    },
+    effort: "low",
+    model: config.claude.fastModel,
+  });
+  return r.fits.map((n) => described[n - 1]).filter((c): c is Clip => !!c);
+}
+
 /** Too short for the text to be read: play the footage again (videos loop anyway) rather than slow it down. */
 export function fillByRepeating(segments: Segment[], minSeconds: number): Segment[] {
   const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
@@ -837,6 +869,9 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   if (!segments.length) throw new Error("The director returned no usable part of the clip.");
   const lengthOf = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
   const known = new Map([clip, ...(ctx.extraClips ?? [])].map((c) => [c.id, c]));
+  // Extra footage only if it really belongs in this video (a clip's situation label can be wrong:
+  // a car seat filed as "inside the airplane"), judged from what's in it against what this video is.
+  if (ctx.extraClips?.length) ctx = { ...ctx, extraClips: await fittingClips(r.concept, clip, ctx.extraClips).catch(() => []) };
   // The text was timed for the AI's own cut: when slow motion is removed or the clip replayed, the
   // timing is stretched to the final length so every line still gets its share.
   const planned = lengthOf(segments);

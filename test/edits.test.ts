@@ -21,3 +21,11 @@ test("the creator's corrections are kept and reach the AI as its strongest feedb
   assert.match(text, /"POV: the desk asks for papers" → "What we check before every new country"/);
   assert.match(text, /Description \[fun\]: "Long caption" → "Short caption"/);
 });
+
+test("a remake replaces the rejected video: it doesn't count against the daily limit", async () => {
+  const { videosMadeToday } = await import("../src/dailyLimit.ts");
+  const base = { createdAt: new Date().toISOString(), status: "done", progress: 1, options: {} as any };
+  store.addRender({ ...base, id: "orig", review: "rejected", rejectReason: "text", plan: { segments: [], hashtags: [], hook: "a" } } as any);
+  store.addRender({ ...base, id: "redo", review: "pending", plan: { segments: [], hashtags: [], hook: "b", remakeOf: "orig", remakeDepth: 1 } } as any);
+  assert.equal(videosMadeToday(), 1);
+});

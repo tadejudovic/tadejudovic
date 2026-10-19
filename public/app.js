@@ -962,6 +962,13 @@ $("#why-send").addEventListener("click", () => sendWhy("other", $("#why-text").v
 function sendWhy(reason, note = "") {
   if (!stack.whyFor) return;
   api(`/api/renders/${stack.whyFor}`, { method: "PATCH", body: { rejectReason: reason, ...(note ? { rejectNote: note } : {}) } }).catch((err) => banner(err.message));
+  banner(
+    { text: "Got it. Making a new version with different text; it shows up here in a minute or two.",
+      clip: "Got it. Making the same kind of video on other footage; it shows up here in a minute or two.",
+      edit: "Got it. Making a new cut of that clip; it shows up here in a minute or two.",
+      other: "Got it. Making a new version that fixes that; it shows up here in a minute or two." }[reason],
+    "ok",
+  );
   $("#why-note").hidden = true;
   $("#why-text").value = "";
   stack.whyFor = null;

@@ -171,6 +171,9 @@ export interface VideoPlan {
   /** Educational: the theme (destination, airline, gear) and the specific topic, so it isn't repeated. */
   pillar?: EduPillar;
   topic?: string;
+  /** A remake of a video the creator rejected (that video's id), and how many remakes deep. */
+  remakeOf?: string;
+  remakeDepth?: number;
   /** Who the text speaks to (fun and inspirational alternate between the two). */
   audience?: "pets" | "everyone";
   /** The part of the frame (top to bottom, 0..1) where the subject is: Lex, faces. Text stays out of it. */
@@ -265,6 +268,8 @@ export interface Render {
   batch?: string;
   review: ReviewStatus;
   rejectReason?: RejectReason;
+  /** The new version made after this one was rejected. */
+  remadeAs?: string;
   /** The creator's own words on what they didn't like. */
   rejectNote?: string;
   reviewedAt?: string;
@@ -305,6 +310,8 @@ export interface GenerateRequest {
   clipIds?: string[];
   /** clipIds are a pool to choose from (rotating situations, one take per moment), not a hand-picked list. */
   pickFromPool?: boolean;
+  /** Make this kind of video (instead of following the daily mix). */
+  format?: PostFormat;
   useAi: boolean;
   options: RenderOptions;
 }

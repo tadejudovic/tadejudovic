@@ -301,7 +301,7 @@ export async function plan(
     const { captionAudience } = store.settings();
     // The daily mix: fun, educational and inspirational candidates, alternating so a round always
     // has at least one of each (the creator keeps the best of each kind).
-    const kinds = mixSequence(store.settings().dailyMix, chosen.length, madeTodayByKind());
+    const kinds = req.format ? chosen.map(() => req.format!) : mixSequence(store.settings().dailyMix, chosen.length, madeTodayByKind());
     // Educational videos need time to read: they get the longest of the round's clips.
     kinds.forEach((k, i) => {
       if (k !== "tips") return;
@@ -310,7 +310,10 @@ export async function plan(
       [chosen[i], chosen[best]] = [chosen[best], chosen[i]];
     });
     // Extra footage for videos whose clip is too short: other unused clips, the same situation first.
-    const spare = clips.filter((c) => !chosen.includes(c) && c.kind === "video" && !c.edited && !c.duplicateOf && c.duration >= MIN_CLIP_SECONDS);
+    // (From all unused footage, also when the video was asked for one specific clip.)
+    const spare = all.filter(
+      (c) => !chosen.includes(c) && c.kind === "video" && c.uses === 0 && !c.disliked && onTopic(c) && c.duration >= MIN_CLIP_SECONDS,
+    );
     const taken = new Set<string>();
     const extrasFor = (clip: Clip): Clip[] => {
       const pick = [...spare]
@@ -854,4 +857,70 @@ export function zigzagExisting(): number {
   }
   if (n) console.log(`[layout] points now zig-zag in ${n} educational video(s)`);
   return n;
+}
+
+const REMAKE_BRIEF: Record<string, (text: string, note?: string) => string> = {
+  text: (t, n) =>
+    `REMAKE: the creator rejected a video of this clip because the TEXT was off. The rejected text was "${t}". ` +
+    `Write clearly different, better on-screen text${n ? `; in their words: "${n}"` : ""}.`,
+  edit: (t, n) =>
+    `REMAKE: the creator rejected a video of this clip because the CUT was off (the part used, the pacing or the ` +
+    `timing). Use a different, stronger part of the clip and tighter pacing${n ? `; in their words: "${n}"` : ""}. ` +
+    `The text can stay close to "${t}" if it worked.`,
+  clip: (t, n) =>
+    `REMAKE: the creator rejected a video because the FOOTAGE wasn't good enough. Same kind of video on this new ` +
+    `clip; the earlier text was "${t}"${n ? `; in their words: "${n}"` : ""}.`,
+  other: (t, n) =>
+    `REMAKE: the creator rejected a video of this clip. ${n ? `In their words: "${n}". Fix exactly that.` : "Something was off: make it clearly better."} ` +
+    `The rejected text was "${t}".`,
+};
+
+/**
+ * A rejected video with a reason gets a new version straight away, of the same kind: new text on the
+ * same clip, a new cut, or the same idea on other footage, with the creator's words as direction.
+ * Replacements don't count against the daily limit (they replace one that did); at most 3 in a row.
+ */
+export async function remakeRejected(id: string): Promise<Render | undefined> {
+  const r = store.render(id);
+  if (!r || r.review !== "rejected" || r.remadeAs || !r.rejectReason) return undefined;
+  if (!config.claude.enabled || !aiAvailable()) return undefined;
+  const depth = (r.plan.remakeDepth ?? 0) + 1;
+  if (depth > 3) return undefined;
+  const kind: PostFormat = r.plan.format && r.plan.format !== "story" ? r.plan.format : "fun";
+  const oldText = (r.plan.overlays?.map((o) => o.text) ?? [r.plan.hook]).join(" / ");
+  const used = new Set(r.plan.segments.map((s) => s.clipId));
+  const main = store.clip(r.plan.segments[0]?.clipId ?? "");
+  let clip: Clip | undefined = main;
+  if (r.rejectReason === "clip" || !main || main.status !== "ready") {
+    clip = store
+      .clips()
+      .filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && c.uses === 0 && !c.disliked && onTopic(c) && !used.has(c.id))
+      .sort((a, b) => Number(b.scene === main?.scene) - Number(a.scene === main?.scene) || b.duration - a.duration)[0];
+  }
+  if (!clip) return undefined;
+  store.updateRender(id, { remadeAs: "pending" });
+  const { fontId, textStyle, textSize } = store.settings();
+  const options = { keepOriginalAudio: true, textStyle, textSize, fontId };
+  try {
+    const { plans } = await plan({
+      template: "auto",
+      targetSeconds: store.auto().targetSeconds,
+      count: 1,
+      clipIds: [clip.id],
+      useAi: true,
+      format: kind,
+      brief: REMAKE_BRIEF[r.rejectReason](oldText, r.rejectNote),
+      options,
+    });
+    const p = plans[0];
+    if (!p) throw new Error("no plan");
+    const fresh = queueRender({ ...p, remakeOf: r.id, remakeDepth: depth }, options, localDate(new Date()));
+    store.updateRender(id, { remadeAs: fresh.id });
+    console.log(`[remake] ${r.id} (${r.rejectReason}) → ${fresh.id}`);
+    return fresh;
+  } catch (err) {
+    store.updateRender(id, { remadeAs: undefined });
+    console.warn(`[remake] couldn't remake ${id}:`, (err as Error).message);
+    return undefined;
+  }
 }

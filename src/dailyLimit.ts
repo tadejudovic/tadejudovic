@@ -9,7 +9,8 @@ export const localDate = (d: Date) =>
 
 export function videosMadeToday(): number {
   const today = localDate(new Date());
-  return store.renders().filter((r) => r.countUse !== false && localDate(new Date(r.createdAt)) === today).length;
+  // A remake of a rejected video replaces it, so it doesn't count again.
+  return store.renders().filter((r) => r.countUse !== false && !r.plan.remakeOf && localDate(new Date(r.createdAt)) === today).length;
 }
 
 export function dailyLimit(): number {

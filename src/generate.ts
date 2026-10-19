@@ -154,8 +154,11 @@ export const isPortrait = (c: Clip) => c.height >= c.width;
  * Choose which clips to build videos from: unused footage first, then the
  * clips with the strongest moments.
  */
+/** The strongest moment the AI found in a clip (0 when none). */
+const bestMoment = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
+
 export function rankClips(clips: Clip[]): Clip[] {
-  const best = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
+  const best = bestMoment;
   // Recent footage first (by the week it was filmed), and within a week the strongest moment.
   return [...clips].sort((a, b) => a.uses - b.uses || filmedWeek(b) - filmedWeek(a) || best(b) - best(a));
 }
@@ -1015,7 +1018,9 @@ export async function editorPass(id: string, duration: number): Promise<void> {
     progress: 1,
     review: "rejected",
     reviewedAt: new Date().toISOString(),
-    rejectReason: "other",
+    // Weak visuals (a dull opening, footage that doesn't show the points): other footage. Otherwise a
+    // new cut of the same footage.
+    rejectReason: v.parts.hook.visual < 7 || v.parts.body.visual < 6 ? "clip" : "edit",
     rejectNote: `Editor's review: ${v.remakeBrief || v.issues.join("; ")}`.slice(0, 600),
     rejectedBy: "editor",
     editor: { ...base, outcome: "remade" },
@@ -1196,7 +1201,7 @@ export async function remakeRejected(id: string, { force = false, editorPass = 0
     clip = store
       .clips()
       .filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && c.uses === 0 && !c.disliked && onTopic(c) && !used.has(c.id))
-      .sort((a, b) => Number(b.scene === main?.scene) - Number(a.scene === main?.scene) || b.duration - a.duration)[0];
+      .sort((a, b) => Number(b.scene === main?.scene) - Number(a.scene === main?.scene) || filmedWeek(b) - filmedWeek(a) || bestMoment(b) - bestMoment(a) || b.duration - a.duration)[0];
   }
   if (!clip) return undefined;
   store.updateRender(id, { remadeAs: "pending" });

@@ -609,6 +609,22 @@ function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: st
   );
 }
 
+/**
+ * Educational: the footage the points can cut to, so the lesson only promises what can be shown
+ * (no "find the relief area" without a clip of one).
+ */
+function footageText(pool: Clip[]): string {
+  const described = pool.filter((c) => c.ai?.summary).slice(0, 25);
+  if (!described.length) return "";
+  return (
+    `\n\nOTHER FOOTAGE the points can cut to (each point plays over the clip that shows it best):\n` +
+    described.map((c) => `- ${c.ai!.summary!.slice(0, 160)}${c.scene ? ` [${c.scene}]` : ""}`).join("\n") +
+    `\nChoose the topic and the points so each one can be SHOWN with this clip or one of these: a point about ` +
+    `something no footage shows (a relief area nobody filmed, a check-in desk that isn't there) loses viewers ` +
+    `the moment it's on screen over something else. If a better topic fits the footage you have, take it.`
+  );
+}
+
 /** An educational video: a scroll-stopping hook, then a short teaching beat that builds up on screen. */
 function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string }): string {
   const question = faq
@@ -987,7 +1003,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : ctx.format === "tips" ? "" : audienceText(ctx.audience, ctx.petName, ctx.format)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle, ctx.search) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle, ctx.search) + footageText(ctx.broll ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`

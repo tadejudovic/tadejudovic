@@ -91,6 +91,9 @@ export interface Settings {
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;
   countersResetV1?: boolean;
+  /** Bytes sent out this month (for the bandwidth cap). */
+  bandwidth?: { month: string; bytes: number };
+  bandwidthSeedV1?: boolean;
   /** What people search for before finding the account (TikTok search analytics), grouped into topics. */
   searchTopics?: SearchTopic[];
   searchTopicsAt?: string;

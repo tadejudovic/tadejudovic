@@ -13,6 +13,7 @@ import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastMo
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { vlogDays } from "./ai/vlog.ts";
 import { previewFor } from "./media/preview.ts";
+import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playbackPaused, seedBandwidth } from "./bandwidth.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
@@ -39,6 +40,7 @@ app.use((_req, res, next) => {
   res.setHeader("x-robots-tag", "noindex, nofollow");
   next();
 });
+app.use(countResponses);
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10kb" }));
 app.get("/healthz", (_req, res) => res.send("ok"));
@@ -89,6 +91,7 @@ app.get("/api/diagnostics", (_req, res) => {
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     queuePending: ingestQueue.pending,
     yourCorrections: store.edits().slice(0, 10),
+    bandwidth: bandwidthStatus(),
     today: { byKind: madeTodayByKind(), outsideClipsAvailable: outsideClips().length },
     inspirational: {
       lastMade: renders.filter((r) => r.plan.format === "inspire").map((r) => r.createdAt).sort().pop() ?? null,
@@ -147,6 +150,7 @@ app.get("/api/status", (req, res) => {
     roundStage,
     // The raw keyword list is only for regrouping; the app shows the topics.
     settings: { ...store.settings(), keywordQueries: undefined },
+    bandwidth: bandwidthStatus(),
     templates: Object.values(TEMPLATES).map(({ id, name, description }) => ({ id, name, description })),
     music: listMusic(),
   });
@@ -704,6 +708,7 @@ app.get("/media/clip/:id", (req, res) => {
   const clip = store.clip(String(req.params.id));
   if (!clip || clip.status !== "ready") return res.sendStatus(404);
   if (!fs.existsSync(clip.file)) return res.sendStatus(404);
+  if (playbackPaused()) return res.status(429).json({ error: "This month's bandwidth is used up." });
   res.sendFile(previewFor(`clip-${clip.id}`, clip.file, 540) ?? clip.file);
 });
 
@@ -1109,6 +1114,8 @@ app.delete("/api/renders/:id", (req, res) => {
 app.get("/media/render/:id.mp4", (req, res) => {
   const r = store.render(String(req.params.id));
   if (!r?.file || !fs.existsSync(r.file)) return res.sendStatus(404);
+  // The month's bandwidth: playing stops first, downloads and shares only at the very end.
+  if (mediaStopped() || (!req.query.dl && !req.query.full && playbackPaused())) return res.status(429).json({ error: "This month's bandwidth is used up." });
   if (req.query.dl) {
     const name = `${store.settings().petName}-${r.plan.title}`.replace(/[^\w\- ]/g, "").slice(0, 60).trim() || r.id;
     return res.download(r.file, `${name}.mp4`);
@@ -1255,6 +1262,7 @@ for (const sig of ["SIGTERM", "SIGINT"] as const) {
     try {
       // A deploy interrupted whatever was running; it didn't crash anything, so let the next start retry it.
       markStopping();
+      flushBandwidth();
       forgetRunningJobs();
       store.flush();
       fs.writeFileSync(path.join(config.dataDir, ".clean-exit"), String(Date.now()));
@@ -1364,6 +1372,13 @@ if (!paused && !store.settings().zigzagV2) {
   store.updateSettings({ zigzagV1: true, zigzagV2: true });
   zigzagExisting();
 }
+
+// Once: this month's bandwidth before the counter existed (Render: over 70% of 5 GB by Oct 19).
+if (!store.settings().bandwidthSeedV1) {
+  store.updateSettings({ bandwidthSeedV1: true });
+  seedBandwidth("2026-10", 3.6e9);
+}
+setInterval(flushBandwidth, 60_000).unref();
 
 // Once: the counters start over now. From here a day runs until one of each kind is kept (with a
 // safety cap of 15 videos a day), starting at midnight.

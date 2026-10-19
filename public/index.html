@@ -392,7 +392,10 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
         <form id="budget-form" class="grid-form spaced">
           <label>Monthly limit (USD) <input type="number" name="aiMonthlyBudget" min="0" max="1000" step="1" /></label>
         </form>
-        <p class="hint">Covers both Claude (AI) and Apify (TikTok search). Claude's cost comes from the usage it reports after every call; Apify's is estimated on the high side per search result. The meter updates after every call. When the limit is reached, the app stops calling both until next month. For a hard cap, also set limits in the Anthropic Console and in Apify.</p>
+        <p class="spend spaced"><b id="bw-used">0 GB</b> of <b id="bw-included">5 GB</b> bandwidth used this month</p>
+        <div class="meter"><i id="bw-bar"></i></div>
+        <p class="hint">What the server sends to your phone, mostly videos (the app plays light copies). Render includes 5 GB a month. At 90%, videos show as still images until the 1st; at 98%, saving and sharing stop too, so it never goes over.</p>
+        <p class="hint">AI spending covers both Claude (AI) and Apify (TikTok search). Claude's cost comes from the usage it reports after every call; Apify's is estimated on the high side per search result. The meter updates after every call. When the limit is reached, the app stops calling both until next month. For a hard cap, also set limits in the Anthropic Console and in Apify.</p>
         </div>
       </div>
 

@@ -29,6 +29,19 @@ function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+/**
+ * A video's address, or none once this month's bandwidth is nearly used up: the video then shows
+ * its still frame (poster) instead of playing, until the month resets.
+ */
+function playable(url) {
+  if (!state.status?.bandwidth?.paused) return url;
+  if (!playable.told) {
+    playable.told = true;
+    banner(`Videos show as still images until the 1st: this month's free bandwidth is nearly used up (${state.status.bandwidth.usedGb} of ${state.status.bandwidth.includedGb} GB). Saving and sharing videos to post still works.`, "warn");
+  }
+  return undefined;
+}
+
 /** Line icons (same set as the landing page). */
 const ICONS = {
   muted: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>',
@@ -262,6 +275,12 @@ function renderSummaries() {
   set("sum-scenes", s.tiktokSearch ? `${s.settings.scenes.length} situations` : "Apify not connected");
   set("sum-profile", s.settings.handle || s.settings.petName || "");
   set("sum-spend", `$${s.spend.usd.toFixed(2)} of $${s.spend.limit.toFixed(0)}`);
+  if (s.bandwidth) {
+    set("bw-used", `${s.bandwidth.usedGb} GB`);
+    set("bw-included", `${s.bandwidth.includedGb} GB`);
+    const bar = document.getElementById("bw-bar");
+    if (bar) bar.style.width = `${Math.min(100, (s.bandwidth.usedGb / s.bandwidth.includedGb) * 100)}%`;
+  }
   set("sum-user", s.user ?? "");
 }
 
@@ -673,7 +692,7 @@ function renderStack() {
 }
 
 function stackCard(r) {
-  const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, autoplay: true, muted: true, loop: true, playsinline: true });
+  const video = h("video", { src: playable(`/media/render/${r.id}.mp4`), poster: `/media/render/${r.id}.jpg`, autoplay: true, muted: true, loop: true, playsinline: true });
   video.muted = true;
   const sound = h("button", { class: "stack-sound", "aria-label": "Sound", onclick: (e) => { video.muted = !video.muted; e.currentTarget.innerHTML = icon(video.muted ? "muted" : "sound"); } });
   sound.innerHTML = icon("muted");
@@ -695,7 +714,7 @@ function stackCard(r) {
 /** Full-screen details for the video under review: player on top, everything else scrolls below, decide at the bottom. */
 function openDetails(r, muted = true) {
   const sheet = $("#sheet");
-  const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, autoplay: true, loop: true, playsinline: true, controls: true });
+  const video = h("video", { src: playable(`/media/render/${r.id}.mp4`), poster: `/media/render/${r.id}.jpg`, autoplay: true, loop: true, playsinline: true, controls: true });
   video.muted = muted;
   stack.node?.querySelector("video")?.pause();
   const close = () => {
@@ -1166,7 +1185,7 @@ async function deleteVideo(r) {
 function openSheet(r) {
   const sheet = $("#sheet");
   prefetchFile(r);
-  const video = h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, controls: true, autoplay: true, loop: true, playsinline: true });
+  const video = h("video", { src: playable(`/media/render/${r.id}.mp4`), poster: `/media/render/${r.id}.jpg`, controls: true, autoplay: true, loop: true, playsinline: true });
   const actions = h("div", { class: "sheet-actions" },
     r.review === "rejected"
       ? h("button", { class: "btn", onclick: async () => {
@@ -1923,7 +1942,7 @@ function renderBatch() {
 function reviewCard(r) {
   const media =
     r.status === "done"
-      ? h("video", { src: `/media/render/${r.id}.mp4`, poster: `/media/render/${r.id}.jpg`, controls: true, loop: true, playsinline: true, preload: "none" })
+      ? h("video", { src: playable(`/media/render/${r.id}.mp4`), poster: `/media/render/${r.id}.jpg`, controls: true, loop: true, playsinline: true, preload: "none" })
       : h("div", { class: "ph" },
           h("div", {},
             r.status === "error" ? "Couldn't make this one" : r.status === "queued" ? "Waiting…" : `Making… ${Math.round(r.progress * 100)}%`,
@@ -2017,7 +2036,7 @@ function playClip(card, clipId) {
   const wrap = card?.querySelector(".thumb-wrap");
   if (!wrap || card.classList.contains("playing")) return;
   card.classList.add("playing");
-  wrap.replaceChildren(h("video", { class: "thumb", src: `/media/clip/${clipId}`, controls: true, autoplay: true, playsinline: true }));
+  wrap.replaceChildren(h("video", { class: "thumb", src: playable(`/media/clip/${clipId}`), poster: `/media/thumb/${clipId}`, controls: true, autoplay: true, playsinline: true }));
 }
 
 /** Jump to a clip on the Clips tab and play it. */
@@ -2029,7 +2048,7 @@ function openClip(clipId) {
   sheet.replaceChildren(
     h("div", { class: "sheet-card" },
       h("button", { class: "sheet-close", "aria-label": "Close", onclick: closeSheet }, "✕"),
-      h("div", { class: "sheet-media" }, h("video", { src: `/media/clip/${clipId}`, controls: true, autoplay: true, playsinline: true })),
+      h("div", { class: "sheet-media" }, h("video", { src: playable(`/media/clip/${clipId}`), poster: `/media/thumb/${clipId}`, controls: true, autoplay: true, playsinline: true })),
       h("div", { class: "body" }, h("b", {}, "Original clip"), h("span", { class: "muted" }, [clip.scene, clip.capturedAt?.slice(0, 10)].filter(Boolean).join(" · "))),
     ),
   );

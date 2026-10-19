@@ -822,8 +822,13 @@ app.patch("/api/renders/:id", (req, res) => {
   if (now.review === "rejected" && now.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: true });
   else if (r.rejectReason === "clip") for (const id of clipIds) store.updateClip(id, { disliked: false });
   syncClipUses(r.id);
-  // A reason given for a rejection: make a new version that fixes it, right away.
-  if (reason && now.review === "rejected" && !now.remadeAs) remakeRejected(r.id).catch((err) => console.warn("[remake]", err));
+  // With a reason: re-made right away. Without one: a few minutes later, so a reason picked just
+  // after the swipe still shapes the remake (and the day still ends with one of each kind).
+  if (now.review === "rejected" && !now.remadeAs) {
+    const remake = () => remakeRejected(r.id).catch((err) => console.warn("[remake]", err));
+    if (now.rejectReason) remake();
+    else setTimeout(() => store.render(r.id)?.rejectReason || remake(), 3 * 60_000).unref();
+  }
   // Last video of the round reviewed: start the next round.
   if (review && review !== "pending") afterReview();
   res.json(store.render(r.id));

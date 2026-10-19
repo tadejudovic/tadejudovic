@@ -1069,11 +1069,13 @@ const REMAKE_BRIEF: Record<string, (text: string, note?: string) => string> = {
  */
 export async function remakeRejected(id: string): Promise<Render | undefined> {
   const r = store.render(id);
-  if (!r || r.review !== "rejected" || r.remadeAs || !r.rejectReason) return undefined;
+  // Every rejected video is replaced by another of its kind (so each day ends with one of each),
+  // also without a reason; videos made on request (stories, vlogs) aren't.
+  if (!r || r.review !== "rejected" || r.remadeAs || r.plan.format === "story" || r.plan.collab) return undefined;
   if (!config.claude.enabled || !aiAvailable()) return undefined;
   const depth = (r.plan.remakeDepth ?? 0) + 1;
   if (depth > 3) return undefined;
-  const kind: PostFormat = r.plan.format && r.plan.format !== "story" ? r.plan.format : "fun";
+  const kind: PostFormat = r.plan.format ?? "fun";
   const oldText = (r.plan.overlays?.map((o) => o.text) ?? [r.plan.hook]).join(" / ");
   const used = new Set(r.plan.segments.map((s) => s.clipId));
   const main = store.clip(r.plan.segments[0]?.clipId ?? "");
@@ -1099,7 +1101,7 @@ export async function remakeRejected(id: string): Promise<Render | undefined> {
       useAi: true,
       format: kind,
       pillar: pillarOf(r.plan.pillar),
-      brief: REMAKE_BRIEF[r.rejectReason](oldText, r.rejectNote),
+      brief: REMAKE_BRIEF[r.rejectReason ?? "other"](oldText, r.rejectNote),
       options,
     });
     const p = plans[0];

@@ -179,10 +179,16 @@ export function pickBySituation(clips: Clip[], count: number): Clip[] {
     const key = c.scene && scenes.includes(c.scene) ? c.scene : "other";
     groups.set(key, [...(groups.get(key) ?? []), c]);
   }
+  // Recent footage first: situations whose freshest clip is from the last few weeks of filming come
+  // before ones that only have older clips; among those, the least posted lately (so the feed still
+  // rotates), then the freshest.
+  const newest = (scene: string) => Math.max(...groups.get(scene)!.map(filmedWeek));
+  const latest = Math.max(...[...groups.keys()].map(newest));
+  const fresh = (scene: string) => (newest(scene) >= latest - 3 ? 1 : 0);
   const order = [...groups.keys()].sort((a, b) => {
-    // "other" (unclassified) last; then least-posted situations first; then the creator's order.
+    // "other" (unclassified) last.
     if ((a === "other") !== (b === "other")) return a === "other" ? 1 : -1;
-    return postedLately(a) - postedLately(b) || scenes.indexOf(a) - scenes.indexOf(b);
+    return fresh(b) - fresh(a) || postedLately(a) - postedLately(b) || newest(b) - newest(a) || scenes.indexOf(a) - scenes.indexOf(b);
   });
   // Similar shots: at most one take per moment in a round, and none from a moment used in the last
   // few days. Within a situation the clips are ranked, so the strongest take of a moment is used.

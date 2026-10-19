@@ -35,3 +35,13 @@ test("the day runs until one of each kind is kept: each kind not kept has one wa
   assert.ok(daySetDone());
   assert.deepEqual(await runDailyBatch(), { renders: [], skipped: "today's set is done" });
 });
+
+test("recent footage first: a situation with only old clips waits behind one filmed lately", async () => {
+  const { pickBySituation } = await import("../src/generate.ts");
+  const scenes = store.settings().scenes;
+  const clip = (id: string, scene: string, capturedAt: string) =>
+    store.addClip({ id, source: "upload", filename: "x.mp4", file: "/x", kind: "video", importedAt: "", capturedAt, duration: 8, width: 1080, height: 1920, hasAudio: true, uses: 0, status: "ready", scene } as any);
+  const oldOne = clip("old", scenes[0], "2026-03-05T10:00:00Z");
+  const newOne = clip("new", scenes[1], "2026-10-12T10:00:00Z");
+  assert.deepEqual(pickBySituation([oldOne, newOne], 1).map((c) => c.id), ["new"]);
+});

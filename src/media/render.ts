@@ -416,21 +416,14 @@ async function finalize(
   for (let i = 0; i < points.length - 1; i++) if (points[i].end > points[i + 1].start) points[i].end = points[i + 1].start;
   // Nothing flashes by: a line too short to read stays up at least 1.5s (within the video).
   for (const o of overlays) if (o.y === undefined && o.end - o.start < 1.5) o.end = Math.min(duration + 1, o.start + 1.5);
-  // Once the points start, the hook steps back: it shrinks into a header at the top, so the point is
-  // what the eye goes to.
+  // With points (educational), the headline is pinned: the same box in the same place, at the top,
+  // the whole video, at most two lines. It never moves or changes size.
   const boxed = !options.textStyle || options.textStyle === "yellowbox" || options.textStyle === "box";
   const headers = new Set<Overlay>();
   const numbered = boxed ? points.filter((o) => splitNumber(screenText(o.text))) : [];
-  if (numbered.length) {
-    const first = numbered[0].start;
-    for (const o of [...overlays])
-      if (o.y === undefined && o.at !== "caption" && o.start < first - 0.5 && o.end > first + 0.5) {
-        const header = { ...o, start: first };
-        o.end = first;
-        headers.add(header);
-        overlays.push(header);
-      }
-  }
+  if (points.length)
+    for (const o of overlays)
+      if (o.y === undefined && o.at !== "caption" && o.start < points[0].start && o.end > points[0].start) headers.add(o);
   // Numbered points share one box width: the widest point's (wrapped to at most 64% of the frame).
   const pointPx = (o: Overlay) => (overlays.some((x) => x.text.split(/\s+\/\s+/).length >= 3 && (x.at ?? "") === (o.at ?? "")) ? Math.round(textPx(options) * 0.82) : textPx(options));
   const pointW = Math.max(0, ...numbered.map((o) => pointBoxWidth(o.text, pointPx(o), font, Math.round(W * 0.64))));
@@ -457,9 +450,7 @@ async function finalize(
     }, 0);
   for (const i of order) {
     const o = overlays[i];
-    const px = headers.has(o)
-      ? Math.round(textPx(options) * 0.72)
-      : smaller.has(o.at ?? "") ? Math.round(textPx(options) * 0.82) : textPx(options);
+    let px = smaller.has(o.at ?? "") && !headers.has(o) ? Math.round(textPx(options) * 0.82) : textPx(options);
     const boxPad = Math.round(px * 0.38) + 10;
     const enable = `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`;
     // Placed by the AI next to what it's about (educational points), maybe with an arrow pointing at it.
@@ -554,8 +545,17 @@ async function finalize(
     }
     // Overlays that are on screen at the same time stack downwards (e.g. a punchline appearing under the setup).
     const above = placed.filter((p) => p.o.y === undefined && (p.o.at ?? "") === (o.at ?? "") && p.o.start < o.end && o.start < p.end);
-    // The header sits at the very top of the safe zone (textFilters keeps it inside).
+    // The pinned headline sits at the very top of the safe zone (textFilters keeps it inside).
     let base = headers.has(o) ? 0 : Math.round(H * (o.at === "caption" ? CAPTION_Y : HOOK_Y));
+    // At most two lines: a long headline gets a little smaller rather than a third line.
+    if (headers.has(o)) {
+      const lineCount = (size: number) =>
+        Math.round(textFilters(o.text, { yFrac: HOOK_Y, size, maxChars: charsFor(size, 26), style: options.textStyle, font, tmp, key: `fit${i}` }).height / Math.round(size * 1.24));
+      for (const k of [1, 0.92, 0.85, 0.78]) {
+        px = Math.round(textPx(options) * k);
+        if (lineCount(px) <= 2) break;
+      }
+    }
     const offset = above.length ? Math.max(...above.map((p) => p.bottom)) - base + 20 + boxPad : 0;
     const yFrac = o.at === "caption" ? CAPTION_Y : HOOK_Y;
     const drawAt = (top: number) =>
@@ -565,8 +565,8 @@ async function finalize(
     // the faces seen while it's on screen, or else the subject's band.
     const hitFaces = faceBoxes(o).filter((b) => b.x1 * W > drawnLeft && b.x0 * W < drawnLeft + drawnWidth && b.y1 * H > drawnTop - boxPad && b.y0 * H < drawnTop + height + boxPad);
     const faceBand = hitFaces.length ? { top: Math.min(...hitFaces.map((b) => b.y0)), bottom: Math.max(...hitFaces.map((b) => b.y1)) } : undefined;
-    const avoid = faceBand ?? (faceBoxes(o).length || headers.has(o) ? undefined : plan.keepClear);
-    if (!offset && o.at !== "caption" && avoid) {
+    const avoid = faceBand ?? (faceBoxes(o).length ? undefined : plan.keepClear);
+    if (!offset && o.at !== "caption" && !headers.has(o) && avoid) {
       const top = Math.round(clearOfSubject(drawnTop, height, boxPad, avoid));
       if (top !== drawnTop) {
         base = top;

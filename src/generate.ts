@@ -484,7 +484,8 @@ export async function plan(
       const pick = [...spare]
         // Outside footage is combined with outside footage; airport footage with airport footage.
         .filter((c) => !taken.has(c.id) && outside.has(c.id) === outside.has(clip.id))
-        .sort((a, b) => Number(b.scene === clip.scene) - Number(a.scene === clip.scene) || b.duration - a.duration)
+        // Same situation first, then the most recently filmed (old footage only when nothing newer fits).
+        .sort((a, b) => Number(b.scene === clip.scene) - Number(a.scene === clip.scene) || filmedWeek(b) - filmedWeek(a) || b.duration - a.duration)
         .slice(0, 3);
       for (const c of pick) taken.add(c.id);
       return pick;

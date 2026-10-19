@@ -326,7 +326,7 @@ export function fillByRepeating(segments: Segment[], minSeconds: number): Segmen
  * For each point of an educational video, the clip that best shows what it's about (or none: the
  * main clip stays). Small model, from what the AI wrote about each clip; each clip used once.
  */
-export async function pickBroll(points: string[], concept: string, main: Clip, pool: Clip[]): Promise<(Clip | undefined)[]> {
+export async function pickBroll(points: string[], concept: string, main: Clip, pool: Clip[], setting?: string): Promise<(Clip | undefined)[]> {
   const described = pool.filter((c) => c.ai?.summary && c.id !== main.id).slice(0, 40);
   if (!points.length || !described.length) return points.map(() => undefined);
   const r = await structured<{ points: { n: number; clip: number }[] }>({
@@ -338,11 +338,19 @@ export async function pickBroll(points: string[], concept: string, main: Clip, p
           `The video: ${concept}\nMain clip (shown under the headline): ${main.ai?.summary ?? main.scene ?? ""}\n\n` +
           `Points, each shown on screen for a few seconds:\n${points.map((p, i) => `${i + 1}. ${p}`).join("\n")}\n\n` +
           `Clips available:\n` +
-          described.map((c, i) => `${i + 1}. ${c.ai!.summary}${c.scene ? ` [${c.scene}]` : ""}${c.place ? ` (${c.place})` : ""}`).join("\n") +
+          described
+            .map((c, i) => `${i + 1}. ${c.ai!.summary}${c.scene ? ` [${c.scene}]` : ""}${c.place ? ` (${c.place})` : ""}${c.capturedAt ? `, filmed ${c.capturedAt.slice(0, 10)}` : ""}`)
+            .join("\n") +
           `\n\nFor each point, the clip that SHOWS what the point is about (e.g. a walk outside or on grass for a potty ` +
           `break, the carrier for a point about the carrier, the check-in desk for a check-in point), so the footage ` +
           `changes with the points instead of staying in one place. 0 when no clip clearly shows it (the main clip ` +
-          `stays). Never the same clip for two points.`,
+          `stays). Never the same clip for two points. Between clips that fit equally, the more recently filmed.` +
+          (setting
+            ? `\nThis video happens ${setting}: a clip clearly filmed there always beats one somewhere else, even ` +
+              `if the other shows the action better (a dog peeing at the airport relief area beats a dog on grass in a ` +
+              `park). A park, street or home clip only when nothing filmed there shows the point, and never one where ` +
+              `a viewer couldn't tell it's part of the trip.`
+            : ""),
       },
     ],
     schema: {
@@ -610,9 +618,9 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
           `rules; never add others): ${faq.a.trim()}`
         : `\nThe creator hasn't written their answer yet: keep it general and useful (what to look for, how we ` +
           `think about it) and name no brands, airlines, places or country rules.`) +
-      `\nThe hook answers the question for the viewer, it never quotes it or says who asks: not "how does ` +
-      `${petName} go potty on a plane??", "you always ask…", "our #1 question", "people ask me…", but "Flying with a ` +
-      `dog? Potty first" or "Where dogs pee at the airport". The question can open the description.`
+      `\nThe hook can BE the question, asked plainly in the viewer's own words, the way they'd type it into ` +
+      `search: "Where do dogs pee when they fly?", "Which airlines let dogs in the cabin?". Never about who asks: ` +
+      `no "you always ask…", "our #1 question", "people ask me…", no quote marks, no "${petName}" in it.`
     : "";
   return (
     `\n\nFORMAT FOR THIS VIDEO: EDUCATIONAL. Teach something real about flying or traveling with a pet` +
@@ -628,12 +636,13 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `\n- what we pack / what we check before a flight;` +
     `\n- "nobody tells you…" followed by the thing nobody tells you.` +
     `\n\nTHE HOOK matters most: it's alone on screen for the first ~2.5s, then stays on top as the header, so it ` +
-    `must stop the scroll AND be read at a glance. It's a headline, not a spoken sentence: ONE idea, 3–7 words, no ` +
-    `" / " line breaks. Speak to the viewer's situation, snappy: "Flying with a dog? Do this first", "Flying ` +
-    `with your dog? Book this seat", "3 seats to avoid with a dog", "Before your dog's first flight", "Where dogs ` +
-    `pee at the airport", "Stop doing this before a flight". Never quote a question, never "you always ask", "the ` +
-    `#1 question", "people ask me", "POV", and never a bland title like "Tips for flying with a dog". The setup, ` +
-    `the story and the why go in the description.` +
+    `must stop the scroll AND be read at a glance (it stays pinned at the top, at most two lines). ONE idea, 3–8 ` +
+    `words, no " / " line breaks, in plain everyday words. The best: the exact question the viewer has, asked ` +
+    `directly, e.g. "Where do dogs pee when they fly?", "Can your dog fly in the cabin?", "How much does it cost ` +
+    `to fly a dog?"; or a plain promise: "3 seats to avoid with a dog", "Before your dog's first flight". Never ` +
+    `label-style ("Flight day: 3 spots…", "Airport hack:"), never quote someone or say who asks ("you always ` +
+    `ask", "the #1 question", "people ask me"), no "POV", and never a bland title like "Tips for flying with a ` +
+    `dog". The setup, the story and the why go in the description.` +
     `\n\nON SCREEN, the way top creators do it:` +
     `\n- The hook is one overlay that stays at the top for the WHOLE video (start 0, end = the video's length, y -1).` +
     `\n- Then each point is its own overlay, shown alone (never repeating earlier points), one after another, each ` +
@@ -915,8 +924,9 @@ export async function proofreadText(lines: string[], petName: string, kind?: str
           `say ("Call the airline", not "Call airline")` +
           (kind === "tips" || kind === "educational"
             ? `; on-screen text reads as text, not speech: the first line (the hook, which stays on screen as the ` +
-              `header) is ONE idea in at most 7 words, never a quoted question and never "you always ask", "our #1 ` +
-              `question", "people ask me" (rewrite it to speak to the viewer, e.g. "Flying with a dog? Potty first"), and a ` +
+              `header) is ONE idea in at most 8 words, plain words, ideally the viewer's own question asked directly ` +
+              `("Where do dogs pee when they fly?"); never label-style ("Flight day: …"), never quoted, never "you ` +
+              `always ask", "our #1 question", "people ask me"; and a ` +
               `numbered point is at most 7 words (shorten them if not; the one case where a line may get much shorter)`
             : "") +
           `. Be strict: a reader shouldn't ` +
@@ -1066,7 +1076,12 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   // Educational: each point over footage that shows it, when there's a clip for it.
   if (ctx.format === "tips" && ctx.broll?.length) {
     const points = overlays.filter((o) => o.y !== undefined);
-    const picks = await pickBroll(points.map((o) => o.text), r.concept, clip, ctx.broll).catch((err) => {
+    const setting =
+      ctx.pillar === "airport" ? "at the airport (terminal, check-in, security, relief area, gate)"
+      : ctx.pillar === "airline" ? "on the plane or at the airport"
+      : ctx.pillar === "prep" || ctx.pillar === "gear" ? "on a travel day (airport, plane, packing at home)"
+      : undefined;
+    const picks = await pickBroll(points.map((o) => o.text), r.concept, clip, ctx.broll, setting).catch((err) => {
       console.warn("[broll]", (err as Error).message);
       return [] as (Clip | undefined)[];
     });

@@ -19,6 +19,7 @@ import { healPlan, lengthenFootage, spreadPoints } from "./overlayLayout.ts";
 import { countryOf } from "./geo.ts";
 import { planDayVlog } from "./ai/vlog.ts";
 import { searchTopicsFor } from "./searchDemand.ts";
+import { previewFor, removePreview } from "./media/preview.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
@@ -921,6 +922,8 @@ function enqueueRenderJob(id: string, urgent = true) {
         store.updateRender(id, { progress: Math.round(p * 100) / 100 }),
       );
       store.updateRender(id, { status: "done", progress: 1, ...result });
+      // The light copy the app plays, so even the first viewing doesn't download the full file.
+      previewFor(`render-${id}`, result.file);
       if (render.countUse !== false && !render.usesCounted) {
         for (const clipId of new Set(render.plan.segments.map((s) => s.clipId))) {
           const c = store.clip(clipId);
@@ -939,6 +942,7 @@ export function deleteRender(id: string) {
   const r = store.render(id);
   if (!r) return;
   for (const f of [r.file, r.thumb]) if (f) fs.rmSync(f, { force: true });
+  removePreview(`render-${id}`);
   store.removeRender(id);
   // Its text-free footage goes too, unless another video (e.g. its re-made version) uses the same.
   const clips = new Map(store.clips().map((c) => [c.id, c]));

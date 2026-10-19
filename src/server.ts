@@ -12,6 +12,7 @@ import { createSession, getSession, listPicked, deleteSession } from "./google/p
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { vlogDays } from "./ai/vlog.ts";
+import { previewFor } from "./media/preview.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
@@ -702,7 +703,8 @@ app.get("/media/thumb/:id", (req, res) => {
 app.get("/media/clip/:id", (req, res) => {
   const clip = store.clip(String(req.params.id));
   if (!clip || clip.status !== "ready") return res.sendStatus(404);
-  res.sendFile(clip.file);
+  if (!fs.existsSync(clip.file)) return res.sendStatus(404);
+  res.sendFile(previewFor(`clip-${clip.id}`, clip.file, 540) ?? clip.file);
 });
 
 // ---- Music ----------------------------------------------------------------
@@ -1111,7 +1113,9 @@ app.get("/media/render/:id.mp4", (req, res) => {
     const name = `${store.settings().petName}-${r.plan.title}`.replace(/[^\w\- ]/g, "").slice(0, 60).trim() || r.id;
     return res.download(r.file, `${name}.mp4`);
   }
-  res.sendFile(r.file);
+  // Watching in the app: the light copy (?full=1 for the original, e.g. to share to TikTok).
+  const file = req.query.full ? r.file : (previewFor(`render-${r.id}`, r.file) ?? r.file);
+  res.sendFile(file);
 });
 
 app.get("/media/render/:id.jpg", (req, res) => {

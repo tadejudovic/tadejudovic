@@ -1013,7 +1013,7 @@ function fileName(r) {
 function prefetchFile(r) {
   if (files.has(r.id) || !navigator.canShare) return;
   files.set(r.id, null);
-  fetch(`/media/render/${r.id}.mp4`)
+  fetch(`/media/render/${r.id}.mp4?full=1`)
     .then((res) => res.blob())
     .then((b) => files.set(r.id, new File([b], fileName(r), { type: "video/mp4" })))
     .catch(() => files.delete(r.id));

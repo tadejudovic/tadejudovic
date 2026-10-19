@@ -41,3 +41,18 @@ test("points zig-zag across the frame, not just up and down", () => {
   const s = spreadPoints([{ text: "h", start: 0, end: 9 }, { text: "1", start: 1, end: 3, y: 0.5 }, { text: "2", start: 3, end: 9, y: 0.6 }]);
   assert.ok(s.slice(1).every((p) => p.x !== undefined));
 });
+
+test("every point stays on screen long enough to read; a too-short video asks for more footage", async () => {
+  const { timePoints, readSeconds } = await import("../src/overlayLayout.ts");
+  const o = [
+    { text: "What we check before every new country", start: 0, end: 9 },
+    { text: "1. Read the destination's official pet entry rules", start: 1, end: 3, y: 0.5 },
+    { text: "2. Plan ahead: some vaccines take weeks", start: 3, end: 5, y: 0.6 },
+    { text: "3. Check every layover country too", start: 5, end: 9, y: 0.4 },
+  ];
+  const short = timePoints(o, 8);
+  assert.ok(short.need > 8); // asks for longer footage
+  const ok = timePoints(o, short.need + 2);
+  for (const p of ok.overlays.slice(1)) assert.ok(Math.min(p.end, short.need + 2) - p.start >= readSeconds(p.text) - 1e-9);
+  for (let i = 2; i < ok.overlays.length; i++) assert.ok(Math.abs(ok.overlays[i].start - ok.overlays[i - 1].end) < 1e-9);
+});

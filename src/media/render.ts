@@ -309,6 +309,8 @@ async function finalize(
   const overlays = overlaysFor(plan, duration).map((o) => ({ ...o }));
   const points = overlays.filter((o) => o.y !== undefined).sort((a, b) => a.start - b.start);
   for (let i = 0; i < points.length - 1; i++) if (points[i].end > points[i + 1].start) points[i].end = points[i + 1].start;
+  // Nothing flashes by: a line too short to read stays up at least 1.5s (within the video).
+  for (const o of overlays) if (o.y === undefined && o.end - o.start < 1.5) o.end = Math.min(duration + 1, o.start + 1.5);
   const filters: string[] = [];
   const placed: { o: Overlay; bottom: number; top: number; end: number }[] = [];
   // One text size per position for the whole video: if any overlay there is a list of three or more

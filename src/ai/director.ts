@@ -1,4 +1,4 @@
-import { lengthenFootage, spreadPoints } from "../overlayLayout.ts";
+import { lengthenFootage, spreadPoints, timePoints } from "../overlayLayout.ts";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
@@ -855,6 +855,15 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   if (ctx.format === "tips" && overlays.length >= 3) {
     overlays[0] = { ...overlays[0], start: 0, end: total + 1, y: undefined };
     overlays.splice(0, overlays.length, ...spreadPoints(overlays));
+    // Every point stays up long enough to read; if the footage is too short for that, it gets longer
+    // (more clips of the moment first), never the text faster.
+    let timed = timePoints(overlays, total);
+    if (timed.need > total + 0.2) {
+      segments = lengthenFootage(fillWithClips(segments, timed.need, ctx.extraClips ?? []), timed.need, (id) => known.get(id)?.duration ?? 0);
+      total = lengthOf(segments);
+      timed = timePoints(overlays, total);
+    }
+    overlays.splice(0, overlays.length, ...timed.overlays);
   }
   // Educational: end on the creator's call to action (their site, link in bio) for the last 3s.
   if (ctx.format === "tips" && ctx.cta?.overlay) {

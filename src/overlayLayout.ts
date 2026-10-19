@@ -11,6 +11,34 @@ export const POINT_Y = [0.62, 0.42, 0.72, 0.5, 0.66, 0.46];
 /** And across: left, right, middle… so the points move over the screen one after another. */
 export const POINT_X = [0.34, 0.6, 0.46, 0.36, 0.58, 0.44];
 
+/** Seconds a line needs on screen to be read comfortably (about 3 words a second, at least 2s). */
+export function readSeconds(text: string): number {
+  const words = text.split(/\s+/).filter((w) => w && w !== "/").length;
+  return Math.max(2, words / 3 + 0.8);
+}
+
+/**
+ * Points shown one after another, each on screen at least as long as it takes to read: the hook
+ * alone first, then the points back to back, sharing any spare time. Returns the seconds needed
+ * when the video is too short for that (the caller lengthens the footage and calls again).
+ */
+export function timePoints(overlays: Overlay[], total: number): { overlays: Overlay[]; need: number } {
+  const [hook, ...points] = overlays;
+  if (!points.length) return { overlays, need: 0 };
+  const hookAlone = 2.5;
+  const reads = points.map((p) => readSeconds(p.text));
+  const need = hookAlone + reads.reduce((a, b) => a + b, 0);
+  if (total < need - 0.2) return { overlays, need };
+  const spare = (total - need) / points.length;
+  let t = hookAlone;
+  const timed = points.map((p, i) => {
+    const start = t;
+    t += reads[i] + spare;
+    return { ...p, start, end: i === points.length - 1 ? total + 1 : t };
+  });
+  return { overlays: [{ ...hook, start: 0, end: total + 1 }, ...timed], need };
+}
+
 /** Seconds needed to read a hook and `points` points one after another. */
 export function readingSeconds(points: number): number {
   return points <= 0 ? 4 : 2.5 + 3.2 * points;

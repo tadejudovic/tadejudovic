@@ -26,3 +26,10 @@ test("the inspirational video is made even when its clip has no sound analysis",
 test("inspirational videos speak to everyone", () => {
   assert.equal(nextAudience("inspire"), "everyone");
 });
+
+test("asked for an inspirational video with only outside footage left, it's still made", async () => {
+  clip("o2", "beach");
+  const r = await plan({ template: "auto", targetSeconds: 12, count: 1, clipIds: [], pickFromPool: true, useAi: false, format: "inspire", options: {} as any });
+  assert.equal(r.plans.length, 1);
+  assert.equal(r.plans[0].format, "inspire");
+});

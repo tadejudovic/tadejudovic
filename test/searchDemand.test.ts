@@ -34,5 +34,8 @@ test("each theme offers its most-searched topics that weren't covered yet", () =
   assert.deepEqual(searchTopicsFor("airline").map((t) => t.topic), ["easyJet pet policy", "Vueling pet policy"]);
   store.addRender({ id: "e1", createdAt: new Date().toISOString(), status: "done", progress: 1, review: "pending", options: {} as any, plan: { format: "tips", pillar: "airline", topic: "Can your dog fly easyJet?", hook: "h", segments: [], hashtags: [] } } as any);
   assert.deepEqual(searchTopicsFor("airline").map((t) => t.topic), ["Vueling pet policy"]);
+  // Every other video of a theme: after one built on a search, the next one isn't.
+  store.addRender({ id: "e2", createdAt: new Date(Date.now() + 1000).toISOString(), status: "done", progress: 1, review: "pending", options: {} as any, plan: { format: "tips", pillar: "airline", topic: "x", searchTopic: "Vueling pet policy", hook: "h", segments: [], hashtags: [] } } as any);
+  assert.deepEqual(searchTopicsFor("airline"), []);
   assert.deepEqual(searchTopicsFor("gear").map((t) => t.topic), ["Kato dog backpack"]);
 });

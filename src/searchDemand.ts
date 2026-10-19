@@ -177,8 +177,17 @@ export function searchTopicUsed(t: SearchTopic): boolean {
     );
 }
 
-/** The most-searched topics of a theme not answered recently, for the next educational video. */
+/**
+ * The most-searched topics of a theme not answered recently, for the next educational video. Every
+ * other one: the searches are what brought people to this account's videos, not everything people
+ * want to know, so they inform the mix without taking it over.
+ */
 export function searchTopicsFor(pillar: EduPillar | undefined, n = 3): SearchTopic[] {
   const p = pillar === "gear" ? "prep" : pillar;
+  const last = store
+    .renders()
+    .filter((r) => r.plan.format === "tips" && r.review !== "rejected" && (r.plan.pillar === "gear" ? "prep" : r.plan.pillar) === p)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  if (last?.plan.searchTopic) return [];
   return (store.settings().searchTopics ?? []).filter((t) => t.pillar === p && !searchTopicUsed(t)).slice(0, n);
 }

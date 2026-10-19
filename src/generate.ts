@@ -100,6 +100,9 @@ export function outsideClips(): Clip[] {
 
 /** Why the last inspirational video couldn't be written by the AI (for diagnostics). */
 export let inspireIssue: { at: string; message: string } | null = null;
+export function noteInspireIssue(message: string | null) {
+  inspireIssue = message ? { at: new Date().toISOString(), message: message.slice(0, 300) } : null;
+}
 
 /** The country a clip was filmed in is switched off in Themes ("place:Portugal"). */
 export function placeOff(c: Clip): boolean {
@@ -417,7 +420,7 @@ export async function plan(
     // airport clips. So the inspirational video isn't dropped when airport footage runs short.
     const auto = !req.clipIds?.length || req.pickFromPool;
     const roundSize = auto && !req.format ? Math.max(chosen.length, req.count) : chosen.length;
-    const wanted = req.format ? chosen.map(() => req.format!) : mixSequence(store.settings().dailyMix, roundSize, madeTodayByKind(), lastMadeByKind());
+    const wanted = req.format ? Array(roundSize).fill(req.format) : mixSequence(store.settings().dailyMix, roundSize, madeTodayByKind(), lastMadeByKind());
     const outsideToday = store.renders().some((r) => r.plan.outside && localDate(new Date(r.createdAt)) === localDate(new Date()));
     const outsideAll = outsideClips();
     const airport = [...chosen];

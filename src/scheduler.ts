@@ -1,7 +1,7 @@
 import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { footageNeeded, importBudget, syncAll } from "./albums.ts";
-import { plan, queueRender, isPortrait, onTopic, outsideClips, postsDueForStats, refreshPostStats } from "./generate.ts";
+import { plan, queueRender, isPortrait, onTopic, outsideClips, noteInspireIssue, postsDueForStats, refreshPostStats } from "./generate.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { syncProfiles } from "./postMatch.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
@@ -131,6 +131,9 @@ async function runDue({ afterReview = false } = {}) {
       throw err;
     }
   }
+  // The day's inspirational video doesn't wait for a round: rounds only start when fewer than
+  // MIN_WAITING videos are waiting, so with a full Review queue it would never get its turn.
+  if (due && !batchRunning) await ensureInspirational().catch((err) => noteInspireIssue((err as Error).message));
   // Keep caption research fresh for situations that have clips waiting, one situation per tick,
   // after the round so it never delays videos.
   if (config.claude.enabled && !batchRunning && !researching) {
@@ -142,6 +145,48 @@ async function runDue({ afterReview = false } = {}) {
         .catch((err) => console.warn(`[research] ${next}:`, (err as Error).message))
         .finally(() => (researching = false));
     }
+  }
+}
+
+let inspireAttempt = 0;
+/**
+ * One inspirational video a day: if none was made today, make it on its own (from the outside
+ * themes' footage when there is some), even when other videos are waiting for review. It counts as
+ * the day's inspirational one, so the daily mix doesn't make another.
+ */
+export async function ensureInspirational(): Promise<boolean> {
+  if ((store.settings().dailyMix.inspirational ?? 0) <= 0 || !config.claude.enabled || !aiAvailable()) return false;
+  const date = today();
+  if (store.renders().some((r) => r.plan.format === "inspire" && localDate(new Date(r.createdAt)) === date)) return false;
+  if (Date.now() - inspireAttempt < 30 * 60_000) return false;
+  inspireAttempt = Date.now();
+  const pool = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c) && c.uses === 0);
+  if (!pool.length && !outsideClips().length) throw new Error("No unused footage left for the inspirational video.");
+  const { fontId, textStyle, textSize } = store.settings();
+  const options: RenderOptions = { keepOriginalAudio: true, textStyle, textSize, fontId };
+  const auto = store.auto();
+  batchRunning = true;
+  roundStage = "Writing today's inspirational video…";
+  try {
+    const { plans } = await plan({
+      template: auto.template,
+      targetSeconds: auto.targetSeconds,
+      count: 1,
+      clipIds: pool.map((c) => c.id),
+      pickFromPool: true,
+      useAi: true,
+      format: "inspire",
+      options,
+    });
+    const p = plans.find((x) => x.format === "inspire");
+    if (!p) throw new Error("The inspirational video couldn't be planned.");
+    queueRender(p, options, date);
+    noteInspireIssue(null);
+    console.log(`[scheduler] made today's inspirational video${p.outside ? " (outside footage)" : ""}`);
+    return true;
+  } finally {
+    batchRunning = false;
+    roundStage = null;
   }
 }
 

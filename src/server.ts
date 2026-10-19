@@ -1426,6 +1426,12 @@ if (!paused && !store.settings().zigzagV2) {
   zigzagExisting();
 }
 
+// Once: the creator asked to read their TikTok (90 days of posts and comments) right away.
+if (!paused && !store.settings().audienceFirstRead && apifyEnabled() && store.settings().handle?.trim()) {
+  store.updateSettings({ audienceFirstRead: true });
+  setTimeout(() => learnFromTikTok(90).catch((err) => console.warn("[audience] first read:", (err as Error).message)), 120_000);
+}
+
 // Once: everything filmed since September 10 into the library (the creator asked for a full scan).
 if (!paused && !store.settings().scanSinceSep10) {
   store.updateSettings({ scanSinceSep10: true });

@@ -10,10 +10,12 @@ import type { SearchTopic } from "./types.ts";
  * Learning from the creator's own TikTok: the posts of the last N days with their numbers, and the
  * questions people ask in the comments, grouped into topics for the educational videos. Comments are
  * paid per comment fetched, so only videos with a few comments are read, at most COMMENTS_PER_POST
- * each, no reply threads, and old posts only once; then the ones where someone wants to know
+ * each with up to REPLIES_PER_COMMENT replies, and old posts only once; then the ones where someone wants to know
  * something (asked in any way) count.
  */
 const COMMENTS_PER_POST = 40;
+/** Follow-up questions hide in replies ("does that work for bigger dogs too?"): the first few of each. */
+const REPLIES_PER_COMMENT = 3;
 const MIN_COMMENTS = 3;
 const USD_PER_COMMENT = 0.001; // on the high side, like the other Apify estimates
 const MAX_POSTS = 200;
@@ -86,7 +88,7 @@ async function fetchComments(urls: string[]): Promise<Comment[]> {
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ postURLs: urls, commentsPerPost: COMMENTS_PER_POST, maxRepliesPerComment: 0 }),
+      body: JSON.stringify({ postURLs: urls, commentsPerPost: COMMENTS_PER_POST, maxRepliesPerComment: REPLIES_PER_COMMENT }),
       signal: AbortSignal.timeout(300_000),
     },
   );

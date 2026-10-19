@@ -766,3 +766,12 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .theme-x { border: 0; background: none; padding: 0 10px 0 0; font-size: 15px; cursor: pointer; color: #a1a1aa; }
 .theme-suggest { margin-top: 12px; }
 .theme-chip.suggest { border-style: dashed; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; color: #3f3f46; cursor: pointer; }
+
+/* Day vlog */
+.vlog-days { display: flex; flex-direction: column; gap: 10px; }
+.vlog-day { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; background: var(--card, rgba(127,127,127,.08)); }
+.vlog-thumbs { display: flex; }
+.vlog-thumbs img { width: 30px; height: 52px; object-fit: cover; border-radius: 6px; margin-left: -10px; border: 2px solid var(--bg, #fff); }
+.vlog-thumbs img:first-child { margin-left: 0; }
+.vlog-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; }
+.vlog-meta .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }

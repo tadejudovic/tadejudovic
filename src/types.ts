@@ -174,6 +174,8 @@ export interface VideoPlan {
   /** Educational: the theme (destination, airline, gear) and the specific topic, so it isn't repeated. */
   pillar?: EduPillar;
   topic?: string;
+  /** A day vlog: the clips of this day ("2026-10-12"), in the order they were filmed. */
+  vlogDay?: string;
   /** Made from footage beyond the airport situations (the daily outside video). */
   outside?: boolean;
   /** A remake of a video the creator rejected (that video's id), and how many remakes deep. */

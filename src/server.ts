@@ -11,7 +11,8 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected } from "./generate.ts";
+import { vlogDays } from "./ai/vlog.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -897,6 +898,22 @@ app.post(
   h(async (req, res) => {
     const seconds = clamp(Math.round(Number(req.body?.seconds) || 20), 10, 45);
     res.json(await makeStoryVideo(String(req.body?.storyline ?? "").slice(0, 2000), seconds));
+  }),
+);
+
+// ---- Day vlogs (only on request) --------------------------------------------------------
+
+app.get("/api/vlog/days", (_req, res) => {
+  const made = [...new Set(store.renders().map((r) => r.plan.vlogDay).filter(Boolean))];
+  res.json({ days: vlogDays().slice(0, 60), made });
+});
+
+app.post(
+  "/api/vlog",
+  h(async (req, res) => {
+    const day = String(req.body?.day ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return void res.status(400).json({ error: "Pick a day." });
+    res.json(await makeDayVlog(day));
   }),
 );
 

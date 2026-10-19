@@ -16,6 +16,7 @@ import { detectSubject } from "./ai/subject.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { healPlan, lengthenFootage, spreadPoints } from "./overlayLayout.ts";
 import { countryOf } from "./geo.ts";
+import { planDayVlog } from "./ai/vlog.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
@@ -697,6 +698,14 @@ export async function makeStoryVideo(storyline: string, targetSeconds = 20): Pro
   const p = await planStory(text, targetSeconds);
   const { fontId, textStyle, textSize } = store.settings();
   return queueRender(p, { keepOriginalAudio: true, textStyle, textSize, fontId });
+}
+
+/** A day vlog from the clips filmed on one day (Settings → Day vlog; never made automatically). */
+export async function makeDayVlog(day: string, targetSeconds = 30): Promise<Render> {
+  if (!config.claude.enabled) throw new Error("Day vlogs need the AI (ANTHROPIC_API_KEY).");
+  const p = await planDayVlog(day, targetSeconds);
+  const { fontId, textStyle, textSize } = store.settings();
+  return queueRender(p, { keepOriginalAudio: true, textStyle, textSize, fontId }, undefined, { countUse: false });
 }
 
 // ---- Voiceover stories (script / talk track → lines → recordings → video) ----------------

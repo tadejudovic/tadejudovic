@@ -130,6 +130,48 @@ function openSubpage(id) {
   page.hidden = false;
   page.scrollTop = 0;
   document.body.classList.add("no-scroll");
+  if (id === "sp-vlog") loadVlogDays();
+}
+
+// ---- Day vlog: one day's clips, in the order filmed (only on request) -------------------
+
+async function loadVlogDays() {
+  const box = $("#vlog-days");
+  box.replaceChildren(h("p", { class: "muted" }, "Looking for days…"));
+  const { days, made } = await api("/api/vlog/days");
+  if (!days.length) return box.replaceChildren(h("p", { class: "muted" }, "No day has 3 or more vertical clips yet."));
+  const fmt = (d) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  box.replaceChildren(
+    ...days.map((d) => {
+      const btn = h("button", { class: "btn small" + (made.includes(d.day) ? "" : " primary"), type: "button" }, made.includes(d.day) ? "Make another" : "Make vlog");
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = "Writing…";
+        try {
+          await api("/api/vlog", { method: "POST", body: { day: d.day } });
+          toast("Vlog is being made. It'll appear in Review.", "check");
+          btn.textContent = "Being made";
+          refreshRenders();
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = "Make vlog";
+          toast(err.message || "Couldn't make the vlog");
+        }
+      };
+      return h(
+        "div",
+        { class: "vlog-day" },
+        h("div", { class: "vlog-thumbs" }, ...d.thumbs.map((id) => h("img", { src: `/media/thumb/${id}`, alt: "", loading: "lazy" }))),
+        h(
+          "div",
+          { class: "vlog-meta" },
+          h("b", {}, fmt(d.day)),
+          h("span", { class: "muted" }, [`${d.clips} clips · ${d.minutes || "<1"} min`, ...d.places].join(" · ")),
+        ),
+        btn,
+      );
+    }),
+  );
 }
 function closeSubpages() {
   for (const p of document.querySelectorAll(".subpage")) p.hidden = true;

@@ -13,7 +13,10 @@ import { localDate, videosLeftToday } from "./dailyLimit.ts";
  */
 export const MIN_WAITING = 3;
 export function awaitingReview(): number {
-  return store.renders().filter((r) => r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending")).length;
+  // Videos made on request (stories, day vlogs) don't hold back the daily ones.
+  return store
+    .renders()
+    .filter((r) => r.plan.format !== "story" && (r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending"))).length;
 }
 
 /** Called after a review: if fewer than MIN_WAITING are left, make the next ones right away. */

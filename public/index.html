@@ -130,6 +130,7 @@
         <button class="srow" data-open="sp-scenes"><span class="row-title">Situations &amp; TikTok captions</span><span class="row-value" id="sum-scenes"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-examples"><span class="row-title">Videos that worked</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-story"><span class="row-title">Story video</span><span class="row-value">from your words</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" data-open="sp-vlog"><span class="row-title">Day vlog</span><span class="row-value">one day, start to finish</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-faq"><span class="row-title">Questions people ask</span><span class="row-value" id="sum-faq"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-partners"><span class="row-title">Brand partners</span><span class="row-value" id="sum-partners"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       </div>
@@ -305,6 +306,14 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
           <div class="wide"><button class="btn primary" type="submit" id="story-go">Find the clips</button></div>
         </form>
         <div id="story-draft" class="story-draft" hidden></div>
+        </div>
+      </div>
+
+      <div class="subpage" id="sp-vlog" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Day vlog</h2></header>
+        <div class="sp-body">
+          <p class="hint top">Pick a day: its clips are put together in the order you filmed them, with a hook on top and a short line for each moment. Vlogs are only made when you ask, never in the daily videos. They go to Review like the others.</p>
+          <div id="vlog-days" class="vlog-days"></div>
         </div>
       </div>
 

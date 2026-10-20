@@ -728,7 +728,9 @@ const EDU_FORMAT_TEXT: Record<EduFormat, string> = {
     `\nSTRUCTURE FOR THIS VIDEO: MYTH VS. FACT. What people believe, then what's actually true, 1–2 pairs: ` +
     `"MYTH: Dogs have to fly in cargo", then "FACT: Small dogs fly under the seat". The hook sets it up (e.g. ` +
     `"Can dogs really fly in the cabin?", "What everyone gets wrong about flying a dog"). Each MYTH is something ` +
-    `people genuinely believe; each FACT corrects it plainly.`,
+    `people genuinely believe; each FACT states what's actually true, concretely ("FACT: Small dogs fly in the ` +
+    `cabin, under the seat"), never advice like "check before booking" or "it varies". Use exactly the labels ` +
+    `MYTH: and FACT:. Each FACT appears opposite its MYTH while the MYTH stays on screen.`,
   mistake:
     `\nSTRUCTURE FOR THIS VIDEO: MISTAKE → WHAT TO DO INSTEAD. A mistake people make (ideally one we made), then ` +
     `the fix, 1–2 pairs: "MISTAKE: Feeding right before the flight", then "INSTEAD: Last meal 4 hours before". The ` +

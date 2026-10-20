@@ -71,9 +71,24 @@ export function basicChecks(plan: VideoPlan, place?: string): string[] {
         problems.push(`"${o.text}" names ${m[0]}, but this clip was ${place ? `filmed in ${place}` : "filmed somewhere unknown"}: name only where it really is, or no place.`);
     }
   }
+  // The correcting side of a pair states the truth; "check" / "it varies" is advice, not a fact.
+  for (const o of plan.overlays ?? [])
+    if (/^\s*(fact|truth|reality|instead)\s*[:–-]/i.test(o.text) && /\b(check|varies|vary|depends|it depends|research)\b/i.test(o.text))
+      problems.push(`"${o.text}" doesn't state the truth, it gives advice: say what's actually true or what to do instead, concretely.`);
+  // The lesson takes the shape it was given (a list stays a list, a myth video has its MYTH / FACT pairs).
+  const pts = (plan.overlays ?? []).filter((o) => o.y !== undefined && !/flywith|link in bio/i.test(o.text));
+  const want: Record<string, RegExp> = {
+    list: /^\s*\d{1,2}[.):]\s/,
+    myth: /^\s*(myth|fact)\s*[:–-]/i,
+    mistake: /^\s*(mistake|instead)\s*[:–-]/i,
+    dodont: /^\s*(don['’]?t|do)\s*[:–-]/i,
+  };
+  const shape = plan.eduFormat && want[plan.eduFormat];
+  if (edu && shape && pts.length && !pts.every((o) => shape.test(o.text)))
+    problems.push(`This video's structure is "${plan.eduFormat}": every point starts with its label (${String(shape).slice(5, 40)}…).`);
   // Points: short enough to read at a glance.
   for (const o of (plan.overlays ?? []).slice(1)) {
-    const label = /^\s*(\d{1,2}[.):]|(myth|fact|truth|mistake|instead|don['’]?t|do|answer|tip)\s*[:–-])\s+/i.exec(o.text);
+    const label = /^\s*(\d{1,2}[.):]|(myth|fact|truth|reality|mistake|instead|don['’]?t|do|answer|tip)\s*[:–-])\s+/i.exec(o.text);
     if (o.y !== undefined && label && words(o.text.slice(label[0].length)) > 7)
       problems.push(`The point "${o.text}" is ${words(o.text.slice(label[0].length))} words after its label: at most 7.`);
   }

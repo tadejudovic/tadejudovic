@@ -163,14 +163,14 @@ export function splitNumber(text: string): [string, string] | undefined {
   const m = /^\s*(\d{1,2})[.):]\s+(\S[\s\S]*)$/.exec(text);
   if (m) return [m[1], m[2]];
   // Word labels of the other lesson formats: "MYTH: …", "FACT: …", "DON'T: …", "ANSWER: …".
-  const w = /^\s*(myth|fact|truth|mistake|instead|don['’]?t|do|answer|tip|step \d{1,2})\s*[:–-]\s+(\S[\s\S]*)$/i.exec(text);
+  const w = /^\s*(myth|fact|truth|reality|mistake|instead|don['’]?t|do|answer|tip|step \d{1,2})\s*[:–-]\s+(\S[\s\S]*)$/i.exec(text);
   return w ? [w[1].toUpperCase().replace("’", "'").replace(/^DONT$/, "DON'T"), w[2]] : undefined;
 }
 
 /** The tab's colors: red for what not to do, green for the answer, black with yellow for numbers. */
 export function tabColors(label: string, body: string): { bg: string; fg: string } {
   if (/^(MYTH|MISTAKE|DON'T)$/.test(label)) return { bg: "0xE5484D", fg: "white" };
-  if (/^(FACT|TRUTH|INSTEAD|DO|ANSWER)$/.test(label)) return { bg: "0x1F9D55", fg: "white" };
+  if (/^(FACT|TRUTH|REALITY|INSTEAD|DO|ANSWER)$/.test(label)) return { bg: "0x1F9D55", fg: "white" };
   return { bg: "0x111111", fg: body };
 }
 
@@ -428,7 +428,21 @@ async function finalize(
   // Placed points (educational) show one at a time: each goes when the next one comes.
   const overlays = overlaysFor(plan, duration).map((o) => ({ ...o }));
   const points = overlays.filter((o) => o.y !== undefined).sort((a, b) => a.start - b.start);
-  for (let i = 0; i < points.length - 1; i++) if (points[i].end > points[i + 1].start) points[i].end = points[i + 1].start;
+  // Pairs (myth → fact, mistake → instead, don't → do) read as one: the first stays on screen, top
+  // left, while the second appears opposite it, bottom right.
+  const labelOf = (o: Overlay) => splitNumber(screenText(o.text))?.[0];
+  const paired = new Set<Overlay>();
+  for (let i = 0; i < points.length - 1; i++) {
+    if (/^(MYTH|MISTAKE|DON'T)$/.test(labelOf(points[i]) ?? "") && /^(FACT|TRUTH|REALITY|INSTEAD|DO)$/.test(labelOf(points[i + 1]) ?? "")) {
+      const [first, second] = [points[i], points[i + 1]];
+      first.end = second.end;
+      Object.assign(first, { y: 0.36, x: 0.33 });
+      Object.assign(second, { y: 0.6, x: 0.6 });
+      paired.add(first);
+      i++;
+    }
+  }
+  for (let i = 0; i < points.length - 1; i++) if (!paired.has(points[i]) && points[i].end > points[i + 1].start) points[i].end = points[i + 1].start;
   // Nothing flashes by: a line too short to read stays up at least 1.5s (within the video).
   for (const o of overlays) if (o.y === undefined && o.end - o.start < 1.5) o.end = Math.min(duration + 1, o.start + 1.5);
   // The opening headline is pinned, in every video: the same box in the same place at the top of the

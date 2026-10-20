@@ -9,7 +9,8 @@ import { localDate } from "./dailyLimit.ts";
  * BANDWIDTH_GB raises the allowance on a bigger plan.
  */
 const GB = 1e9;
-const included = () => (Number(process.env.BANDWIDTH_GB) || 5) * GB;
+// The creator's own limit (Settings > Spending), else BANDWIDTH_GB, else Render's included 5 GB.
+const included = () => (store.settings().bandwidthGb || Number(process.env.BANDWIDTH_GB) || 5) * GB;
 export const playCap = () => included() * 0.9;
 export const hardCap = () => included() * 0.98;
 

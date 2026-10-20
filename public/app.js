@@ -87,6 +87,7 @@ async function loadStatus() {
   $("#spend-bar").style.width = `${pct}%`;
   $("#spend-bar").className = pct >= 100 ? "full" : pct >= 75 ? "high" : "";
   if (document.activeElement?.form !== $("#budget-form")) $("#budget-form").aiMonthlyBudget.value = String(s.settings.aiMonthlyBudget);
+  if (document.activeElement?.form !== $("#bandwidth-form")) $("#bandwidth-form").bandwidthGb.value = String(s.bandwidth?.includedGb ?? 5);
   $("#logout").hidden = !s.gate;
   $("#chip-ai").classList.toggle("on", s.claude.enabled);
   $("#chip-ai").title = s.claude.enabled ? `Using ${s.claude.model}` : "Set ANTHROPIC_API_KEY to enable";
@@ -2488,6 +2489,14 @@ $("#budget-form").addEventListener("change", async (e) => {
   banner("Monthly AI limit saved.", "ok");
 });
 $("#budget-form").addEventListener("submit", (e) => e.preventDefault());
+$("#bandwidth-form").addEventListener("change", async (e) => {
+  await api("/api/settings", { method: "PUT", body: { bandwidthGb: Number(e.currentTarget.bandwidthGb.value) } });
+  await loadStatus();
+  playable.told = false;
+  await refreshRenders();
+  banner("Bandwidth limit saved.", "ok");
+});
+$("#bandwidth-form").addEventListener("submit", (e) => e.preventDefault());
 
 $("#btn-resume").addEventListener("click", (e) =>
   withBusy(e.currentTarget, "…", async () => {

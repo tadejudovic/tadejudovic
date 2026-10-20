@@ -93,6 +93,8 @@ export interface Settings {
   countersResetV1?: boolean;
   /** Bytes sent out this month (for the bandwidth cap). */
   bandwidth?: { month: string; bytes: number };
+  /** The monthly bandwidth the app may use (GB); unset = the host's included 5 GB. */
+  bandwidthGb?: number;
   bandwidthSeedV1?: boolean;
   remakePottyV1?: boolean;
   scanSinceSep10?: boolean;

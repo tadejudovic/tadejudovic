@@ -406,7 +406,10 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
         </form>
         <p class="spend spaced"><b id="bw-used">0 GB</b> of <b id="bw-included">5 GB</b> bandwidth used this month</p>
         <div class="meter"><i id="bw-bar"></i></div>
-        <p class="hint">What the server sends to your phone, mostly videos (the app plays light copies). Render includes 5 GB a month. At 90%, videos show as still images until the 1st; at 98%, saving and sharing stop too, so it never goes over.</p>
+        <form id="bandwidth-form" class="grid-form spaced">
+          <label>Monthly bandwidth limit (GB) <input type="number" name="bandwidthGb" min="1" max="500" step="1" /></label>
+        </form>
+        <p class="hint">What the server sends to your phone, mostly videos (the app plays light copies). Render includes 5 GB a month; beyond that it charges about $0.15 per GB (so 10 GB a month costs about $0.75 extra). At 90% of your limit, videos show as still images until the 1st; at 98%, saving and sharing stop too.</p>
         <p class="hint">AI spending covers both Claude (AI) and Apify (TikTok search). Claude's cost comes from the usage it reports after every call; Apify's is estimated on the high side per search result. The meter updates after every call. When the limit is reached, the app stops calling both until next month. For a hard cap, also set limits in the Anthropic Console and in Apify.</p>
         </div>
       </div>

@@ -1036,7 +1036,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       `report where they are (subjectTop/subjectBottom) and keep any placed text outside that band. Overlays use y -1 and no arrow (pointX/pointY -1) unless the ` +
       `format below says otherwise. Play footage at real speed (1). Slow motion only for one short ` +
       `payoff moment that's better slowed down (a jump, a head tilt, a reaction), never to make the video longer; if ` +
-      `the clip is short, use all of it at speed 1 (it's replayed to give time to read). Overlay text: the headline at most 9 words (two short lines), any line after it at most 5 words (one line), so everything on screen at once fits in 3 lines, no hashtags, no emoji; " / " starts ` +
+      `the clip is short, use all of it at speed 1 (it's replayed to give time to read). Overlay text: the headline at most 9 words (two short lines), any line after it at most 5 words (one line), so everything on screen at once fits in 3 lines; plain words a stranger gets in a second (no airport codes like FLL or LAX, no jargon: city names), sentence case, no hashtags, no emoji; " / " starts ` +
       `a new line (e.g. "me: quick bath / ${ctx.petName}:").` +
       (ctx.trends.length
         ? `\n\nText formats currently working for pet accounts (optional inspiration):\n` +

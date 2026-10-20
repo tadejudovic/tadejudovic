@@ -29,6 +29,17 @@ export function basicChecks(plan: VideoPlan): string[] {
   if (edu && NARROW.test(hook)) problems.push(`The headline "${hook}" speaks only to dog owners: make it for anyone curious.`);
   if (WHO_ASKS.test(hook)) problems.push(`The headline "${hook}" talks about who asks: just ask or answer it.`);
   if (edu && /^pov\b/i.test(hook)) problems.push(`The headline "${hook}" starts with POV: not for a lesson.`);
+  // Plain words a stranger reads in a second: no airport codes, no odd capitals.
+  for (const o of plan.overlays ?? [{ text: hook } as { text: string }]) {
+    const codes = (o.text.match(/\b[A-Z]{3}\b/g) ?? []).filter((w) => !/^(POV|DIY|USA|USD|EUR|GPS|TSA|ESA|DOT|FAQ|CTA|ONE|TWO|DOG|AND|THE|FOR)$/.test(w));
+    if (codes.length) problems.push(`"${o.text}" uses airport codes or abbreviations (${codes.join(", ")}): write the city or place.`);
+    const midCaps = o.text
+      .replace(/^\s*(\d{1,2}[.):]|[A-Z']+:)\s*/, "")
+      .split(/(?<=[.?!:])\s+/)
+      .flatMap((sentence) => sentence.split(/\s+/).slice(1))
+      .filter((w) => /^[A-Z][a-z]{3,}$/.test(w) && !/^(Lex|Lufthansa|Delta|United|Southwest|Japan|Europe|Brazil|Portugal|Lisbon|Tokyo|Toronto|Paris|London|Mexico|Canada|America|Christmas|Sunday|Monday|Friday|Saturday)$/.test(w));
+    if (midCaps.length >= 1 && o === (plan.overlays ?? [])[0]) problems.push(`"${o.text}" has odd capitals (${midCaps.join(", ")}): sentence case, capitals only for names.`);
+  }
   // Points: short enough to read at a glance.
   for (const o of (plan.overlays ?? []).slice(1)) {
     const label = /^\s*(\d{1,2}[.):]|(myth|fact|truth|mistake|instead|don['’]?t|do|answer|tip)\s*[:–-])\s+/i.exec(o.text);

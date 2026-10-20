@@ -40,3 +40,12 @@ test("a hook only claims a reference it visibly builds on", async () => {
   assert.equal(echoes("The carrier stays under the seat the whole flight", "If you are traveling with your dog, they must remain in their carrier underneath the seat"), true);
   assert.equal(echoes("POV: your dog clears security first", "POV: you forgot the passport"), true);
 });
+
+test("basic checks catch airport codes and odd capitals in the headline", async () => {
+  const { basicChecks } = await import("../src/checks.ts");
+  const plan = (text: string) => ({ format: "fun", segments: [{ clipId: "c", start: 0, end: 5 }], overlays: [{ text, start: 0, end: 6 }] }) as any;
+  const bad = basicChecks(plan("Dog goes Cross country FLL LA"));
+  assert.ok(bad.some((p) => p.includes("FLL")));
+  assert.ok(bad.some((p) => p.includes("Cross")));
+  assert.deepEqual(basicChecks(plan("Lex rides the baggage belt to Tokyo")), []);
+});

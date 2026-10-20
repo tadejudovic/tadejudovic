@@ -1354,6 +1354,15 @@ if (!store.settings().freshStartV1 && !store.renders().length && !store.clips().
   console.log(`[fresh start] deleted ${n} video(s); clips kept and free to use again; 3 a day from now`);
 }
 
+// Fresh start, asked for by the creator on Oct 20: every made video goes (what was learned from
+// reviews, edits and post stats is kept for the AI), the clips stay and are free to use again, the
+// day's counters start over, and a new day's set follows. The one-off remakes of old videos are moot.
+if (!store.settings().freshStartV4) {
+  const n = store.renders().length ? clearVideos() : 0;
+  store.updateSettings({ freshStartV4: true, countFrom: new Date().toISOString(), remakeLayoverV1: true, remakePottyV1: true });
+  console.log(`[fresh start] ${n} video(s) deleted; starting over`);
+}
+
 // Second fresh start, asked for by the creator: all videos again, clips stay, 3 new ones follow.
 if (!store.settings().freshStartV3) {
   if (store.renders().length) clearVideos();

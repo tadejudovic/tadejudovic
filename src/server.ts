@@ -1379,6 +1379,14 @@ if (!store.settings().freshStartV4) {
   console.log(`[fresh start] ${n} video(s) deleted; starting over`);
 }
 
+// Once: spares switched off (Oct 20): the ones not started yet are dropped (finished ones can still step in).
+if (!store.settings().sparesOffV1) {
+  store.updateSettings({ sparesOffV1: true });
+  const queued = store.renders().filter((r) => r.standby && r.status === "queued");
+  for (const r of queued) deleteRender(r.id);
+  if (queued.length) console.log(`[spares] dropped ${queued.length} spare(s) not started yet`);
+}
+
 // Second fresh start, asked for by the creator: all videos again, clips stay, 3 new ones follow.
 if (!store.settings().freshStartV3) {
   if (store.renders().length) clearVideos();

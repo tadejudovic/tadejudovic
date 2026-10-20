@@ -1,4 +1,4 @@
-import { store } from "./store.ts";
+import { featureOn, store } from "./store.ts";
 import { localDate } from "./dailyLimit.ts";
 import type { DailyMix, PostFormat, Render } from "./types.ts";
 
@@ -61,7 +61,8 @@ export function toMake(now = Date.now()): { kind: PostFormat; standby: boolean }
     const waiting = waitingOf(kind);
     const spares = sparesOf(kind).length;
     if (!waiting && !spares) out.push({ kind, standby: false });
-    else if (waiting && !spares) out.push({ kind, standby: true });
+    // Spares only when switched on (Labs): otherwise one video per kind at a time.
+    else if (waiting && !spares && featureOn("spares")) out.push({ kind, standby: true });
   }
   // The videos for Review first, then the spares.
   return out.sort((a, b) => Number(a.standby) - Number(b.standby));

@@ -5,7 +5,7 @@ import { config } from "./config.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
 import { promoteSpares, sparesOf, waitingOf } from "./daySet.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
-import { store, newId } from "./store.ts";
+import { featureOn, store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
 import { directClip, planVideos, proofreadText, writeCaption, type DirectContext } from "./ai/director.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
@@ -570,7 +570,7 @@ export async function plan(
           // The basics first (headline, points, pacing): a draft that breaks one goes back once with
           // the exact problems, and the version with fewer problems is kept.
           const problems = basicChecks(p, clip.place);
-          if (problems.length) {
+          if (problems.length && featureOn("retries")) {
             console.log(`[checks] ${kind} on ${clip.id}: ${problems.join(" | ")}`);
             const brief = [direction.brief, `THE LAST DRAFT BROKE THESE BASIC RULES, fix every one: ${problems.join(" ")}`].filter(Boolean).join("\n\n");
             const again = await directClip(clip, { ...direction, brief }).catch(() => undefined);
@@ -1026,6 +1026,8 @@ function needsEditor(r: Render): boolean {
 
 /** Attempts per video: the first, then up to two more made from the editor's notes. */
 export const EDITOR_ATTEMPTS = 3;
+/** Attempts actually made: one, unless retries are switched on (Labs); the review still scores it. */
+const editorAttempts = () => (featureOn("retries") ? EDITOR_ATTEMPTS : 1);
 const total = (e?: Render["editor"]) => (e ? e.scores.hook * 2 + e.scores.body + e.scores.ending : -1);
 
 /**
@@ -1063,7 +1065,7 @@ export async function editorPass(id: string, duration: number): Promise<void> {
     });
     syncClipUses(id);
   };
-  if (pass + 1 >= EDITOR_ATTEMPTS) return void deliverBest(id, base);
+  if (pass + 1 >= editorAttempts()) return void deliverBest(id, base);
   const overlays = r.plan.overlays ?? [];
   if (v.verdict === "fix_text" && overlays.length && v.texts.length === overlays.length) {
     // Only the words change: the text is drawn again on the same footage (cached, quick).

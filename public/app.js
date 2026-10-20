@@ -44,10 +44,10 @@ function playable(url) {
 
 /** Extra features (Settings > Labs): what's switched off is hidden. */
 const featureOn = (f) => !!state.status?.settings?.features?.[f];
-const FEATURE_ROWS = { vlog: "sp-vlog", story: "sp-story", collab: "sp-partners", manual: "sp-manual" };
+const FEATURE_ROWS = { vlog: "sp-vlog", story: "sp-story", collab: "sp-partners", manual: "sp-manual", spares: null, retries: null };
 function applyFeatures(features) {
   for (const [f, page] of Object.entries(FEATURE_ROWS)) {
-    const row = document.querySelector(`[data-open="${page}"]`);
+    const row = page && document.querySelector(`[data-open="${page}"]`);
     if (row) row.hidden = !features[f];
     const box = document.querySelector(`#labs input[name="${f}"]`);
     if (box && document.activeElement !== box) box.checked = !!features[f];

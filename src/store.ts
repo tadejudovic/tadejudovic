@@ -25,8 +25,8 @@ interface DB {
 }
 
 /** Features beyond the daily videos, each behind a switch (Settings > Labs). */
-export type Feature = "vlog" | "story" | "collab" | "manual";
-export const FEATURES: Feature[] = ["vlog", "story", "collab", "manual"];
+export type Feature = "vlog" | "story" | "collab" | "manual" | "spares" | "retries";
+export const FEATURES: Feature[] = ["vlog", "story", "collab", "manual", "spares", "retries"];
 export const featureOn = (f: Feature) => !!store.settings().features?.[f];
 
 export interface Settings {
@@ -109,6 +109,7 @@ export interface Settings {
   remakeLayoverV1?: boolean;
   winnersV1?: boolean;
   freshStartV4?: boolean;
+  sparesOffV1?: boolean;
   /** Extra features, off unless switched on in Settings > Labs. */
   features?: Partial<Record<Feature, boolean>>;
   /** What people search for before finding the account (TikTok search analytics), grouped into topics. */

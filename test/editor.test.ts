@@ -25,7 +25,17 @@ test("a video that passes goes to Review with the editor's scores", async () => 
   assert.equal(r.editor?.outcome, "passed");
 });
 
+test("with retries off (the default), a failing video goes to Review once, with the editor's notes", async () => {
+  add("o1");
+  editorReviewer.review = async () => ({ scores: { ...scores, hook: 4 }, parts, dropOff: [], verdict: "fix_text", issues: ["Weak hook"], texts: ["New hook", "1. One"], remakeBrief: "" });
+  await editorPass("o1", 8);
+  assert.equal(store.render("o1")!.review, "pending");
+  assert.equal(store.render("o1")!.editor?.outcome, "let_through");
+  assert.ok(!store.renders().some((r) => r.plan.hook === "New hook"));
+});
+
 test("a weak hook gets its text fixed and checked again; the first try is set aside, not deleted", async () => {
+  store.updateSettings({ features: { retries: true } } as any);
   add("t1");
   editorReviewer.review = async () => ({ scores: { ...scores, hook: 4 }, parts, dropOff: [{ at: 1, why: "label-style hook" }], verdict: "fix_text", issues: ["Hook is label-style"], texts: ["Where do dogs pee when they fly?", "1. One"], remakeBrief: "" });
   await editorPass("t1", 8);

@@ -48,8 +48,8 @@ test("recent footage first: a situation with only old clips waits behind one fil
 
 test("each kind not kept has a spare on standby; a rejection brings it in at once", async () => {
   const { toMake, promoteSpares, waitingOf, sparesOf } = await import("../src/daySet.ts");
-  // A fresh day for this test: everything before counts as yesterday.
-  store.updateSettings({ countFrom: new Date().toISOString() } as any);
+  // A fresh day for this test: everything before counts as yesterday. Spares switched on (Labs).
+  store.updateSettings({ countFrom: new Date().toISOString(), features: { spares: true } } as any);
   for (const r of store.renders()) store.updateRender(r.id, { review: "rejected", rejectReason: "text", remadeAs: undefined, reviewedAt: "2020-01-01T00:00:00Z" } as any);
   assert.deepEqual(toMake().map((x) => `${x.kind}${x.standby ? "+" : ""}`), ["tips", "fun", "inspire"]);
   add("vt", "tips", "pending");
@@ -83,4 +83,11 @@ test("the heavy lane runs the videos for Review first, then spares, previews, im
   release();
   await new Promise((r) => setTimeout(r, 50));
   assert.deepEqual(order, ["running import", "video", "video 2", "spare", "preview", "import"]);
+});
+
+test("spares are off unless switched on in Labs", async () => {
+  const { toMake } = await import("../src/daySet.ts");
+  store.updateSettings({ features: {}, countFrom: new Date(Date.now() + 1000).toISOString() } as any);
+  add("only", "inspire", "pending");
+  assert.equal(toMake().find((x) => x.kind === "inspire"), undefined);
 });

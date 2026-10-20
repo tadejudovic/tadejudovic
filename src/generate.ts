@@ -17,7 +17,7 @@ import { detectSubject } from "./ai/subject.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { healPlan, lengthenFootage, spreadPoints } from "./overlayLayout.ts";
 import { countryOf } from "./geo.ts";
-import { planDayVlog } from "./ai/vlog.ts";
+import { buildDayVlog, planDayVlog, type VlogProposal } from "./ai/vlog.ts";
 import { searchTopicsFor } from "./searchDemand.ts";
 import { basicChecks } from "./checks.ts";
 import { reviewVideo, type EditorVerdict } from "./ai/editor.ts";
@@ -838,9 +838,9 @@ export async function makeStoryVideo(storyline: string, targetSeconds = 20): Pro
 }
 
 /** A day vlog from the clips filmed on one day (Settings → Day vlog; never made automatically). */
-export async function makeDayVlog(day: string, targetSeconds = 30): Promise<Render> {
-  if (!config.claude.enabled) throw new Error("Day vlogs need the AI (ANTHROPIC_API_KEY).");
-  const p = await planDayVlog(day, targetSeconds);
+export async function makeDayVlog(day: string, targetSeconds = 30, proposal?: VlogProposal): Promise<Render> {
+  if (!proposal && !config.claude.enabled) throw new Error("Day vlogs need the AI (ANTHROPIC_API_KEY).");
+  const p = proposal ? buildDayVlog(proposal) : await planDayVlog(day, targetSeconds);
   const { fontId, textStyle, textSize } = store.settings();
   return queueRender(p, { keepOriginalAudio: true, textStyle, textSize, fontId }, undefined, { countUse: false });
 }

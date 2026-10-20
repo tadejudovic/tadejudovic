@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { vlogDays } from "./ai/vlog.ts";
+import { proposeDayVlog, vlogDays, type VlogProposal } from "./ai/vlog.ts";
 import { previewFor } from "./media/preview.ts";
 import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playbackPaused, seedBandwidth } from "./bandwidth.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
@@ -1004,12 +1004,45 @@ app.get("/api/vlog/days", (_req, res) => {
   res.json({ days: vlogDays().slice(0, 60), made });
 });
 
+/** The moments the AI would use for a day's vlog, to look at and change before it's made. */
+app.post(
+  "/api/vlog/propose",
+  h(async (req, res) => {
+    const day = String(req.body?.day ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return void res.status(400).json({ error: "Pick a day." });
+    if (!config.claude.enabled) return void res.status(400).json({ error: "Day vlogs need the AI (ANTHROPIC_API_KEY)." });
+    res.json(await proposeDayVlog(day));
+  }),
+);
+
 app.post(
   "/api/vlog",
   h(async (req, res) => {
     const day = String(req.body?.day ?? "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return void res.status(400).json({ error: "Pick a day." });
-    res.json(await makeDayVlog(day));
+    // A proposal the creator went through: their moments (only clips of that day), their words.
+    const p = req.body?.proposal;
+    let proposal: VlogProposal | undefined;
+    if (p && Array.isArray(p.moments)) {
+      const str = (v: unknown, n: number) => String(v ?? "").slice(0, n);
+      proposal = {
+        day,
+        title: str(p.title, 120),
+        hook: str(p.hook, 120),
+        postCaption: str(p.postCaption, 2200),
+        hashtags: Array.isArray(p.hashtags) ? p.hashtags.map((x: unknown) => str(x, 40)).slice(0, 3) : [],
+        moments: p.moments
+          .filter((m: any) => store.clip(String(m?.clipId))?.capturedAt?.startsWith(day))
+          .slice(0, 20)
+          .map((m: any) => ({ clipId: String(m.clipId), start: Math.max(0, Number(m.start) || 0), end: Math.max(0, Number(m.end) || 0), text: str(m.text, 80), use: !!m.use })),
+        others: [],
+      };
+    }
+    try {
+      res.json(await makeDayVlog(day, 30, proposal));
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
+    }
   }),
 );
 

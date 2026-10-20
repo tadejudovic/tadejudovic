@@ -786,3 +786,14 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 /* Editor's review in the details */
 .editor-issues { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
 .editor-issues li { margin: 2px 0; }
+
+.vlog-day { grid-template-columns: auto 1fr auto; }
+.vlog-panel { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.vlog-label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.vlog-hook { font-weight: 600; }
+.vlog-moment { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: start; }
+.vlog-moment video { width: 96px; height: 170px; object-fit: cover; border-radius: 8px; background: #000; }
+.vlog-moment.off video { opacity: .35; }
+.vlog-moment-side { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.vlog-thumbs-row { display: flex; gap: 6px; overflow-x: auto; }
+.vlog-thumbs-row img { width: 54px; height: 96px; object-fit: cover; border-radius: 6px; cursor: pointer; flex: none; }

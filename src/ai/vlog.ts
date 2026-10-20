@@ -34,7 +34,23 @@ export function vlogDays(min = 3): { day: string; clips: number; places: string[
     }));
 }
 
+/** A vlog before it's made: the moments the AI picked, for the creator to keep, drop, retext or add to. */
+export interface VlogProposal {
+  day: string;
+  title: string;
+  hook: string;
+  postCaption: string;
+  hashtags: string[];
+  moments: { clipId: string; start: number; end: number; text: string; use: boolean }[];
+  /** The day's other clips, in filming order, that can be added. */
+  others: { clipId: string; duration: number; filmed?: string }[];
+}
+
 export async function planDayVlog(day: string, targetSeconds = 30): Promise<VideoPlan> {
+  return buildDayVlog(await proposeDayVlog(day, targetSeconds));
+}
+
+export async function proposeDayVlog(day: string, targetSeconds = 30): Promise<VlogProposal> {
   const { petName, handle, story } = store.settings();
   const clips = store
     .clips()
@@ -110,28 +126,54 @@ export async function planDayVlog(day: string, targetSeconds = 30): Promise<Vide
     .filter((x, i, all) => all.findIndex((y) => y.clip.id === x.clip.id) === i)
     .sort((a, b) => shown.indexOf(a.clip) - shown.indexOf(b.clip));
   if (picked.length < 2) throw new Error("Couldn't build a vlog from that day's clips.");
+  const moments = picked.map(({ m, clip }) => {
+    const start = Math.max(0, Math.min(m.start, clip.duration - 1.5));
+    const end = Math.min(clip.duration, Math.max(start + 1.5, Math.min(m.end, start + 5)));
+    return { clipId: clip.id, start, end, text: m.text.trim(), use: true };
+  });
+  const used = new Set(moments.map((m) => m.clipId));
+  return {
+    day,
+    title: out.title,
+    hook: out.hook.trim() || out.title,
+    postCaption: out.postCaption,
+    hashtags: out.hashtags.map((h) => h.replace(/^#/, "")).slice(0, 3),
+    moments,
+    others: clips.filter((c) => !used.has(c.id)).map((c) => ({ clipId: c.id, duration: c.duration, filmed: c.capturedAt })),
+  };
+}
+
+/** The vlog from a proposal (as the creator left it): the moments in use, in filming order. */
+export function buildDayVlog(p: VlogProposal): VideoPlan {
+  const clipOf = (id: string) => store.clip(id);
+  const order = (id: string) => clipOf(id)?.capturedAt ?? "";
+  const moments = p.moments
+    .filter((m) => m.use && clipOf(m.clipId))
+    .sort((a, b) => order(a.clipId).localeCompare(order(b.clipId)));
+  if (moments.length < 2) throw new Error("Pick at least two moments for the vlog.");
   const segments: Segment[] = [];
   const overlays: Overlay[] = [];
   let t = 0;
-  for (const [i, { m, clip }] of picked.entries()) {
-    const start = Math.max(0, Math.min(m.start, clip.duration - 1.5));
-    const end = Math.min(clip.duration, Math.max(start + 1.5, Math.min(m.end, start + 5)));
+  for (const [i, m] of moments.entries()) {
+    const clip = clipOf(m.clipId)!;
+    const start = Math.max(0, Math.min(m.start, clip.duration - 1));
+    const end = Math.min(clip.duration, Math.max(start + 1, m.end));
     segments.push({ clipId: clip.id, start, end, speed: 1 });
     const len = end - start;
-    if (m.text.trim()) overlays.push({ text: m.text.trim(), start: t, end: i === picked.length - 1 ? t + len + 1 : t + len, y: 0.64 });
+    if (m.text.trim()) overlays.push({ text: m.text.trim(), start: t, end: i === moments.length - 1 ? t + len + 1 : t + len, y: 0.64 });
     t += len;
   }
-  overlays.unshift({ text: out.hook.trim() || out.title, start: 0, end: t + 1 });
+  overlays.unshift({ text: p.hook.trim() || p.title, start: 0, end: t + 1 });
   return {
     template: "auto",
-    title: out.title,
+    title: p.title,
     hook: overlays[0].text,
     overlays,
     segments,
-    postCaption: out.postCaption,
-    hashtags: out.hashtags.map((h) => h.replace(/^#/, "")).slice(0, 3),
+    postCaption: p.postCaption,
+    hashtags: p.hashtags.slice(0, 3),
     format: "story",
-    vlogDay: day,
+    vlogDay: p.day,
     plannedBy: "claude",
   };
 }

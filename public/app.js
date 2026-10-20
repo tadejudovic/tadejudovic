@@ -244,19 +244,24 @@ async function loadVlogDays() {
   const fmt = (d) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
   box.replaceChildren(
     ...days.map((d) => {
-      const btn = h("button", { class: "btn small" + (made.includes(d.day) ? "" : " primary"), type: "button" }, made.includes(d.day) ? "Make another" : "Make vlog");
+      const btn = h("button", { class: "btn small" + (made.includes(d.day) ? "" : " primary"), type: "button" }, made.includes(d.day) ? "Make another" : "Choose moments");
+      const panel = h("div", { class: "vlog-panel", hidden: true });
       btn.onclick = async () => {
         btn.disabled = true;
-        btn.textContent = "Writing…";
+        btn.textContent = "Picking moments…";
         try {
-          await api("/api/vlog", { method: "POST", body: { day: d.day } });
-          toast("Vlog is being made. It'll appear in Review.", "check");
-          btn.textContent = "Being made";
-          refreshRenders();
+          const proposal = await api("/api/vlog/propose", { method: "POST", body: { day: d.day } });
+          panel.hidden = false;
+          renderVlogProposal(panel, proposal, () => {
+            btn.textContent = "Being made";
+            panel.hidden = true;
+          });
+          btn.textContent = "Choose moments";
         } catch (err) {
+          toast(err.message || "Couldn't pick the moments");
+          btn.textContent = "Choose moments";
+        } finally {
           btn.disabled = false;
-          btn.textContent = "Make vlog";
-          toast(err.message || "Couldn't make the vlog");
         }
       };
       return h(
@@ -270,9 +275,62 @@ async function loadVlogDays() {
           h("span", { class: "muted" }, [`${d.clips} clips · ${d.minutes || "<1"} min`, ...d.places].join(" · ")),
         ),
         btn,
+        panel,
       );
     }),
   );
+}
+
+/**
+ * A day vlog before it's made: each suggested moment plays on its own, with its line of text and
+ * whether to use it; the day's other clips can be added. Then it's made from what's left.
+ */
+function renderVlogProposal(panel, p, onMade) {
+  const draw = () => {
+    const fmt = (t) => `${t.toFixed(1)}s`;
+    const hook = h("input", { class: "vlog-hook", value: p.hook, maxlength: 120, oninput: (e) => (p.hook = e.target.value) });
+    panel.replaceChildren(
+      h("label", { class: "vlog-label" }, "Headline", hook),
+      h("p", { class: "muted" }, "Play each moment, switch off the ones you don't want, and change the words if you like."),
+      ...p.moments.map((m) =>
+        h("div", { class: `vlog-moment${m.use ? "" : " off"}` },
+          h("video", { src: playable(`/media/clip/${m.clipId}#t=${m.start.toFixed(1)},${m.end.toFixed(1)}`), poster: `/media/thumb/${m.clipId}`, controls: true, playsinline: true, preload: "none" }),
+          h("div", { class: "vlog-moment-side" },
+            h("span", { class: "muted" }, `${fmt(m.start)}–${fmt(m.end)}`),
+            h("input", { value: m.text, maxlength: 80, placeholder: "Line for this moment", oninput: (e) => (m.text = e.target.value) }),
+            h("label", { class: "check" }, h("input", { type: "checkbox", checked: m.use, onchange: (e) => { m.use = e.target.checked; draw(); } }), " Use it"),
+          ),
+        ),
+      ),
+      p.others.length
+        ? h("div", { class: "vlog-others" },
+            h("p", { class: "muted" }, "More from this day: tap one to add it"),
+            h("div", { class: "vlog-thumbs-row" },
+              ...p.others.map((o) =>
+                h("img", {
+                  src: `/media/thumb/${o.clipId}`, alt: "", loading: "lazy", title: "Add this clip",
+                  onclick: () => {
+                    p.moments.push({ clipId: o.clipId, start: 0, end: Math.min(4, o.duration), text: "", use: true });
+                    p.others = p.others.filter((x) => x.clipId !== o.clipId);
+                    draw();
+                  },
+                }),
+              ),
+            ),
+          )
+        : null,
+      h("button", {
+        class: "btn primary", type: "button",
+        onclick: (e) => withBusy(e.currentTarget, "Making…", async () => {
+          await api("/api/vlog", { method: "POST", body: { day: p.day, proposal: p } });
+          toast("Vlog is being made. It'll appear in Review.", "check");
+          refreshRenders();
+          onMade();
+        }),
+      }, `Make vlog (${p.moments.filter((m) => m.use).length} moments)`),
+    );
+  };
+  draw();
 }
 function closeSubpages() {
   for (const p of document.querySelectorAll(".subpage")) p.hidden = true;

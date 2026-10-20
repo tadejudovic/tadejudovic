@@ -46,17 +46,23 @@ export interface VlogProposal {
   others: { clipId: string; duration: number; filmed?: string }[];
 }
 
-export async function planDayVlog(day: string, targetSeconds = 30): Promise<VideoPlan> {
-  return buildDayVlog(await proposeDayVlog(day, targetSeconds));
+export async function planDayVlog(day: string, targetSeconds = 30, clipIds?: string[]): Promise<VideoPlan> {
+  return buildDayVlog(await proposeDayVlog(day, targetSeconds, clipIds));
 }
 
-export async function proposeDayVlog(day: string, targetSeconds = 30): Promise<VlogProposal> {
-  const { petName, handle, story } = store.settings();
-  const clips = store
+/** All of a day's usable clips, in the order filmed (what a vlog of that day can be made from). */
+export function dayClips(day: string): Clip[] {
+  return store
     .clips()
     .filter((c) => usable(c) && dayOf(c) === day)
     .sort((a, b) => (a.capturedAt ?? "").localeCompare(b.capturedAt ?? ""));
-  if (clips.length < 2) throw new Error("That day doesn't have enough clips for a vlog.");
+}
+
+export async function proposeDayVlog(day: string, targetSeconds = 30, clipIds?: string[]): Promise<VlogProposal> {
+  const { petName, handle, story } = store.settings();
+  // Only the clips the creator kept, when they chose.
+  const clips = dayClips(day).filter((c) => !clipIds?.length || clipIds.includes(c.id));
+  if (clips.length < 2) throw new Error("Pick at least two clips for the vlog.");
   // At most 12, spread over the day when there are more.
   const shown = clips.length <= 12 ? clips : Array.from({ length: 12 }, (_, i) => clips[Math.floor((i * clips.length) / 12)]);
 

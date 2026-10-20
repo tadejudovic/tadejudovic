@@ -838,9 +838,9 @@ export async function makeStoryVideo(storyline: string, targetSeconds = 20): Pro
 }
 
 /** A day vlog from the clips filmed on one day (Settings → Day vlog; never made automatically). */
-export async function makeDayVlog(day: string, targetSeconds = 30, proposal?: VlogProposal): Promise<Render> {
+export async function makeDayVlog(day: string, targetSeconds = 30, proposal?: VlogProposal, clipIds?: string[]): Promise<Render> {
   if (!proposal && !config.claude.enabled) throw new Error("Day vlogs need the AI (ANTHROPIC_API_KEY).");
-  const p = proposal ? buildDayVlog(proposal) : await planDayVlog(day, targetSeconds);
+  const p = proposal ? buildDayVlog(proposal) : await planDayVlog(day, targetSeconds, clipIds);
   const { fontId, textStyle, textSize } = store.settings();
   return queueRender(p, { keepOriginalAudio: true, textStyle, textSize, fontId }, undefined, { countUse: false });
 }

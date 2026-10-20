@@ -11,7 +11,7 @@ import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
 import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
-import { proposeDayVlog, vlogDays, type VlogProposal } from "./ai/vlog.ts";
+import { dayClips, proposeDayVlog, vlogDays, type VlogProposal } from "./ai/vlog.ts";
 import { previewFor } from "./media/preview.ts";
 import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playbackPaused, seedBandwidth } from "./bandwidth.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
@@ -1007,6 +1007,13 @@ app.get("/api/vlog/days", (_req, res) => {
   res.json({ days: vlogDays().slice(0, 60), made });
 });
 
+/** All of a day's clips, to look at and keep or drop before the vlog is made (no AI needed). */
+app.get("/api/vlog/day/:day", (req, res) => {
+  const day = String(req.params.day);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return void res.status(400).json({ error: "Pick a day." });
+  res.json(dayClips(day).map((c) => ({ id: c.id, duration: c.duration, filmed: c.capturedAt, place: c.place, summary: c.ai?.summary, scene: c.scene })));
+});
+
 /** The moments the AI would use for a day's vlog, to look at and change before it's made. */
 app.post(
   "/api/vlog/propose",
@@ -1041,8 +1048,9 @@ app.post(
         others: [],
       };
     }
+    const clipIds = Array.isArray(req.body?.clipIds) ? req.body.clipIds.map(String).slice(0, 40) : undefined;
     try {
-      res.json(await makeDayVlog(day, 30, proposal));
+      res.json(await makeDayVlog(day, 30, proposal, clipIds));
     } catch (err) {
       res.status(400).json({ error: (err as Error).message });
     }

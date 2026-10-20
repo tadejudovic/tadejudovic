@@ -245,28 +245,20 @@ async function loadVlogDays() {
   const fmt = (d) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
   box.replaceChildren(
     ...days.map((d) => {
-      const btn = h("button", { class: "btn small" + (made.includes(d.day) ? "" : " primary"), type: "button" }, made.includes(d.day) ? "Make another" : "Choose moments");
+      const btn = h("button", { class: "btn small" + (made.includes(d.day) ? "" : " primary"), type: "button" }, "See clips");
       const panel = h("div", { class: "vlog-panel", hidden: true });
       btn.onclick = async () => {
-        btn.disabled = true;
-        btn.textContent = "Picking…";
-        // Shown right under the day while the AI watches the clips, and an error stays there.
+        if (!panel.hidden) return void (panel.hidden = true);
         panel.hidden = false;
-        panel.replaceChildren(h("p", { class: "muted" }, "Picking the moments: the AI is watching this day's clips (up to a minute)…"));
+        panel.replaceChildren(h("p", { class: "muted" }, "Loading the day's clips…"));
         try {
-          const proposal = await api("/api/vlog/propose", { method: "POST", body: { day: d.day } });
-          renderVlogProposal(panel, proposal, () => {
+          const clips = await api(`/api/vlog/day/${d.day}`);
+          renderVlogClips(panel, d.day, clips, () => {
             btn.textContent = "Being made";
             panel.hidden = true;
           });
         } catch (err) {
-          const msg = err.message || "Couldn't pick the moments.";
-          panel.replaceChildren(
-            h("p", { class: "vlog-error" }, /credit/i.test(msg) ? `${msg} Choosing moments needs the AI.` : `Couldn't pick the moments: ${msg}`),
-          );
-        } finally {
-          btn.disabled = false;
-          btn.textContent = "Choose moments";
+          panel.replaceChildren(h("p", { class: "vlog-error" }, err.message || "Couldn't load the clips."));
         }
       };
       return h(
@@ -283,6 +275,46 @@ async function loadVlogDays() {
         panel,
       );
     }),
+  );
+}
+
+/**
+ * All of a day's clips, in the order filmed, each playable and in the vlog unless switched off.
+ * "Make vlog" has the AI pick the best part of each kept clip and write the text.
+ */
+function renderVlogClips(panel, day, clips, onMade) {
+  const use = new Set(clips.map((c) => c.id));
+  const time = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
+  const make = h("button", { class: "btn primary", type: "button" });
+  const count = () => (make.textContent = `Make vlog from ${use.size} clip${use.size === 1 ? "" : "s"}`);
+  count();
+  make.onclick = (e) =>
+    withBusy(e.currentTarget, "Making… (a minute or two)", async () => {
+      try {
+        await api("/api/vlog", { method: "POST", body: { day, clipIds: [...use] } });
+        toast("Vlog is being made. It'll appear in Review.", "check");
+        refreshRenders();
+        onMade();
+      } catch (err) {
+        panel.append(h("p", { class: "vlog-error" }, err.message || "Couldn't make the vlog."));
+      }
+    });
+  panel.replaceChildren(
+    h("p", { class: "muted" }, `All ${clips.length} clips from this day, in the order filmed. Play any of them; switch off the ones you don't want.`),
+    ...clips.map((c) => {
+      const row = h("div", { class: "vlog-moment" },
+        h("video", { src: playable(`/media/clip/${c.id}`), poster: `/media/thumb/${c.id}`, controls: true, playsinline: true, preload: "none" }),
+        h("div", { class: "vlog-moment-side" },
+          h("b", {}, [time(c.filmed), `${c.duration.toFixed(0)}s`].filter(Boolean).join(" · ")),
+          c.summary ? h("span", { class: "muted" }, c.summary.slice(0, 140)) : null,
+          h("label", { class: "check" },
+            h("input", { type: "checkbox", checked: true, onchange: (e) => { e.target.checked ? use.add(c.id) : use.delete(c.id); row.classList.toggle("off", !e.target.checked); count(); } }),
+            " Use it"),
+        ),
+      );
+      return row;
+    }),
+    make,
   );
 }
 

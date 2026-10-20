@@ -696,7 +696,15 @@ app.delete("/api/scenes/:scene/captions/:id", (req, res) => {
 // ---- Library --------------------------------------------------------------
 
 app.get("/api/clips", (_req, res) => {
-  res.json(store.clips().filter((c) => c.status !== "archived").map(({ energy, file, thumb, ...c }) => ({ ...c, energy })));
+  // Most recently filmed first (import time when the filming date is unknown).
+  const when = (c: Clip) => c.capturedAt ?? c.importedAt ?? "";
+  res.json(
+    store
+      .clips()
+      .filter((c) => c.status !== "archived")
+      .sort((a, b) => when(b).localeCompare(when(a)))
+      .map(({ energy, file, thumb, ...c }) => ({ ...c, energy })),
+  );
 });
 
 app.post(

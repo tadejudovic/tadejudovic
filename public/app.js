@@ -2767,6 +2767,12 @@ setInterval(async () => {
     await Promise.all([refreshRenders(), loadStatus()]).catch(() => {});
     if (state.renders.some((r) => r.status === "queued" || r.status === "rendering")) state.nextRoundUntil = 0;
     // The round couldn't be made: stop the spinner and say why.
+    // One kind couldn't be made while the others were: say which and why.
+    for (const [k, issue] of Object.entries(state.status?.kindIssues ?? {}))
+      if (issue.at > (state.roundStartedAt ?? "") && issue.at !== state.kindIssueShown) {
+        state.kindIssueShown = issue.at;
+        banner(`The ${{ tips: "educational", fun: "fun", inspire: "inspirational" }[k] ?? k} video couldn't be made: ${issue.message}`);
+      }
     const err = state.status?.lastRoundError;
     if (err && err.at > (state.roundStartedAt ?? "")) {
       state.nextRoundUntil = 0;

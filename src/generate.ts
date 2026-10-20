@@ -108,6 +108,14 @@ export function noteInspireIssue(message: string | null) {
   inspireIssue = message ? { at: new Date().toISOString(), message: message.slice(0, 300) } : null;
 }
 
+/** Why each kind's last video couldn't be made (cleared when one is), so a missing kind says why. */
+export const kindIssues: Partial<Record<PostFormat, { at: string; message: string }>> = {};
+export function noteKindIssue(kind: PostFormat, message: string | null) {
+  if (message) kindIssues[kind] = { at: new Date().toISOString(), message: message.slice(0, 300) };
+  else delete kindIssues[kind];
+  if (kind === "inspire") noteInspireIssue(message);
+}
+
 /**
  * Footage an educational video's points can cut to (a walk outside for a potty break): unused,
  * vertical, described clips from the situations and the outside themes, most recent first, not the
@@ -597,7 +605,7 @@ export async function plan(
           return p;
         } catch (err) {
           failures.push((err as Error).message);
-          if (kinds[i] === "inspire") inspireIssue = { at: new Date().toISOString(), message: (err as Error).message.slice(0, 300) };
+          noteKindIssue(kinds[i] ?? "fun", (err as Error).message);
         }
       }
       // With the AI on but not answering (out of credit, the month's budget, an outage): no video,

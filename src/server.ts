@@ -16,9 +16,9 @@ import { previewFor } from "./media/preview.ts";
 import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playbackPaused, seedBandwidth } from "./bandwidth.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { learnFromTikTok } from "./audience.ts";
-import { promoteSpares } from "./daySet.ts";
+import { DAY_KINDS, keptToday, promoteSpares, waitingOf } from "./daySet.ts";
 import { linkWinningPosts } from "./postMatch.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, numberTabsExisting, EDITOR_ATTEMPTS } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -108,6 +108,8 @@ app.get("/api/diagnostics", (_req, res) => {
     yourCorrections: store.edits().slice(0, 10),
     bandwidth: bandwidthStatus(),
     today: { byKind: madeTodayByKind(), outsideClipsAvailable: outsideClips().length },
+    // Per kind: kept today, waiting in Review, and why the last one couldn't be made (if it couldn't).
+    kinds: Object.fromEntries(DAY_KINDS.map(([k]) => [k, { keptToday: keptToday(k), waiting: waitingOf(k), lastIssue: kindIssues[k] ?? null }])),
     inspirational: {
       lastMade: renders.filter((r) => r.plan.format === "inspire").map((r) => r.createdAt).sort().pop() ?? null,
       last7Days: renders.filter((r) => r.plan.format === "inspire" && Date.now() - Date.parse(r.createdAt) < 7 * 86400_000).length,
@@ -173,6 +175,7 @@ app.get("/api/status", (req, res) => {
     videosToday: { made: videosMadeToday(), limit: dailyLimit() },
     awaitingReview: awaitingReview(),
     lastRoundError,
+    kindIssues,
     roundStage,
     // The raw keyword list is only for regrouping; the app shows the topics.
     settings: { ...store.settings(), keywordQueries: undefined },

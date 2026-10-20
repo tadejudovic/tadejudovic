@@ -1,7 +1,7 @@
 import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { footageNeeded, importBudget, syncAll } from "./albums.ts";
-import { plan, queueRender, isPortrait, onTopic, outsideClips, noteInspireIssue, postsDueForStats, refreshPostStats } from "./generate.ts";
+import { plan, queueRender, isPortrait, onTopic, outsideClips, noteKindIssue, postsDueForStats, refreshPostStats } from "./generate.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { syncProfiles } from "./postMatch.ts";
 import { localDate, MANUAL_EXTRA, videosLeftToday } from "./dailyLimit.ts";
@@ -135,7 +135,8 @@ async function runDue({ afterReview = false } = {}) {
       lastRoundError = null;
     } catch (err) {
       lastRoundError = { message: (err as Error).message, at: new Date().toISOString() };
-      if (/inspir/i.test((err as Error).message)) noteInspireIssue((err as Error).message);
+      // The whole round failed (out of credit, no footage): every kind that was due says why.
+      for (const { kind } of toMake()) noteKindIssue(kind, (err as Error).message);
       throw err;
     }
   }
@@ -225,10 +226,10 @@ export async function runDailyBatch({ manual = false }: { force?: boolean; manua
         if (!p) throw new Error(`the ${kind} video couldn't be planned`);
         const made = queueRender(p, options, date, { standby });
         renders.push(made);
-        if (kind === "inspire") noteInspireIssue(null);
+        noteKindIssue(kind, null);
       } catch (err) {
         failures.push(`${kind}: ${(err as Error).message}`);
-        if (kind === "inspire") noteInspireIssue((err as Error).message);
+        noteKindIssue(kind, (err as Error).message);
       }
     }
     store.updateAuto({ lastBatchDate: date });

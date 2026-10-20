@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { config, memoryMb } from "./config.ts";
-import { allScenes, store, newId, mixSize } from "./store.ts";
+import { allScenes, store, newId, mixSize, featureOn, FEATURES, type Feature } from "./store.ts";
 import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
@@ -54,6 +54,19 @@ app.get("/landing", (_req, res) => sendLanding(res)); // preview the public page
 app.get("/login/google", googleStart);
 app.get("/login/google/callback", (req, res, next) => { googleCallback(req, res).catch(next); });
 app.use(requireAuth);
+// Features behind a switch (Settings > Labs): their actions are refused while off.
+const FEATURE_ROUTES: [RegExp, Feature, string][] = [
+  [/^\/api\/vlog/, "vlog", "Day vlog"],
+  [/^\/api\/(story|voice)/, "story", "Story video"],
+  [/^\/api\/(partners(\/|$)|renders\/[^/]+\/collab$)/, "collab", "Brand partners"],
+  [/^\/api\/(plan|render)$/, "manual", "Making videos by hand"],
+];
+app.use((req, res, next) => {
+  if (req.method === "GET") return next();
+  const hit = FEATURE_ROUTES.find(([re]) => re.test(req.path));
+  if (hit && !featureOn(hit[1])) return void res.status(403).json({ error: `${hit[2]} is switched off. Turn it on in Settings → Labs.` });
+  next();
+});
 // Always check for a newer version, so an update shows up on the next page load instead of an old cached copy.
 app.use(express.static(path.join(here, "..", "public"), { setHeaders: (res) => res.setHeader("Cache-Control", "no-cache") }));
 
@@ -171,7 +184,7 @@ app.get("/api/status", (req, res) => {
 });
 
 app.put("/api/settings", (req, res) => {
-  const { bandwidthGb, petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay, onlySituations, captionAudience, story, dailyMix, faq, instagramHandle, shotTags } = req.body ?? {};
+  const { features, bandwidthGb, petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay, onlySituations, captionAudience, story, dailyMix, faq, instagramHandle, shotTags } = req.body ?? {};
   const fontOk = typeof fontId === "string" && listFonts().some((f) => f.id === fontId);
   const saved = store.updateSettings({
       ...(typeof petName === "string" && petName.trim() ? { petName: petName.trim().slice(0, 40) } : {}),
@@ -199,6 +212,9 @@ app.put("/api/settings", (req, res) => {
               inspirational: clamp(Math.round(Number(dailyMix.inspirational) || 0), 0, 4),
             },
           }
+        : {}),
+      ...(features && typeof features === "object"
+        ? { features: Object.fromEntries(FEATURES.map((f) => [f, !!(features as Record<string, unknown>)[f]])) }
         : {}),
       ...(Number.isFinite(Number(bandwidthGb)) && bandwidthGb !== "" && bandwidthGb !== undefined
         ? { bandwidthGb: clamp(Number(bandwidthGb), 1, 500) }

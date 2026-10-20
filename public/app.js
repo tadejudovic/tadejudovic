@@ -42,6 +42,23 @@ function playable(url) {
   return undefined;
 }
 
+/** Extra features (Settings > Labs): what's switched off is hidden. */
+const featureOn = (f) => !!state.status?.settings?.features?.[f];
+const FEATURE_ROWS = { vlog: "sp-vlog", story: "sp-story", collab: "sp-partners", manual: "sp-manual" };
+function applyFeatures(features) {
+  for (const [f, page] of Object.entries(FEATURE_ROWS)) {
+    const row = document.querySelector(`[data-open="${page}"]`);
+    if (row) row.hidden = !features[f];
+    const box = document.querySelector(`#labs input[name="${f}"]`);
+    if (box && document.activeElement !== box) box.checked = !!features[f];
+  }
+}
+document.querySelector("#labs")?.addEventListener("change", async () => {
+  const features = Object.fromEntries([...document.querySelectorAll("#labs input")].map((i) => [i.name, i.checked]));
+  await api("/api/settings", { method: "PUT", body: { features } });
+  await loadStatus();
+});
+
 /** Line icons (same set as the landing page). */
 const ICONS = {
   muted: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>',
@@ -75,6 +92,7 @@ async function loadStatus() {
   $("#chip-google").classList.toggle("on", s.google.connected);
   $("#paused").hidden = !s.paused;
   $("#ai-credit").hidden = !s.aiOutOfCredit;
+  applyFeatures(s.settings?.features ?? {});
   $("#ai-budget").hidden = !s.claude?.enabled || !(s.spend && s.spend.usd >= s.spend.limit);
   const sp = s.spend;
   $("#spend-used").textContent = `$${sp.usd.toFixed(2)}`;
@@ -1074,7 +1092,7 @@ function detailsBody(r) {
           }
         }) }, "Copy diagnostics"),
         h("button", { class: "d-link", onclick: () => (styleEdit.hidden = !styleEdit.hidden) }, "Text style"),
-        h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version"),
+        featureOn("collab") ? h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version") : null,
       ),
       plan.collab ? h("span", { class: "collab-badge" }, `Collab · ${plan.collab.name}`) : null,
       !plan.collab && KIND_LABEL[plan.format] ? h("span", { class: "collab-badge" }, KIND_LABEL[plan.format]) : null,

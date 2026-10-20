@@ -7,7 +7,7 @@ import { promoteSpares, sparesOf, waitingOf } from "./daySet.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { featureOn, store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
-import { directClip, planVideos, proofreadText, writeCaption, type DirectContext } from "./ai/director.ts";
+import { directClip, planVideos, proofreadText, withOpener, writeCaption, type DirectContext } from "./ai/director.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { basePath, baseKey, renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue, PRIORITY } from "./queue.ts";
@@ -1317,6 +1317,33 @@ export function ctaCenterExisting(): number {
     n++;
   }
   if (n) console.log(`[layout] call to action centered in ${n} video(s)`);
+  return n;
+}
+
+/**
+ * Educational videos waiting in Review that open on weaker footage: the seconds under the headline
+ * swapped for the strongest opening there is (same length and text). The editor's review stays.
+ */
+export function openerExisting(): number {
+  let n = 0;
+  const taken: Clip[] = [];
+  for (const r of [...store.renders()]) {
+    if (r.plan.format !== "tips" || r.status !== "done" || r.review !== "pending" || r.posts?.length) continue;
+    if (!r.plan.segments.every((s) => store.clip(s.clipId)?.status === "ready")) continue;
+    const first = store.clip(r.plan.segments[0]?.clipId ?? "");
+    if (!first || strongFootage(first)) continue;
+    const opener = openerFor(first, [...taken, ...r.plan.segments.map((s) => store.clip(s.clipId)).filter((c): c is Clip => !!c)]);
+    if (!opener) continue;
+    taken.push(opener);
+    const overlays = r.plan.overlays ?? [];
+    const firstPoint = overlays.find((o, i) => i > 0 && o.y !== undefined)?.start ?? 2.5;
+    const plan = { ...r.plan, editorPass: EDITOR_ATTEMPTS, segments: withOpener(r.plan.segments, opener, Math.max(1.5, Math.min(3, firstPoint))) };
+    const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
+    if (r.editor) store.updateRender(fresh.id, { editor: r.editor });
+    deleteRender(r.id);
+    console.log(`[layout] ${r.id} opens on ${opener.id} (${opener.scene}) → ${fresh.id}`);
+    n++;
+  }
   return n;
 }
 

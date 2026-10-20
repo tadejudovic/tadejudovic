@@ -1276,7 +1276,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       if (i === 0) overlays[i] = { ...o, end: longer + 1 };
       else if (o.end > ctaStart) overlays[i] = { ...o, end: Math.max(o.start + 1.5, ctaStart) };
     });
-    overlays.push({ text: ctx.cta.overlay, start: ctaStart, end: longer + 1, y: 0.6 });
+    overlays.push({ text: ctx.cta.overlay, start: ctaStart, end: longer + 1, y: 0.5, cta: true });
     total = longer;
   }
   // Pacing: no shot holds for more than about 2s (a slowed payoff up to 3s); the length stays the same.

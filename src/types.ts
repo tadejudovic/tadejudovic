@@ -138,6 +138,8 @@ export interface Overlay {
   x?: number;
   /** A red arrow from the text to this point of the frame (0..1 from the left / top). */
   pointTo?: { x: number; y: number };
+  /** The creator's call to action (their site): centered in the middle of the frame. */
+  cta?: boolean;
 }
 
 export type TemplateId = "auto" | "text_overlay" | "quick_cuts" | "single_moment" | "pov_story" | "then_vs_now";

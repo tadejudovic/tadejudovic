@@ -294,6 +294,9 @@ export function baseKey(plan: VideoPlan, clips: Map<string, Clip>): string | und
 }
 export const basePath = (key: string) => path.join(baseDir(), `${key}.mp4`);
 
+/** The creator's call to action (also on videos made before it was marked). */
+const isCta = (o: Overlay) => !!o.cta || (o.y !== undefined && /link in bio|flywith\.pet/i.test(o.text));
+
 export async function renderVideo(
   id: string,
   plan: VideoPlan,
@@ -487,6 +490,23 @@ async function finalize(
     let px = smaller.has(o.at ?? "") && !headers.has(o) ? Math.round(textPx(options) * 0.82) : textPx(options);
     const boxPad = Math.round(px * 0.38) + 10;
     const enable = `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`;
+    // The call to action: centered in the middle of the frame, two even lines, a little larger, at
+    // the height (around the middle) that covers the least of a face.
+    if (isCta(o)) {
+      const size = Math.round(textPx(options) * 1.05);
+      const pad = Math.round(size * 0.38) + 10;
+      const draw = (y: number) => textFilters(o.text, { yFrac: y, size, maxChars: charsFor(size, 30), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
+      let best: { y: number; s: number } | undefined;
+      for (const cy of [0.5, 0.44, 0.56, 0.38, 0.62]) {
+        const d = draw(cy);
+        const s = onFaces(o, d.left - 12, d.top - pad, d.width + 24, d.height + 2 * pad) + Math.abs(cy - 0.5) * 20_000;
+        if (!best || s < best.s) best = { y: cy, s };
+      }
+      const d = draw(best!.y);
+      placed.push({ o, top: d.top - pad, bottom: d.top + d.height + pad, end: o.end });
+      filters.push(...d.filters);
+      continue;
+    }
     // Placed by the AI next to what it's about (educational points), maybe with an arrow pointing at it.
     if (o.y !== undefined) {
       const num = numbered.includes(o) ? splitNumber(screenText(o.text)) : undefined;

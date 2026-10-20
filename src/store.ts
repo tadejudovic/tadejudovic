@@ -92,6 +92,7 @@ export interface Settings {
   zigzagV1?: boolean;
   zigzagV2?: boolean;
   numberTabsV1?: boolean;
+  ctaCenterV1?: boolean;
   mixV2?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;

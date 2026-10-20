@@ -1212,7 +1212,7 @@ export function addCtaToExisting(): number {
         o.end > total ? { ...o, end: i === 0 ? longer + 1 : total } : o,
       ),
     );
-    overlays.push({ text: cta.overlay, start: total, end: longer + 1, y: 0.6 });
+    overlays.push({ text: cta.overlay, start: total, end: longer + 1, y: 0.5, cta: true });
     const fresh = queueRender({ ...r.plan, segments, overlays }, r.options, r.batch, { countUse: false });
     if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt });
     deleteRender(r.id);
@@ -1260,6 +1260,27 @@ export function numberTabsExisting(): number {
     n++;
   }
   if (n) console.log(`[layout] numbered points redrawn in ${n} educational video(s)`);
+  return n;
+}
+
+/**
+ * Videos waiting or kept (not posted) whose call to action was drawn like a point: drawn again with
+ * it centered. The same plan, the editor's review carried over (not reviewed again).
+ */
+export function ctaCenterExisting(): number {
+  let n = 0;
+  for (const r of [...store.renders()]) {
+    if (r.status !== "done" || r.posts?.length || (r.review !== "pending" && r.review !== "approved")) continue;
+    if (!r.plan.segments.every((s) => store.clip(s.clipId)?.status === "ready")) continue;
+    const overlays = r.plan.overlays ?? [];
+    if (!overlays.some((o) => o.y !== undefined && !o.cta && /link in bio|flywith\.pet/i.test(o.text))) continue;
+    const plan = { ...r.plan, editorPass: EDITOR_ATTEMPTS, overlays: overlays.map((o) => (o.y !== undefined && /link in bio|flywith\.pet/i.test(o.text) ? { ...o, y: 0.5, x: undefined, cta: true } : o)) };
+    const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
+    store.updateRender(fresh.id, { ...(r.review === "approved" ? { review: "approved", reviewedAt: r.reviewedAt } : {}), ...(r.editor ? { editor: r.editor } : {}) });
+    deleteRender(r.id);
+    n++;
+  }
+  if (n) console.log(`[layout] call to action centered in ${n} video(s)`);
   return n;
 }
 

@@ -132,28 +132,35 @@ export function brollPool(main: Clip, roundClips: Clip[] = []): Clip[] {
         !skip.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width && !c.disliked &&
         !c.edited && !c.duplicateOf && c.duration >= 2 && !!c.ai?.summary,
     )
-    .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || filmedWeek(b) - filmedWeek(a));
+    .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || Number(strongFootage(b)) - Number(strongFootage(a)) || filmedWeek(b) - filmedWeek(a));
 }
 
-/** The footage that performs best: Lex in the backpack/carrier at the airport, or on the plane. */
-const STRONG_OPENING = /backpack|carrier|pet bag|in (a|the|his) bag/i;
-const PLANE = /^(inside the airplane|under the airplane seat)$/;
+/**
+ * The footage that performs best (the creator's experience): Lex in the backpack walking through the
+ * airport, at check-in, boarding, on the plane, getting off it. Favoured when picking clips, opening
+ * shots and footage for points, never required.
+ */
+const STRONG_SCENES = /^(inside the airplane|under the airplane seat|boarding gate|check-in desk)$/;
+const STRONG_MOMENT = /backpack|carrier|pet bag|in (a|the|his) bag|boarding|jet ?bridge|getting off|deplan|check-in/i;
+export function strongFootage(c: Clip): boolean {
+  return STRONG_SCENES.test(c.scene ?? "") || (/airport|gate|security|check-in/.test(c.scene ?? "") && STRONG_MOMENT.test(c.ai?.summary ?? ""));
+}
 
 /**
- * What an educational video opens on: Lex in the backpack at the airport or on the plane, with a
- * strong moment; unused footage first, then footage not opened on recently, the most recent first.
+ * What an educational video opens on when its own clip isn't among the strongest footage: Lex in the
+ * backpack at the airport, boarding, on the plane, with a strong moment; unused footage first, then
+ * footage not opened on recently, the most recent first.
  */
 export function openerFor(main: Clip, roundClips: Clip[] = []): Clip | undefined {
   const skip = new Set([main.id, ...roundClips.map((c) => c.id)]);
   const recentOpeners = new Set(store.renders().slice(0, 15).map((r) => r.plan.segments[0]?.clipId));
   const best = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
-  const strong = (c: Clip) => PLANE.test(c.scene ?? "") || (/airport|gate|security|check-in/.test(c.scene ?? "") && STRONG_OPENING.test(c.ai?.summary ?? ""));
   return store
     .clips()
     .filter(
       (c) =>
         !skip.has(c.id) && !recentOpeners.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width &&
-        !c.disliked && !c.edited && !c.duplicateOf && c.duration >= 2 && strong(c) && best(c) >= 0.5,
+        !c.disliked && !c.edited && !c.duplicateOf && c.duration >= 2 && strongFootage(c) && best(c) >= 0.5,
     )
     .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || filmedWeek(b) - filmedWeek(a) || best(b) - best(a))[0];
 }
@@ -191,8 +198,10 @@ const bestMoment = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []
 
 export function rankClips(clips: Clip[]): Clip[] {
   const best = bestMoment;
-  // Recent footage first (by the week it was filmed), and within a week the strongest moment.
-  return [...clips].sort((a, b) => a.uses - b.uses || filmedWeek(b) - filmedWeek(a) || best(b) - best(a));
+  // Recent footage first (by the week it was filmed; the strongest kind of footage counts as two weeks
+  // newer), and within a week the strongest moment.
+  const week = (c: Clip) => filmedWeek(c) + (strongFootage(c) ? 2 : 0);
+  return [...clips].sort((a, b) => a.uses - b.uses || week(b) - week(a) || best(b) - best(a));
 }
 
 /** The week a clip was filmed (or imported, if the date is unknown), for newest-first ordering. */
@@ -209,7 +218,8 @@ export function filmedWeek(c: Clip): number {
 export function pickBySituation(clips: Clip[], count: number): Clip[] {
   const scenes = store.settings().scenes;
   const recent = store.renders().filter((r) => Date.now() - Date.parse(r.createdAt) < 14 * 86400_000);
-  const postedLately = (scene: string) => recent.filter((r) => r.plan.scene === scene).length;
+  // The strongest situations (check-in, boarding, on the plane) come up a little more often.
+  const postedLately = (scene: string) => recent.filter((r) => r.plan.scene === scene).length - (STRONG_SCENES.test(scene) ? 1 : 0);
   const groups = new Map<string, Clip[]>();
   for (const c of rankClips(clips)) {
     const key = c.scene && scenes.includes(c.scene) ? c.scene : "other";
@@ -607,7 +617,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((opener) => ({ opener, broll: brollPool(clip, opener ? [...chosen, opener] : chosen) }))(openerFor(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((opener) => ({ opener, broll: brollPool(clip, opener ? [...chosen, opener] : chosen) }))(strongFootage(clip) ? undefined : openerFor(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           };
           let p = await directClip(clip, direction);
           // The basics first (headline, points, pacing): a draft that breaks one goes back once with

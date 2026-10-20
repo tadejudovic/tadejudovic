@@ -356,7 +356,9 @@ export async function pickBroll(points: string[], concept: string, main: Clip, p
           `\n\nFor each point, the clip that SHOWS what the point is about (e.g. a walk outside or on grass for a potty ` +
           `break, the carrier for a point about the carrier, the check-in desk for a check-in point), so the footage ` +
           `changes with the points instead of staying in one place. 0 when no clip clearly shows it (the main clip ` +
-          `stays). Never the same clip for two points. Between clips that fit equally, the more recently filmed.` +
+          `stays). Never the same clip for two points. Between clips that fit equally, the strongest footage (Lex in ` +
+          `the backpack walking through the airport, at check-in, boarding, on the plane, getting off it), then the ` +
+          `more recently filmed.` +
           (setting
             ? `\nThis video happens ${setting}: a clip clearly filmed there always beats one somewhere else, even ` +
               `if the other shows the action better (a dog peeing at the airport relief area beats a dog on grass in a ` +

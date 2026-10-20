@@ -1655,8 +1655,11 @@ if (!store.settings().countersResetV1) {
 if (!store.settings().mixV2) store.updateSettings({ mixV2: true, dailyMix: { fun: 1, educational: 1, inspirational: 1 } });
 
 // Once: the call to action (flywith.pet) centered in videos waiting or kept.
-if (!paused && !store.settings().ctaCenterV1) {
-  store.updateSettings({ ctaCenterV1: true });
+// Once: the call to action reads "at www.flywith.pet" (no "link in bio"), also in videos waiting or kept.
+if (!paused && !store.settings().ctaWwwV1) {
+  const cta = store.settings().cta;
+  if (cta && /link in bio/i.test(cta.overlay)) store.updateSettings({ cta: { ...cta, overlay: "Plan your pet's trip / at www.flywith.pet" } });
+  store.updateSettings({ ctaWwwV1: true, ctaCenterV1: true });
   ctaCenterExisting();
 }
 

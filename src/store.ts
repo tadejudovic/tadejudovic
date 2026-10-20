@@ -93,6 +93,7 @@ export interface Settings {
   zigzagV2?: boolean;
   numberTabsV1?: boolean;
   ctaCenterV1?: boolean;
+  ctaWwwV1?: boolean;
   mixV2?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;
@@ -164,7 +165,7 @@ const DEFAULT_SETTINGS: Settings = {
   captionAudience: "mix",
   cta: {
     site: "flywith.pet",
-    overlay: "Plan your pet's trip / at flywith.pet (link in bio)",
+    overlay: "Plan your pet's trip / at www.flywith.pet",
     caption: "Planning a trip with your pet? Everything we've learned is on flywith.pet (link in bio).",
   },
   dailyMix: { fun: 2, educational: 2, inspirational: 2 },

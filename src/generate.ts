@@ -11,7 +11,7 @@ import { directClip, planVideos, proofreadText, writeCaption, type DirectContext
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { basePath, baseKey, renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue, PRIORITY } from "./queue.ts";
-import type { Clip, DailyMix, EduPillar, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
+import type { Clip, DailyMix, EduPillar, GenerateRequest, Overlay, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
 import { detectSubject } from "./ai/subject.ts";
 import { aiAvailable } from "./ai/budget.ts";
@@ -1268,13 +1268,16 @@ export function numberTabsExisting(): number {
  * it centered. The same plan, the editor's review carried over (not reviewed again).
  */
 export function ctaCenterExisting(): number {
+  const text = store.settings().cta?.overlay;
+  const isCta = (o: Overlay) => o.y !== undefined && /link in bio|flywith\.pet/i.test(o.text);
   let n = 0;
   for (const r of [...store.renders()]) {
     if (r.status !== "done" || r.posts?.length || (r.review !== "pending" && r.review !== "approved")) continue;
     if (!r.plan.segments.every((s) => store.clip(s.clipId)?.status === "ready")) continue;
     const overlays = r.plan.overlays ?? [];
-    if (!overlays.some((o) => o.y !== undefined && !o.cta && /link in bio|flywith\.pet/i.test(o.text))) continue;
-    const plan = { ...r.plan, editorPass: EDITOR_ATTEMPTS, overlays: overlays.map((o) => (o.y !== undefined && /link in bio|flywith\.pet/i.test(o.text) ? { ...o, y: 0.5, x: undefined, cta: true } : o)) };
+    // Not centered yet, or still the old wording ("link in bio").
+    if (!overlays.some((o) => isCta(o) && (!o.cta || (!!text && o.text !== text)))) continue;
+    const plan = { ...r.plan, editorPass: EDITOR_ATTEMPTS, overlays: overlays.map((o) => (isCta(o) ? { ...o, text: text || o.text, y: 0.5, x: undefined, cta: true } : o)) };
     const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
     store.updateRender(fresh.id, { ...(r.review === "approved" ? { review: "approved", reviewedAt: r.reviewedAt } : {}), ...(r.editor ? { editor: r.editor } : {}) });
     deleteRender(r.id);

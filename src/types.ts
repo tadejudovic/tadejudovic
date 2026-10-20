@@ -177,6 +177,8 @@ export interface VideoPlan {
   /** Educational: the theme (airline, destination, airport, prep), the angle within it, and the specific topic, so it isn't repeated. */
   pillar?: EduPillar;
   angle?: string;
+  /** Educational: the shape of the lesson (list, myth, mistake, qa, dodont, nobody). */
+  eduFormat?: "list" | "myth" | "mistake" | "qa" | "dodont" | "nobody";
   /** Educational: the search topic offered for this video (from TikTok's search analytics). */
   searchTopic?: string;
   topic?: string;

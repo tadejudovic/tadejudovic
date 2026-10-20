@@ -545,6 +545,8 @@ export interface DirectContext {
   pillar?: EduPillar;
   /** Educational: the angle within the theme (e.g. "the bag"). */
   angle?: string;
+  /** Educational: the shape of the lesson (a list, myth vs. fact, …), in rotation. */
+  eduFormat?: EduFormat;
   /** Educational: what people search for in this theme, most searched first. */
   search?: SearchTopic[];
   /** Educational: the creator's posts people saved and shared most (for their views). */
@@ -641,7 +643,7 @@ function footageText(pool: Clip[]): string {
 }
 
 /** An educational video: a scroll-stopping hook, then a short teaching beat that builds up on screen. */
-function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string }): string {
+function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string }, eduFormat: EduFormat = "list"): string {
   const question = faq
     ? `\n\nTHIS VIDEO ANSWERS A QUESTION FOLLOWERS ASK ALL THE TIME: "${faq.q}"` +
       (faq.a?.trim()
@@ -659,14 +661,7 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `${scene ? `, tied to this situation (${scene}) where possible` : ""}, learned from traveling the world with ` +
     `${petName}.` +
     question +
-    `\nPick the structure that suits this footage best, and don't use the same one as recent videos:` +
-    `\n- a numbered list (2–4 points) that builds up on screen;` +
-    `\n- the mistake we made, then what to do instead;` +
-    `\n- myth vs. reality;` +
-    `\n- do this / not this;` +
-    `\n- the question everyone asks us, then the answer;` +
-    `\n- what we pack / what we check before a flight;` +
-    `\n- "nobody tells you…" followed by the thing nobody tells you.` +
+    EDU_FORMAT_TEXT[eduFormat] +
     `\n\nTHE HOOK matters most: it's alone on screen for the first ~2.5s, then stays on top as the header, so it ` +
     `must stop the scroll AND be read at a glance (it stays pinned at the top, at most two lines). ONE idea, 3–8 ` +
     `words, no " / " line breaks, in plain everyday words. The best: a question ANYONE is curious about, asked ` +
@@ -679,9 +674,9 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `\n\nON SCREEN, the way top creators do it:` +
     `\n- The hook is one overlay that stays at the top for the WHOLE video (start 0, end = the video's length, y -1).` +
     `\n- Then each point is its own overlay, shown alone (never repeating earlier points), one after another, each ` +
-    `~2.5–3.5s, the last one staying to the end: e.g. "1. Kato backpack", "2. PetPace health tracker", "3. A ton of ` +
-    `documents". Short: up to ~5 words (never more than 7), numbered when it's a list. A light, funny last point is great if it fits ` +
-    `("4. Optional: a patient owner").` +
+    `~2.5–3.5s, the last one staying to the end, each starting with its label exactly as the format above says ` +
+    `("1.", "MYTH:", "FACT:", …): the label becomes a colored tab on screen. Short: up to ~5 words after the label ` +
+    `(never more than 7).` +
     `\n- Place each point in a DIFFERENT part of the frame from the one before (vary y between 0.3 and 0.7; the top ` +
     `and bottom of the frame are covered by the app), next to ` +
     `what it's about, never over ${petName}'s ` +
@@ -706,8 +701,6 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `\n- No "POV:" hook here: POV is for a moment, not a lesson or a list.` +
     `\n- Numbers add up: a hook that says "3 checks" has exactly 3 points, all of that kind. No "bonus" unless the ` +
     `hook leaves room for it, and a bonus is still the same kind of thing.` +
-    `\n- A follower question in the hook is clearly theirs: "You always ask which airline we fly with" or "\"Which ` +
-    `airline do you fly with?\" Here's how we choose", never the creator asking it to themselves.` +
     `\n- Clear subjects: write "your dog" or ${petName}'s name, not "his"/"their" that could mean anyone.` +
     `\n- Before answering, read the overlays in order as someone who has never seen this account. If any line ` +
     `needs the post description to make sense, or the hook and the points don't fit together, rewrite them.` +
@@ -717,6 +710,38 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `basedOn to it then; otherwise basedOn -1. Never name one the hook doesn't use.`
   );
 }
+
+/** The shapes an educational video can take, in rotation (see generate.ts). */
+export type EduFormat = "list" | "myth" | "mistake" | "qa" | "dodont" | "nobody";
+
+const EDU_FORMAT_TEXT: Record<EduFormat, string> = {
+  list:
+    `\nSTRUCTURE FOR THIS VIDEO: A NUMBERED LIST. 2–4 points that build up on screen, each starting "1.", "2.", … ` +
+    `e.g. "1. Kato backpack", "2. PetPace health tracker", "3. A ton of documents". A light, funny last point is ` +
+    `great if it fits ("4. Optional: a patient owner").`,
+  myth:
+    `\nSTRUCTURE FOR THIS VIDEO: MYTH VS. FACT. What people believe, then what's actually true, 1–2 pairs: ` +
+    `"MYTH: Dogs have to fly in cargo", then "FACT: Small dogs fly under the seat". The hook sets it up (e.g. ` +
+    `"Can dogs really fly in the cabin?", "What everyone gets wrong about flying a dog"). Each MYTH is something ` +
+    `people genuinely believe; each FACT corrects it plainly.`,
+  mistake:
+    `\nSTRUCTURE FOR THIS VIDEO: MISTAKE → WHAT TO DO INSTEAD. A mistake people make (ideally one we made), then ` +
+    `the fix, 1–2 pairs: "MISTAKE: Feeding right before the flight", then "INSTEAD: Last meal 4 hours before". The ` +
+    `hook teases it (e.g. "Don't do this before your dog flies").`,
+  qa:
+    `\nSTRUCTURE FOR THIS VIDEO: QUESTION → ANSWER. The hook IS the question, asked plainly. The answer lands as ` +
+    `the payoff after a beat: "ANSWER: …" (one clear answer, the moment the video builds to), then 1–2 short ` +
+    `"TIP: …" lines that make it actionable. Keep the viewer waiting a little for the answer (it appears after ` +
+    `~3s), never give it away in the hook.`,
+  dodont:
+    `\nSTRUCTURE FOR THIS VIDEO: DON'T / DO. Contrasting pairs, 1–2 of them: "DON'T: Sedate your dog", then "DO: ` +
+    `Tire them out with a long walk". Quick to scan, each line short. The hook names the situation (e.g. "How to ` +
+    `calm a dog before a flight").`,
+  nobody:
+    `\nSTRUCTURE FOR THIS VIDEO: "NOBODY TELLS YOU". One surprising, useful fact that most people don't know. The ` +
+    `hook teases it (e.g. "Nobody tells you this about pet fees"), then ONE "FACT: …" line with it, the footage ` +
+    `as proof. Short: 8–12s. No list.`,
+};
 
 /**
  * An inspirational post. For everyone (the default) it's about a feeling anyone has (the leap, the
@@ -1018,7 +1043,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : ctx.format === "tips" ? "" : audienceText(ctx.audience, ctx.petName, ctx.format)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle, ctx.search) + footageText(ctx.broll ?? []) + savedText(ctx.topPosts ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq, ctx.eduFormat) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle, ctx.search) + footageText(ctx.broll ?? []) + savedText(ctx.topPosts ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`
@@ -1151,7 +1176,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     scene: clip.scene,
     ...(ctx.format ? { format: ctx.format } : {}),
     ...(ctx.format === "tips" && ctx.faq ? { faq: ctx.faq.q } : {}),
-    ...(ctx.format === "tips" ? { pillar: ctx.pillar, angle: ctx.angle, searchTopic: ctx.search?.[0]?.topic, topic: r.topic?.trim() || undefined } : {}),
+    ...(ctx.format === "tips" ? { pillar: ctx.pillar, angle: ctx.angle, eduFormat: ctx.eduFormat, searchTopic: ctx.search?.[0]?.topic, topic: r.topic?.trim() || undefined } : {}),
     ...(ctx.audience && ctx.format !== "tips" && !ctx.collab ? { audience: ctx.audience } : {}),
     ...(r.subjectBottom > r.subjectTop && r.subjectTop >= 0 && r.subjectBottom <= 1 && r.subjectBottom - r.subjectTop < 0.9
       ? { keepClear: { top: r.subjectTop, bottom: r.subjectBottom } }

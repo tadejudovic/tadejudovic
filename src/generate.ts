@@ -328,6 +328,29 @@ export function nextPillar(skip = new Set<EduPillar>()): EduPillar {
   return [...(options.length ? options : PILLARS)].sort((a, b) => count(a) - count(b) || lastUsed(b) - lastUsed(a))[0];
 }
 
+/** The shapes educational videos take, and how often: lists most, the others in turn. */
+export const EDU_FORMATS: [NonNullable<VideoPlan["eduFormat"]>, number][] = [
+  ["list", 0.4],
+  ["myth", 0.15],
+  ["mistake", 0.15],
+  ["qa", 0.15],
+  ["dodont", 0.1],
+  ["nobody", 0.05],
+];
+
+/** The format furthest behind its share over the last 10 educational videos (never twice in a row). */
+export function nextEduFormat(): NonNullable<VideoPlan["eduFormat"]> {
+  const recent = store
+    .renders()
+    .filter((r) => r.plan.format === "tips" && r.review !== "rejected")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 10);
+  const last = recent[0]?.plan.eduFormat ?? "list";
+  const count = (f: string) => recent.filter((r) => (r.plan.eduFormat ?? "list") === f).length;
+  const n = Math.max(1, recent.length);
+  return EDU_FORMATS.filter(([f]) => f !== last).sort((a, b) => count(a[0]) / n - a[1] - (count(b[0]) / n - b[1]))[0][0];
+}
+
 /** The angle within a theme used least recently (rejected videos don't count). */
 export function nextAngle(pillar: EduPillar): string | undefined {
   const angles = PILLAR_ANGLES[pillar];
@@ -541,7 +564,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { topPosts: store.settings().audience?.topPosts, broll: brollPool(clip, chosen), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, broll: brollPool(clip, chosen), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           };
           let p = await directClip(clip, direction);
           // The basics first (headline, points, pacing): a draft that breaks one goes back once with

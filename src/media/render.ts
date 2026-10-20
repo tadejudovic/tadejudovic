@@ -161,11 +161,24 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
 /** "1. Call the airline" → ["1", "Call the airline"]; text that isn't a numbered point → undefined. */
 export function splitNumber(text: string): [string, string] | undefined {
   const m = /^\s*(\d{1,2})[.):]\s+(\S[\s\S]*)$/.exec(text);
-  return m ? [m[1], m[2]] : undefined;
+  if (m) return [m[1], m[2]];
+  // Word labels of the other lesson formats: "MYTH: …", "FACT: …", "DON'T: …", "ANSWER: …".
+  const w = /^\s*(myth|fact|truth|mistake|instead|don['’]?t|do|answer|tip|step \d{1,2})\s*[:–-]\s+(\S[\s\S]*)$/i.exec(text);
+  return w ? [w[1].toUpperCase().replace("’", "'").replace(/^DONT$/, "DON'T"), w[2]] : undefined;
 }
 
-/** The black number tab on the left of a numbered point. */
-const badgeWidth = (size: number) => Math.round(size * 1.45);
+/** The tab's colors: red for what not to do, green for the answer, black with yellow for numbers. */
+export function tabColors(label: string, body: string): { bg: string; fg: string } {
+  if (/^(MYTH|MISTAKE|DON'T)$/.test(label)) return { bg: "0xE5484D", fg: "white" };
+  if (/^(FACT|TRUTH|INSTEAD|DO|ANSWER)$/.test(label)) return { bg: "0x1F9D55", fg: "white" };
+  return { bg: "0x111111", fg: body };
+}
+
+/** The tab on the left of a point: a number, or a word label set smaller. */
+const isNumber = (label: string) => /^\d+$/.test(label);
+const labelSize = (label: string, size: number) => Math.round(size * (isNumber(label) ? 1.15 : 0.68));
+const badgeWidth = (size: number, label = "1", font?: string) =>
+  isNumber(label) || !font ? Math.round(size * 1.45) : Math.round(textWidth(font, label, labelSize(label, size)) + size * 0.8);
 
 /**
  * How wide a numbered point's box is when its text is wrapped to at most `maxW`: used to give all
@@ -175,8 +188,9 @@ export function pointBoxWidth(text: string, size: number, font: string, maxW: nu
   const split = splitNumber(screenText(text));
   if (!split) return 0;
   const padX = Math.round(size * 0.5);
-  const lines = fitLines(split[1], maxW - badgeWidth(size) - padX * 2, size, font, charsFor(size, 24));
-  return Math.min(maxW, Math.round(Math.max(...lines.map((l) => textWidth(font, l, size)))) + badgeWidth(size) + padX * 2);
+  const badge = badgeWidth(size, split[0], font);
+  const lines = fitLines(split[1], maxW - badge - padX * 2, size, font, charsFor(size, 24));
+  return Math.min(maxW, Math.round(Math.max(...lines.map((l) => textWidth(font, l, size)))) + badge + padX * 2);
 }
 
 function fitLines(text: string, maxTextW: number, size: number, font: string, maxChars: number): string[] {
@@ -195,7 +209,7 @@ export function pointFilters(num: string, text: string, opts: TextOpts & { boxW:
   const size = opts.size;
   const padX = Math.round(size * 0.5);
   const padY = Math.round(size * 0.38);
-  const badgeW = badgeWidth(size);
+  const badgeW = badgeWidth(size, num, opts.font);
   const w = Math.min(opts.boxW, SAFE_W);
   const cx = opts.xFrac === undefined ? SAFE_CX : W * opts.xFrac;
   const left = Math.round(Math.max(W * SAFE.left, Math.min(W * SAFE.right - w, cx - w / 2)));
@@ -214,12 +228,13 @@ export function pointFilters(num: string, text: string, opts: TextOpts & { boxW:
     fs.writeFileSync(file, s);
     return `textfile='${esc(file)}'`;
   };
-  const numSize = Math.round(size * 1.15);
+  const numSize = labelSize(num, size);
+  const tab = tabColors(num, body);
   const filters = [
     [`drawbox=x=${left + badgeW}:y=${top - padY}:w=${w - badgeW}:h=${h}:color=${body}@1:t=fill`, enable],
-    [`drawbox=x=${left}:y=${top - padY}:w=${badgeW}:h=${h}:color=0x111111@1:t=fill`, enable],
+    [`drawbox=x=${left}:y=${top - padY}:w=${badgeW}:h=${h}:color=${tab.bg}@1:t=fill`, enable],
     [
-      `drawtext=fontfile='${esc(opts.font)}'`, write("n", num), "expansion=none", `fontsize=${numSize}`, `fontcolor=${body}`,
+      `drawtext=fontfile='${esc(opts.font)}'`, write("n", num), "expansion=none", `fontsize=${numSize}`, `fontcolor=${tab.fg}`,
       `x=${left + badgeW / 2}-text_w/2`, `y=${top - padY + h / 2}-text_h/2`, enable,
     ],
     ...lines.map((line, i) => [

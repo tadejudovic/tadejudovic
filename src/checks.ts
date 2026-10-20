@@ -31,7 +31,9 @@ export function basicChecks(plan: VideoPlan): string[] {
   if (edu && /^pov\b/i.test(hook)) problems.push(`The headline "${hook}" starts with POV: not for a lesson.`);
   // Points: short enough to read at a glance.
   for (const o of (plan.overlays ?? []).slice(1)) {
-    if (o.y !== undefined && /^\s*\d{1,2}[.):]\s/.test(o.text) && words(o.text) > 8) problems.push(`The point "${o.text}" is ${words(o.text) - 1} words: at most 7.`);
+    const label = /^\s*(\d{1,2}[.):]|(myth|fact|truth|mistake|instead|don['’]?t|do|answer|tip)\s*[:–-])\s+/i.exec(o.text);
+    if (o.y !== undefined && label && words(o.text.slice(label[0].length)) > 7)
+      problems.push(`The point "${o.text}" is ${words(o.text.slice(label[0].length))} words after its label: at most 7.`);
   }
   // Pacing: the first cut early, no shot that drags.
   const segs = plan.segments;

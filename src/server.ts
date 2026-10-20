@@ -412,6 +412,7 @@ app.get("/api/renders/:id/diagnostics", (req, res) => {
       p.format === "tips"
         ? {
             theme: p.pillar,
+            format: p.eduFormat ?? "list",
             angle: p.angle,
             topic: p.topic,
             searchTopic: p.searchTopic ?? null,

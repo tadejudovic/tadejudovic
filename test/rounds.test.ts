@@ -91,3 +91,13 @@ test("spares are off unless switched on in Labs", async () => {
   add("only", "inspire", "pending");
   assert.equal(toMake().find((x) => x.kind === "inspire"), undefined);
 });
+
+test("a remake cut off by a restart doesn't block its kind for good", () => {
+  const ids = store.renders().map((r: any) => r.id);
+  for (const id of ids) store.removeRender(id);
+  const old = new Date(Date.now() - 20 * 60_000).toISOString();
+  store.addRender({ id: "stuck", createdAt: old, reviewedAt: old, status: "done", progress: 1, review: "rejected", remadeAs: "pending", rejectReason: "edit", options: {} as any, plan: { segments: [], format: "tips" } as any } as any);
+  assert.ok(kindsToMake().includes("tips"));
+  store.addRender({ id: "writing", createdAt: now(), reviewedAt: now(), status: "done", progress: 1, review: "rejected", remadeAs: "pending", rejectReason: "edit", options: {} as any, plan: { segments: [], format: "fun" } as any } as any);
+  assert.ok(!kindsToMake().includes("fun"));
+});

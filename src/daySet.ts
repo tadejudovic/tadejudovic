@@ -29,9 +29,16 @@ export function keptToday(kind: PostFormat): number {
   return store.renders().filter((r) => daily(r) && r.plan.format === kind && r.review === "approved" && Date.parse(r.reviewedAt ?? "") >= start).length;
 }
 
+/** How long writing a remake can take; one "pending" longer than this was cut off (a restart). */
+export const REMAKE_STUCK_MS = 15 * 60_000;
+
+/** A remake being written right now (not one a restart cut off, which would block its kind for good). */
+export const remakeWriting = (r: Render, now = Date.now()) =>
+  r.review === "rejected" && r.remadeAs === "pending" && now - Date.parse(r.reviewedAt ?? "") < REMAKE_STUCK_MS;
+
 /** Being made, waiting in Review, or (rejected) with its remake being written. */
 const inFlight = (r: Render) =>
-  r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending") || (r.review === "rejected" && r.remadeAs === "pending");
+  r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending") || remakeWriting(r);
 
 /** Videos of this kind being made or waiting in Review (spares on standby not counted). */
 export function waitingOf(kind: PostFormat): number {

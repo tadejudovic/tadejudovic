@@ -1460,6 +1460,15 @@ for (const r of store.renders()) {
 const duplicates = markDuplicates();
 if (duplicates) console.log(`[albums] set aside ${duplicates} duplicate clip(s)`);
 
+// A remake that was being written when the server stopped (a deploy) never finishes: clear it, so
+// its kind isn't treated as "being made" forever and a new one of the kind is made.
+for (const r of store.renders()) {
+  if (r.remadeAs === "pending") {
+    console.log(`[recovery] remake of ${r.id} (${r.plan.format}) was cut off by a restart; its kind is made again`);
+    store.updateRender(r.id, { remadeAs: undefined });
+  }
+}
+
 // Videos rejected before clips were handed back on rejection: hand them back now.
 for (const r of store.renders()) syncClipUses(r.id);
 

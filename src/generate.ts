@@ -1289,7 +1289,7 @@ export async function redoFromEditor(id: string): Promise<Render> {
   if (!r) throw new Error("That video is gone.");
   const e = r.editor;
   if (!e) throw new Error("This video has no editor's review.");
-  if (r.remadeAs === "pending") throw new Error("It's already being made again.");
+  if (r.remadeAs === "pending" && Date.now() - Date.parse(r.reviewedAt ?? "") < 15 * 60_000) throw new Error("It's already being made again.");
   const p = e.parts;
   const reason: Render["rejectReason"] = e.verdict === "fix_text" ? "text" : p && (p.hook.visual < 7 || p.body.visual < 6) ? "clip" : "edit";
   const notes = [e.remakeBrief, ...e.issues, ...(p ? Object.values(p).map((x) => x.note) : [])].filter(Boolean).join(" ");

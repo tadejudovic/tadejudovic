@@ -508,7 +508,19 @@ export async function plan(
       ...outsidePool.filter((c) => !chosen.includes(c)),
     ];
     const taken = new Set<string>();
-    const extrasFor = (clip: Clip): Clip[] => {
+    const best = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
+    const extrasFor = (clip: Clip, kind?: PostFormat): Clip[] => {
+      // An inspirational montage: the strongest recent moments from the journey, any place.
+      if (kind === "inspire" && outside.has(clip.id)) {
+        const pick = spare
+          .filter((c) => !taken.has(c.id) && outside.has(c.id) && c.id !== clip.id)
+          .sort((a, b) => filmedWeek(b) - filmedWeek(a) || best(b) - best(a))
+          .slice(0, 12)
+          .sort((a, b) => best(b) - best(a))
+          .slice(0, 5);
+        for (const c of pick) taken.add(c.id);
+        return pick;
+      }
       const pick = [...spare]
         // Outside footage is combined with outside footage; airport footage with airport footage.
         .filter((c) => !taken.has(c.id) && outside.has(c.id) === outside.has(clip.id))
@@ -554,7 +566,7 @@ export async function plan(
             audience: kind === "tips" ? (captionAudience === "pets" ? "pets" : "everyone") : audiences[i],
             format: kind,
             // Too short for the video? Combined with other clips of the moment instead of replayed.
-            extraClips: extrasFor(clip),
+            extraClips: extrasFor(clip, kind),
             ...(outside.has(clip.id)
               ? {
                   brief: [

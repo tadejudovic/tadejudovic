@@ -443,6 +443,27 @@ export function fillWithClips(segments: Segment[], minSeconds: number, extras: C
   return out;
 }
 
+/**
+ * An inspirational video as a montage: the main clip's moment (at most 4.5s), then the best few
+ * seconds of each fitting clip, up to 5 shots and about 15s, so it never sits on one uncut shot.
+ */
+export function montage(segments: Segment[], extras: Clip[], minSeconds: number): Segment[] {
+  const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
+  const first = segments[0];
+  if (!first) return segments;
+  const out: Segment[] = [{ ...first, end: Math.min(first.end, first.start + 4.5 * (first.speed ?? 1)) }];
+  for (const c of extras) {
+    if (out.length >= 5 || len(out) >= Math.max(minSeconds, 15)) break;
+    const m = [...(c.ai?.moments ?? c.moments ?? [])].sort((a, b) => b.score - a.score)[0];
+    const want = Math.min(3.5, c.duration);
+    const mid = m ? (m.start + m.end) / 2 : c.duration / 2;
+    const start = Math.max(0, Math.min(mid - want / 2, c.duration - want));
+    if (want >= 2) out.push({ clipId: c.id, start, end: start + want, speed: 1 });
+  }
+  // Not enough other footage: the rest of the main clip as the AI cut it.
+  return len(out) >= minSeconds - 0.5 ? out : segments;
+}
+
 function validateSegment(s: Segment, clips: Map<string, Clip>): Segment | null {
   const clip = clips.get(s.clipId);
   if (!clip) return null;
@@ -775,8 +796,10 @@ function inspireText(petName: string, audience: "pets" | "everyone" = "everyone"
       `meaningful moment of the journey.` +
       `\n- The hook still has to stop the scroll: personal, specific and a little emotional, e.g. "Six countries ` +
       `later, he still sleeps on my feet", "Everyone said we couldn't bring him". No clichés like "living our best life".` +
-      `\n- One overlay, or a setup and a payoff line that appears a few seconds later. Calm pacing: let the moment ` +
-      `breathe (at least 8s).` +
+      `\n- NEVER a joke, irony or a relatable gag (if a friend would reply "lol", it's a fun video, not this one): ` +
+      `it gives a feeling (pride, gratitude, wonder, calm) or a thought worth keeping.` +
+      `\n- It's cut as a montage: this clip plus a few other beautiful moments of the journey, about 3s each. A ` +
+      `setup line at the start and a payoff line appearing around the middle, staying to the end.` +
       `\n- Post description: where we are in ${petName}'s journey, what it means to us, and an invitation ` +
       `(where would you take your dog?).`
     );
@@ -794,8 +817,13 @@ function inspireText(petName: string, audience: "pets" | "everyone" = "everyone"
     `best life" or "wanderlust".` +
     `\n- Proven captions: only borrow a structure from one if it fits; pet-specific wording doesn't belong here. ` +
     `Set basedOn only if you adapt one.` +
-    `\n- One overlay, or a setup and a payoff line that appears a few seconds later. Calm pacing: let the moment ` +
-    `breathe (at least 8s).` +
+    `\n- NEVER a joke, irony or a relatable observation: no contrast gags ("came for X / ended up Y"), no "me ` +
+    `when", no "POV", nothing that gets a laugh or an eye-roll. Test: if a friend would reply "lol", it's a fun ` +
+    `video, not this one. It has to give a feeling (hope, courage, calm, gratitude, longing) or a thought worth ` +
+    `keeping, e.g. "A year ago this was just a screenshot / Today I'm standing in it", "You don't need a perfect ` +
+    `plan / Just a first step", "The best things I own / are the places I've been".` +
+    `\n- It's cut as a montage: this clip plus a few other beautiful moments from the trip, about 3s each. Write ` +
+    `for that: a setup line at the start, and the payoff line appearing around the middle and staying to the end.` +
     `\n- Post description: the most story-driven of all: where we are and what this chapter means, written so ` +
     `anyone relates, ending with an open question (e.g. "What's the trip you keep putting off?"). The dog can ` +
     `appear in the description as part of the story, not the point of it.`
@@ -1117,7 +1145,10 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   // timing is stretched to the final length so every line still gets its share.
   const planned = lengthOf(segments);
   // More footage from other clips of the moment first; a single replay only if there's none.
-  segments = fillByRepeating(fillWithClips(limitSlowMotion(segments), ctx.minSeconds, ctx.extraClips ?? []), ctx.minSeconds);
+  segments =
+    ctx.format === "inspire" && ctx.extraClips?.length
+      ? fillByRepeating(montage(limitSlowMotion(segments), ctx.extraClips, Math.max(ctx.minSeconds, 12)), ctx.minSeconds)
+      : fillByRepeating(fillWithClips(limitSlowMotion(segments), ctx.minSeconds, ctx.extraClips ?? []), ctx.minSeconds);
   let total = lengthOf(segments);
   const k = planned > 0 ? total / planned : 1;
   const frac = (v: number) => (v >= 0 && v <= 1 ? v : undefined);
@@ -1137,6 +1168,12 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
         ...(px !== undefined && py !== undefined ? { pointTo: { x: px, y: py } } : {}),
       };
     });
+  // The opening line is the headline, pinned at the top like in every video (a placed y would make
+  // it a loose point instead).
+  if (ctx.format !== "tips") {
+    const opening = overlays.filter((o) => o.start <= 0.5 && !o.pointTo).sort((a, b) => a.start - b.start)[0];
+    if (opening) delete (opening as Overlay).y;
+  }
   // A last read as a stranger would: fix text that doesn't add up (keeps timing and places).
   if (overlays.length) {
     const fixed = await proofreadText(overlays.map((o) => o.text), ctx.petName, ctx.format ? KIND[ctx.format] : undefined).catch(() => null);

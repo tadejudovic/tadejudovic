@@ -99,8 +99,9 @@ export async function reviewVideo(r: Render, duration: number, clips: Map<string
       `- visual: is the frame strong (a clear subject, a face, something happening), sharp, well framed? The hook's ` +
       `first frame must grab instantly.\n` +
       `- text: does the text work here? Hook: short, plain, curious, for anyone (not only dog owners), readable in ` +
-      `a second, never covering a face or the action. Body: each point readable at a glance and matching the ` +
-      `footage under it. Ending: a clear payoff or call to action.\n` +
+      `a second, never covering a face or the action. Body: each point readable at a glance, matching the ` +
+      `footage under it, and when the headline is a question, each point a DIRECT answer to it (a "where" question ` +
+      `answered with places, not general tips); points that dodge the question are a text failure. Ending: a clear payoff or call to action.\n` +
       `- motion: movement and cuts: no static or dead stretch, shots change before attention drops, nothing drags; ` +
       `the hook moves from the first frame.\n` +
       `- sound: is there sound, does it fit (silence in the hook loses people), no jarring jumps?\n` +

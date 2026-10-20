@@ -690,6 +690,11 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `aren't sure of.` +
     `\n- Length: whatever the lesson needs to be read comfortably, usually 15–30s: the hook alone for ~2.5s, then ` +
     `~3–4s per point. Don't pad it, and don't rush it.` +
+    `\n\nTHE ANSWER TEST: when the headline is a question, every point is a DIRECT answer to that exact question, ` +
+    `of the kind it asks for: "Where do dogs pee on a layover?" → each point is a place ("1. Pet relief areas, ` +
+    `after security", "2. Outside, before check-in", "3. A pee pad in the carrier"), not general advice ("book ` +
+    `long layovers", "keep the harness on"); "How much…?" → amounts; "Which…?" → names; "Can…?" → yes or no, ` +
+    `then the condition. A point that's good advice but doesn't answer the question goes.` +
     `\n\nIT HAS TO MAKE SENSE TO A STRANGER WITH THE SOUND OFF, reading only the text on screen:` +
     `\n- The points deliver exactly what the hook promises, and say how they connect to it. If the hook says ` +
     `"don't do X first" or "do this before X", the list is what to do first, introduced that way (e.g. the first ` +
@@ -989,6 +994,8 @@ export async function proofreadText(lines: string[], petName: string, kind?: str
               `always ask", "our #1 question", "people ask me"; and a ` +
               `numbered point is at most 7 words (shorten them if not; the one case where a line may get much shorter)`
             : "") +
+          `; when the first line is a question, every point answers that exact question directly (a "where" question: ` +
+          `each point is a place; "how much": an amount; "which": a name) — rewrite a point that's only related advice` +
           `. Be strict: a reader shouldn't ` +
           `have to work out what's meant. If it's fine, ok = true and return ` +
           `the lines unchanged. If not, ok = false, say the problem in a few words, and return fixed lines: exactly ` +

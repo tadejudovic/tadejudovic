@@ -803,3 +803,6 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 #labs .srow { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 #labs input[type="checkbox"] { width: 20px; height: 20px; }
 .srow[hidden] { display: none !important; }
+.lab { align-items: flex-start !important; gap: 12px; }
+.lab-text { display: flex; flex-direction: column; gap: 2px; }
+.lab-text .muted { font-size: 13px; line-height: 1.35; }

@@ -112,6 +112,10 @@
       <div class="brand-row"><span class="mark" aria-hidden="true"></span><span class="brand-name">Rollcut</span></div>
       <h1 class="settings-title">Settings</h1>
 
+      <div class="group">
+        <button class="srow" data-open="sp-labs"><span class="row-title">🧪 Labs</span><span class="row-value" id="sum-labs">beta features</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+
       <p class="group-label">Footage</p>
       <div class="group">
         <button class="srow" data-open="sp-album"><span class="row-title">Google Photos albums</span><span class="row-value" id="sum-album"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
@@ -147,14 +151,6 @@
         <button class="srow danger" id="btn-reset"><span class="row-title">Start over</span><span class="row-value">remove albums, clips &amp; videos</span></button>
         <a class="srow danger" id="logout" href="/logout" hidden><span class="row-title">Sign out</span><span class="row-value" id="sum-user"></span></a>
       </div>
-      <p class="group-label">Labs</p>
-      <div class="group" id="labs">
-        <label class="srow"><span class="row-title">Day vlog</span><input type="checkbox" name="vlog" /></label>
-        <label class="srow"><span class="row-title">Story video (voiceover)</span><input type="checkbox" name="story" /></label>
-        <label class="srow"><span class="row-title">Brand partners &amp; collabs</span><input type="checkbox" name="collab" /></label>
-        <label class="srow"><span class="row-title">Make videos by hand</span><input type="checkbox" name="manual" /></label>
-      </div>
-      <p class="muted hint-inline">Extra features, off for now. Switch one on to bring it back in Settings.</p>
       <p class="muted app-version" id="app-version"></p>
 
       <div class="subpage" id="sp-album" hidden>
@@ -320,6 +316,19 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
           <div class="wide"><button class="btn primary" type="submit" id="story-go">Find the clips</button></div>
         </form>
         <div id="story-draft" class="story-draft" hidden></div>
+        </div>
+      </div>
+
+      <div class="subpage" id="sp-labs" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Labs</h2></header>
+        <div class="sp-body">
+          <p class="hint top">Beta features. For now Rollcut focuses on getting the daily educational, fun and inspirational videos right; these are extras you can switch on to try. Each shows up in Settings when it's on.</p>
+          <div class="group" id="labs">
+            <label class="srow lab"><span class="lab-text"><span class="row-title">Day vlog</span><span class="muted">A whole day in 15–20 quick moments, from days with 15+ clips. You choose the clips.</span></span><input type="checkbox" name="vlog" /></label>
+            <label class="srow lab"><span class="lab-text"><span class="row-title">Story video</span><span class="muted">Write or speak a script with scene tags; Rollcut finds the clips, records it in your cloned voice.</span></span><input type="checkbox" name="story" /></label>
+            <label class="srow lab"><span class="lab-text"><span class="row-title">Brand partners &amp; collabs</span><span class="muted">Save brand partners and make collab versions of videos built around them.</span></span><input type="checkbox" name="collab" /></label>
+            <label class="srow lab"><span class="lab-text"><span class="row-title">Make videos by hand</span><span class="muted">Pick clips and a template yourself instead of the daily videos.</span></span><input type="checkbox" name="manual" /></label>
+          </div>
         </div>
       </div>
 

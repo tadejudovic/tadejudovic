@@ -52,6 +52,9 @@ function applyFeatures(features) {
     const box = document.querySelector(`#labs input[name="${f}"]`);
     if (box && document.activeElement !== box) box.checked = !!features[f];
   }
+  const on = Object.keys(FEATURE_ROWS).filter((f) => features[f]).length;
+  const sum = document.getElementById("sum-labs");
+  if (sum) sum.textContent = on ? `${on} on` : "beta features";
 }
 document.querySelector("#labs")?.addEventListener("change", async () => {
   const features = Object.fromEntries([...document.querySelectorAll("#labs input")].map((i) => [i.name, i.checked]));

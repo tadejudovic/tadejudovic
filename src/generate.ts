@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { cloneVoice, deleteVoice, speak } from "./voice/elevenlabs.ts";
 import { config } from "./config.ts";
-import { localDate, videosLeftToday } from "./dailyLimit.ts";
+import { localDate, MANUAL_EXTRA, videosLeftToday } from "./dailyLimit.ts";
 import { promoteSpares, sparesOf, waitingOf } from "./daySet.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { featureOn, store, newId } from "./store.ts";
@@ -1060,7 +1060,7 @@ export async function editorPass(id: string, duration: number): Promise<void> {
   }
   if (!store.render(id)) return; // deleted meanwhile
   const pass = r.plan.editorPass ?? 0;
-  const base = { at: new Date().toISOString(), scores: v.scores, parts: v.parts, dropOff: v.dropOff?.slice(0, 3), verdict: v.verdict, issues: v.issues.slice(0, 8) };
+  const base = { at: new Date().toISOString(), scores: v.scores, parts: v.parts, dropOff: v.dropOff?.slice(0, 3), verdict: v.verdict, issues: v.issues.slice(0, 8), ...(v.remakeBrief ? { remakeBrief: v.remakeBrief.slice(0, 600) } : {}) };
   console.log(`[editor] ${id} (${r.plan.format}, attempt ${pass + 1}): ${v.verdict} ${JSON.stringify(v.scores)}${v.issues.length ? ` – ${v.issues.join("; ")}` : ""}`);
   if (v.verdict === "pass") return void finish({ editor: { ...base, outcome: "passed" } });
   // Set aside by the editor (not the creator's feedback); kept so the best attempt can come back.
@@ -1272,16 +1272,49 @@ const REMAKE_BRIEF: Record<string, (text: string, note?: string) => string> = {
 };
 
 /**
+ * "Redo with this feedback": the creator agrees with the editor's review, so the video is set aside
+ * and made again with the editor's notes as direction (new text, a new cut, or other footage, the
+ * way the review pointed). Goes past the daily limit by a little, like any tap by the creator.
+ */
+export async function redoFromEditor(id: string): Promise<Render> {
+  const r = store.render(id);
+  if (!r) throw new Error("That video is gone.");
+  const e = r.editor;
+  if (!e) throw new Error("This video has no editor's review.");
+  if (r.remadeAs === "pending") throw new Error("It's already being made again.");
+  const p = e.parts;
+  const reason: Render["rejectReason"] = e.verdict === "fix_text" ? "text" : p && (p.hook.visual < 7 || p.body.visual < 6) ? "clip" : "edit";
+  const notes = [e.remakeBrief, ...e.issues, ...(p ? Object.values(p).map((x) => x.note) : [])].filter(Boolean).join(" ");
+  const before = { review: r.review, reviewedAt: r.reviewedAt, rejectReason: r.rejectReason, rejectNote: r.rejectNote, rejectedBy: r.rejectedBy, remadeAs: r.remadeAs };
+  store.updateRender(id, {
+    review: "rejected",
+    reviewedAt: new Date().toISOString(),
+    rejectReason: reason,
+    rejectNote: `Editor's review: ${notes}`.slice(0, 1200),
+    rejectedBy: undefined,
+    remadeAs: undefined,
+  });
+  syncClipUses(id);
+  const fresh = await remakeRejected(id, { force: true, manual: true }).catch(() => undefined);
+  if (!fresh) {
+    store.updateRender(id, before);
+    syncClipUses(id);
+    throw new Error("It couldn't be made again right now (no AI credit, no fitting footage, or 3 remakes in a row already).");
+  }
+  return fresh;
+}
+
+/**
  * A rejected video with a reason gets a new version straight away, of the same kind: new text on the
  * same clip, a new cut, or the same idea on other footage, with the creator's words as direction.
  * Replacements don't count against the daily limit (they replace one that did); at most 3 in a row.
  */
-export async function remakeRejected(id: string, { force = false, editorPass = 0 } = {}): Promise<Render | undefined> {
+export async function remakeRejected(id: string, { force = false, editorPass = 0, manual = false } = {}): Promise<Render | undefined> {
   const r = store.render(id);
   // Every rejected video is replaced by another of its kind (so each day ends with one of each),
   // also without a reason; videos made on request (stories, vlogs) aren't.
   if (!r || r.review !== "rejected" || r.remadeAs || !r.rejectReason || r.plan.format === "story" || r.plan.collab) return undefined;
-  if (!videosLeftToday()) return undefined;
+  if (videosLeftToday() + (manual ? MANUAL_EXTRA : 0) <= 0) return undefined;
   // Its kind already has a video in Review and a spare (the reason came after they were made): the
   // reason still counts as feedback, but no third video of the kind.
   const kindOf = r.plan.format;

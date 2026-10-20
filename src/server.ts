@@ -18,7 +18,7 @@ import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDe
 import { learnFromTikTok } from "./audience.ts";
 import { promoteSpares } from "./daySet.ts";
 import { linkWinningPosts } from "./postMatch.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting, EDITOR_ATTEMPTS } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, numberTabsExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -552,7 +552,7 @@ app.put("/api/auto", (req, res) => {
 app.post(
   "/api/batch/run",
   h(async (_req, res) => {
-    res.json(await runDailyBatch({ force: true }));
+    res.json(await runDailyBatch({ force: true, manual: true }));
   }),
 );
 
@@ -915,6 +915,13 @@ app.patch("/api/renders/:id", (req, res) => {
   if (review && review !== "pending") afterReview();
   res.json(store.render(r.id));
 });
+
+app.post(
+  "/api/renders/:id/redo-editor",
+  h(async (req, res) => {
+    res.json(await redoFromEditor(String(req.params.id)));
+  }),
+);
 
 app.post("/api/renders/:id/retry", (req, res) => {
   const r = retryRender(String(req.params.id));

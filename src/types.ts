@@ -484,6 +484,8 @@ export interface EditorReview {
   dropOff?: { at: number; why: string }[];
   verdict: "pass" | "fix_text" | "remake";
   issues: string[];
+  /** What the editor said a new version must do (for "Redo with this feedback"). */
+  remakeBrief?: string;
   /** What happened: passed on, text fixed, remade, or let through after a fix with notes. */
   outcome: "passed" | "text_fixed" | "remade" | "let_through";
 }

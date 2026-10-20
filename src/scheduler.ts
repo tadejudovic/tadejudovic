@@ -4,8 +4,8 @@ import { footageNeeded, importBudget, syncAll } from "./albums.ts";
 import { plan, queueRender, isPortrait, onTopic, outsideClips, noteInspireIssue, postsDueForStats, refreshPostStats } from "./generate.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { syncProfiles } from "./postMatch.ts";
-import { localDate, videosLeftToday } from "./dailyLimit.ts";
-import { daySetDone, promoteSpares, toMake } from "./daySet.ts";
+import { localDate, MANUAL_EXTRA, videosLeftToday } from "./dailyLimit.ts";
+import { DAY_KINDS, daySetDone, promoteSpares, toMake, waitingOf } from "./daySet.ts";
 import { learnFromTikTok } from "./audience.ts";
 
 /**
@@ -157,7 +157,12 @@ async function runDue({ afterReview = false } = {}) {
  * Make what the day's set still needs: one video of each kind that isn't kept yet and has nothing
  * waiting in Review. Safe to call by hand ("make the next ones").
  */
-export async function runDailyBatch(_opts: { force?: boolean } = {}) {
+/**
+ * Today's set, or, when the creator taps "Make new ones" (manual), more of it even when the set is
+ * done or one of each is waiting: the kinds with nothing waiting (all three when every kind has one),
+ * up to MANUAL_EXTRA past the daily limit.
+ */
+export async function runDailyBatch({ manual = false }: { force?: boolean; manual?: boolean } = {}) {
   if (batchRunning) throw new Error(`The next videos are already being made${roundStage ? `: ${roundStage.toLowerCase()}` : ""}`);
   batchRunning = true;
   roundStage = "Starting…";
@@ -166,9 +171,14 @@ export async function runDailyBatch(_opts: { force?: boolean } = {}) {
     promoteSpares();
     // No AI, no videos: a video without it would only be a pasted caption.
     if (config.claude.enabled && !aiAvailable()) throw new Error("The Anthropic account is out of credit. Add credit at console.anthropic.com → Plans & Billing; videos are made again as soon as it's back.");
-    const kinds = toMake();
+    const left = () => videosLeftToday() + (manual ? MANUAL_EXTRA : 0);
+    let kinds = toMake();
+    if (!kinds.length && manual) {
+      const free = DAY_KINDS.map(([k]) => k).filter((k) => !waitingOf(k));
+      kinds = (free.length ? free : DAY_KINDS.map(([k]) => k)).map((kind) => ({ kind, standby: false }));
+    }
     if (!kinds.length) return { renders: [], skipped: daySetDone() ? "today's set is done" : "one of each is waiting for review, with a spare" };
-    if (!videosLeftToday()) return { renders: [], skipped: "daily video limit reached" };
+    if (!left()) return { renders: [], skipped: "daily video limit reached" };
     // Pick up anything added to the albums since the last check, and let it finish analyzing.
     // Listing a big album takes a while: only wait for it when there's nothing to make videos from yet.
     if (store.albums().length) {
@@ -198,7 +208,7 @@ export async function runDailyBatch(_opts: { force?: boolean } = {}) {
     // One at a time, each starting to render as soon as its text is written: the videos for Review
     // first, then the spares (quietly, in the background).
     for (const { kind, standby } of kinds) {
-      if (!videosLeftToday()) break;
+      if (!left()) break;
       roundStage = standby ? null : `Writing the ${kind === "tips" ? "educational" : kind === "inspire" ? "inspirational" : "fun"} video…`;
       try {
         const { plans } = await plan({

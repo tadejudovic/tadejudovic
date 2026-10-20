@@ -1129,6 +1129,14 @@ function detailsBody(r) {
           Object.entries(r.editor.scores).map(([k, v]) => `${{ hook: "first 3s", body: "body", ending: "ending" }[k] ?? k} ${v}/10`).join(" · ")),
       r.editor.dropOff?.length ? h("div", { class: "muted" }, `Most likely to lose viewers at ${r.editor.dropOff[0].at.toFixed(1)}s: ${r.editor.dropOff[0].why}`) : null,
       r.editor.issues?.length ? h("ul", { class: "editor-issues" }, ...r.editor.issues.map((x) => h("li", {}, x))) : null,
+      r.editor.outcome !== "passed" && !(r.remadeAs && r.remadeAs !== "pending")
+        ? h("button", { class: "btn", onclick: (e) =>
+            withBusy(e.currentTarget, "Starting…", async () => {
+              await api(`/api/renders/${r.id}/redo-editor`, { method: "POST" });
+              banner("Making it again with the editor's notes. The new version appears in Review.", "ok");
+              await refreshRenders();
+            }) }, "Redo with this feedback")
+        : null,
     ) : null,
     b ? h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Inspired by")),
@@ -2072,7 +2080,8 @@ $("#btn-batch").addEventListener("click", (e) =>
       state.nextRoundUntil = 0;
       throw err;
     });
-    if (r.skipped === "daily video limit reached") banner("That's today's video limit. Raise it in Settings → Schedule & limits for more.");
+    if (r.skipped === "daily video limit reached") banner("That's today's video limit, plus 3 extra. Raise it in Settings → Schedule & limits for more.");
+    else if (r.skipped) banner(`Nothing new was started: ${r.skipped}.`);
     else if (r.warning) banner(r.warning);
     else if (r.renders.length) banner(`Making ${r.renders.length} video${r.renders.length === 1 ? "" : "s"}. They appear here as they finish.`, "ok");
     await Promise.all([refreshRenders(), loadStatus()]);

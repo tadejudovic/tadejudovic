@@ -25,6 +25,9 @@ export function dailyLimit(): number {
   return store.settings().maxVideosPerDay;
 }
 
+/** A tap by the creator ("Make new ones", "Redo with this feedback") may go this many past the limit. */
+export const MANUAL_EXTRA = 3;
+
 export function videosLeftToday(): number {
   return Math.max(0, dailyLimit() - videosMadeToday());
 }

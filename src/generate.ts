@@ -114,17 +114,17 @@ export function noteInspireIssue(message: string | null) {
  * round's own main clips.
  */
 export function brollPool(main: Clip, roundClips: Clip[] = []): Clip[] {
+  // Any described vertical clip can show a point (a pee pad filmed at home, a clip used once before),
+  // unused ones first, then the most recent; the points pick the most relevant (see pickBroll).
   const skip = new Set([main.id, ...roundClips.map((c) => c.id)]);
-  const outside = new Set(outsideClips().map((c) => c.id));
   return store
     .clips()
     .filter(
       (c) =>
-        !skip.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width && c.uses === 0 && !c.disliked &&
-        !c.edited && !c.duplicateOf && c.duration >= 2 && !!c.ai?.summary && (onTopic(c) || outside.has(c.id)),
+        !skip.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width && !c.disliked &&
+        !c.edited && !c.duplicateOf && c.duration >= 2 && !!c.ai?.summary,
     )
-    .sort((a, b) => filmedWeek(b) - filmedWeek(a))
-    .slice(0, 40);
+    .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || filmedWeek(b) - filmedWeek(a));
 }
 
 /** The country a clip was filmed in is switched off in Themes ("place:Portugal"). */

@@ -118,6 +118,17 @@ app.get("/api/diagnostics", (_req, res) => {
       fastModelError,
       edited: clips.filter((c) => c.edited).length,
       duplicates: clips.filter((c) => c.duplicateOf).length,
+      // Why clips don't make it into videos.
+      notUsable: {
+        landscape: clips.filter((c) => c.status === "ready" && c.width > c.height).length,
+        tooShort: clips.filter((c) => c.status === "ready" && c.kind === "video" && c.duration < 3).length,
+        noAiLook: clips.filter((c) => c.status === "ready" && !c.ai?.summary).length,
+        filedAsOther: clips.filter((c) => c.status === "ready" && (!c.scene || c.scene === "other")).length,
+        archived: clips.filter((c) => c.status === "archived").length,
+        rejectedFootage: clips.filter((c) => c.disliked).length,
+      },
+      unusedReady: clips.filter((c) => c.status === "ready" && c.uses === 0 && c.height >= c.width && !c.edited && !c.duplicateOf).length,
+      filmedSinceSep10: clips.filter((c) => (c.capturedAt ?? "") >= "2026-09-10").length,
     },
     renders: {
       byStatus: count(renders, (r) => r.status),
@@ -1487,6 +1498,26 @@ if (!store.settings().fallbackCleanupV1) {
   const junk = store.renders().filter((r) => r.plan.aiNote && r.review === "pending");
   for (const r of junk) deleteRender(r.id);
   if (junk.length) console.log(`[cleanup] removed ${junk.length} video(s) made without the AI`);
+}
+
+// Once: the creator asked for the layover potty video (90c66a3b51308243) to be fixed: points that
+// answer "where", footage that shows them (their pee pad clip), a stronger opening. Back to Review.
+if (!paused && !store.settings().remakeLayoverV1) {
+  store.updateSettings({ remakeLayoverV1: true });
+  const id = "90c66a3b51308243";
+  const r = store.render(id);
+  if (r && !r.remadeAs) {
+    store.updateRender(id, {
+      review: "rejected",
+      reviewedAt: new Date().toISOString(),
+      rejectReason: "clip",
+      rejectNote:
+        "Every point must answer the headline's question directly, with a place (where do dogs pee: a pet relief area, " +
+        "outside before check-in, a pee pad in the carrier). Show each answer: use the clip with the pee pad for the pee " +
+        "pad point, and any clip of Lex outside or at a relief area. Open on a bright, moving shot, not a dim static one.",
+    });
+    setTimeout(() => remakeRejected(id, { force: true }).catch((err) => console.warn("[remake]", err)), 30_000);
+  }
 }
 
 // Once: the creator asked to read their TikTok (90 days of posts and comments) right away.

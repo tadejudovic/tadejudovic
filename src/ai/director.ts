@@ -327,7 +327,19 @@ export function fillByRepeating(segments: Segment[], minSeconds: number): Segmen
  * main clip stays). Small model, from what the AI wrote about each clip; each clip used once.
  */
 export async function pickBroll(points: string[], concept: string, main: Clip, pool: Clip[], setting?: string): Promise<(Clip | undefined)[]> {
-  const described = pool.filter((c) => c.ai?.summary && c.id !== main.id).slice(0, 40);
+  // The 40 clips most relevant to these points (their words in what's known about each clip), then
+  // the order given (unused and recent first).
+  const words = new Set(
+    (points.join(" ") + " " + concept).toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter((w) => w.length > 3),
+  );
+  const relevance = (c: Clip) =>
+    [c.ai?.summary, c.ai?.tags?.join(" "), c.note, c.scene].join(" ").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => words.has(w)).length;
+  const described = pool
+    .filter((c) => c.ai?.summary && c.id !== main.id)
+    .map((c, i) => ({ c, i, r: relevance(c) }))
+    .sort((a, b) => b.r - a.r || a.i - b.i)
+    .slice(0, 40)
+    .map((x) => x.c);
   if (!points.length || !described.length) return points.map(() => undefined);
   const r = await structured<{ points: { n: number; clip: number }[] }>({
     system: "You are a video editor picking b-roll for an educational short video.",
@@ -631,7 +643,7 @@ function savedText(posts: { text: string; views: number; saves: number; shares: 
  * (no "find the relief area" without a clip of one).
  */
 function footageText(pool: Clip[]): string {
-  const described = pool.filter((c) => c.ai?.summary).slice(0, 25);
+  const described = pool.filter((c) => c.ai?.summary).slice(0, 40);
   if (!described.length) return "";
   return (
     `\n\nOTHER FOOTAGE the points can cut to (each point plays over the clip that shows it best):\n` +

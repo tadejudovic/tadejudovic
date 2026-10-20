@@ -2086,11 +2086,40 @@ function latestBatch() {
   return [...new Set(state.renders.map((r) => r.batch).filter(Boolean))].sort().reverse()[0];
 }
 
+/** Ready tab filter: all kept videos, or one kind. */
+const READY_KINDS = [["all", "All"], ["tips", "Edu"], ["fun", "Fun"], ["inspire", "Inspo"], ["other", "Other"]];
+let readyKind = "all";
+try {
+  readyKind = localStorage.getItem("readyKind") || "all";
+} catch {}
+const kindOfRender = (r) => (["tips", "fun", "inspire"].includes(r.plan.format) ? r.plan.format : "other");
+
 function renderBatch() {
-  // Ready tab: every kept video, newest first.
-  const kept = state.renders.filter((r) => r.status === "done" && r.review === "approved").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  $("#ready-empty").hidden = kept.length > 0;
-  const unsaved = kept.filter((r) => !r.downloaded).length;
+  // Ready tab: every kept video, newest first, filtered by kind.
+  const allKept = state.renders.filter((r) => r.status === "done" && r.review === "approved").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const counts = Object.fromEntries(READY_KINDS.map(([k]) => [k, k === "all" ? allKept.length : allKept.filter((r) => kindOfRender(r) === k).length]));
+  if (readyKind !== "all" && !counts[readyKind]) readyKind = "all";
+  $("#ready-filter").hidden = allKept.length === 0;
+  $("#ready-filter").replaceChildren(
+    ...READY_KINDS.filter(([k]) => k === "all" || counts[k]).map(([k, label]) =>
+      h("button", {
+        type: "button",
+        class: `kind-chip${readyKind === k ? " on" : ""}`,
+        role: "tab",
+        "aria-selected": readyKind === k ? "true" : "false",
+        onclick: () => {
+          readyKind = k;
+          try {
+            localStorage.setItem("readyKind", k);
+          } catch {}
+          renderBatch();
+        },
+      }, `${label} ${counts[k]}`),
+    ),
+  );
+  const kept = readyKind === "all" ? allKept : allKept.filter((r) => kindOfRender(r) === readyKind);
+  $("#ready-empty").hidden = allKept.length > 0;
+  const unsaved = allKept.filter((r) => !r.downloaded).length;
   $("#ready-count").hidden = !unsaved;
   $("#ready-count").textContent = String(unsaved);
   $("#batch").replaceChildren(

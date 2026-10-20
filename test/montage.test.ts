@@ -51,3 +51,15 @@ test("back-to-back parts of one clip count as one long shot, and nothing already
   const own = out.filter((s) => s.clipId === "main");
   for (const s of own.slice(0, -1)) assert.ok(s.end <= 10 + 1e-9, "doesn't run into the later shot at 10s");
 });
+
+import { withOpener } from "../src/ai/director.ts";
+
+test("an educational video opens on the strongest footage, keeping its length", () => {
+  const opener = clip("plane", 8, [5, 7]);
+  const cut = [{ clipId: "walk", start: 10, end: 12.5, speed: 1 }, { clipId: "vet", start: 0, end: 4, speed: 1 }];
+  const out = withOpener(cut, opener, 2.5);
+  assert.deepEqual(out[0], { clipId: "plane", start: 5, end: 7.5, speed: 1 });
+  assert.deepEqual(out.slice(1), [{ clipId: "vet", start: 0, end: 4, speed: 1 }]);
+  const partly = withOpener([{ clipId: "walk", start: 0, end: 6, speed: 1 }], opener, 2);
+  assert.deepEqual(partly[1], { clipId: "walk", start: 2, end: 6, speed: 1 });
+});

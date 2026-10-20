@@ -135,6 +135,29 @@ export function brollPool(main: Clip, roundClips: Clip[] = []): Clip[] {
     .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || filmedWeek(b) - filmedWeek(a));
 }
 
+/** The footage that performs best: Lex in the backpack/carrier at the airport, or on the plane. */
+const STRONG_OPENING = /backpack|carrier|pet bag|in (a|the|his) bag/i;
+const PLANE = /^(inside the airplane|under the airplane seat)$/;
+
+/**
+ * What an educational video opens on: Lex in the backpack at the airport or on the plane, with a
+ * strong moment; unused footage first, then footage not opened on recently, the most recent first.
+ */
+export function openerFor(main: Clip, roundClips: Clip[] = []): Clip | undefined {
+  const skip = new Set([main.id, ...roundClips.map((c) => c.id)]);
+  const recentOpeners = new Set(store.renders().slice(0, 15).map((r) => r.plan.segments[0]?.clipId));
+  const best = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
+  const strong = (c: Clip) => PLANE.test(c.scene ?? "") || (/airport|gate|security|check-in/.test(c.scene ?? "") && STRONG_OPENING.test(c.ai?.summary ?? ""));
+  return store
+    .clips()
+    .filter(
+      (c) =>
+        !skip.has(c.id) && !recentOpeners.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width &&
+        !c.disliked && !c.edited && !c.duplicateOf && c.duration >= 2 && strong(c) && best(c) >= 0.5,
+    )
+    .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || filmedWeek(b) - filmedWeek(a) || best(b) - best(a))[0];
+}
+
 /** The country a clip was filmed in is switched off in Themes ("place:Portugal"). */
 export function placeOff(c: Clip): boolean {
   const country = countryOf(c.place);
@@ -584,7 +607,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, broll: brollPool(clip, chosen), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((opener) => ({ opener, broll: brollPool(clip, opener ? [...chosen, opener] : chosen) }))(openerFor(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
           };
           let p = await directClip(clip, direction);
           // The basics first (headline, points, pacing): a draft that breaks one goes back once with

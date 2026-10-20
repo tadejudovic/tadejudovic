@@ -249,20 +249,24 @@ async function loadVlogDays() {
       const panel = h("div", { class: "vlog-panel", hidden: true });
       btn.onclick = async () => {
         btn.disabled = true;
-        btn.textContent = "Picking moments…";
+        btn.textContent = "Picking…";
+        // Shown right under the day while the AI watches the clips, and an error stays there.
+        panel.hidden = false;
+        panel.replaceChildren(h("p", { class: "muted" }, "Picking the moments: the AI is watching this day's clips (up to a minute)…"));
         try {
           const proposal = await api("/api/vlog/propose", { method: "POST", body: { day: d.day } });
-          panel.hidden = false;
           renderVlogProposal(panel, proposal, () => {
             btn.textContent = "Being made";
             panel.hidden = true;
           });
-          btn.textContent = "Choose moments";
         } catch (err) {
-          toast(err.message || "Couldn't pick the moments");
-          btn.textContent = "Choose moments";
+          const msg = err.message || "Couldn't pick the moments.";
+          panel.replaceChildren(
+            h("p", { class: "vlog-error" }, /credit/i.test(msg) ? `${msg} Choosing moments needs the AI.` : `Couldn't pick the moments: ${msg}`),
+          );
         } finally {
           btn.disabled = false;
+          btn.textContent = "Choose moments";
         }
       };
       return h(

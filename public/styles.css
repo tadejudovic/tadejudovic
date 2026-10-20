@@ -797,3 +797,4 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .vlog-moment-side { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .vlog-thumbs-row { display: flex; gap: 6px; overflow-x: auto; }
 .vlog-thumbs-row img { width: 54px; height: 96px; object-fit: cover; border-radius: 6px; cursor: pointer; flex: none; }
+.vlog-error { color: #c62828; font-size: 14px; margin: 0; }

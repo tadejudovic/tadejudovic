@@ -444,24 +444,70 @@ export function fillWithClips(segments: Segment[], minSeconds: number, extras: C
 }
 
 /**
- * An inspirational video as a montage: the main clip's moment (at most 4.5s), then the best few
- * seconds of each fitting clip, up to 5 shots and about 15s, so it never sits on one uncut shot.
+ * An inspirational video as a montage: the main clip's moment (at most 2.5s), then the best 2s of
+ * each fitting clip, up to 8 shots and about 15s, so it never sits on one uncut shot.
  */
 export function montage(segments: Segment[], extras: Clip[], minSeconds: number): Segment[] {
   const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
   const first = segments[0];
   if (!first) return segments;
-  const out: Segment[] = [{ ...first, end: Math.min(first.end, first.start + 4.5 * (first.speed ?? 1)) }];
+  const out: Segment[] = [{ ...first, end: Math.min(first.end, first.start + 2.5 * (first.speed ?? 1)) }];
   for (const c of extras) {
-    if (out.length >= 5 || len(out) >= Math.max(minSeconds, 15)) break;
+    if (out.length >= 8 || len(out) >= Math.max(minSeconds, 15)) break;
     const m = [...(c.ai?.moments ?? c.moments ?? [])].sort((a, b) => b.score - a.score)[0];
-    const want = Math.min(3.5, c.duration);
+    const want = Math.min(2, c.duration);
     const mid = m ? (m.start + m.end) / 2 : c.duration / 2;
     const start = Math.max(0, Math.min(mid - want / 2, c.duration - want));
-    if (want >= 2) out.push({ clipId: c.id, start, end: start + want, speed: 1 });
+    if (want >= 1.5) out.push({ clipId: c.id, start, end: start + want, speed: 1 });
   }
   // Not enough other footage: the rest of the main clip as the AI cut it.
   return len(out) >= minSeconds - 0.5 ? out : segments;
+}
+
+/** The longest a shot stays on screen before the video cuts (a slowed-down payoff gets up to 3s). */
+export const MAX_SHOT = 2;
+
+/**
+ * Splits shots that hold too long into ~2s shots, keeping the video's length (so the text timing
+ * holds): other fitting clips' best moments are cut in between when there are any, and the clip's
+ * own footage jumps ahead past dead stretches when it has more than the shot uses.
+ */
+export function paceShots(segments: Segment[], clips: Map<string, Clip>, extras: Clip[]): Segment[] {
+  const used = new Set(segments.map((s) => s.clipId));
+  const spare = extras.filter((c) => !used.has(c.id) && c.duration >= 1.5);
+  const out: Segment[] = [];
+  for (const s of segments) {
+    const speed = s.speed ?? 1;
+    const shown = (s.end - s.start) / speed;
+    if (shown <= (speed < 1 ? 3 : MAX_SHOT) + 0.5) {
+      out.push(s);
+      continue;
+    }
+    const n = Math.ceil(shown / MAX_SHOT);
+    const piece = shown / n;
+    // Every other shot from another clip, while there are any.
+    const fromOthers = Math.min(spare.length, Math.floor(n / 2));
+    const own = n - fromOthers;
+    const clipLength = clips.get(s.clipId)?.duration ?? s.end;
+    // The window this shot's own footage is taken from: a little wider when the clip has more.
+    const windowEnd = Math.min(clipLength, Math.max(s.end, s.start + (s.end - s.start) * 1.6));
+    const step = own > 1 ? (windowEnd - s.start - piece * speed) / (own - 1) : 0;
+    const ownShots = Array.from({ length: own }, (_, j) => {
+      const start = s.start + j * Math.max(step, piece * speed);
+      return { ...s, start, end: Math.min(clipLength, start + piece * speed) };
+    });
+    for (let i = 0, o = 0; i < n; i++) {
+      const other = i % 2 === 1 && i / 2 < fromOthers + 0.5 ? spare.shift() : undefined;
+      if (other) {
+        const m = [...(other.ai?.moments ?? other.moments ?? [])].sort((a, b) => b.score - a.score)[0];
+        const len = Math.min(piece, other.duration);
+        const mid = m ? (m.start + m.end) / 2 : other.duration / 2;
+        const start = Math.max(0, Math.min(mid - len / 2, other.duration - len));
+        out.push({ clipId: other.id, start, end: start + len, speed: 1 });
+      } else if (ownShots[o]) out.push(ownShots[o++]);
+    }
+  }
+  return out;
 }
 
 function validateSegment(s: Segment, clips: Map<string, Clip>): Segment | null {
@@ -798,7 +844,7 @@ function inspireText(petName: string, audience: "pets" | "everyone" = "everyone"
       `later, he still sleeps on my feet", "Everyone said we couldn't bring him". No clichés like "living our best life".` +
       `\n- NEVER a joke, irony or a relatable gag (if a friend would reply "lol", it's a fun video, not this one): ` +
       `it gives a feeling (pride, gratitude, wonder, calm) or a thought worth keeping.` +
-      `\n- It's cut as a montage: this clip plus a few other beautiful moments of the journey, about 3s each. A ` +
+      `\n- It's cut as a montage: this clip plus other beautiful moments of the journey, about 2s each. A ` +
       `setup line at the start and a payoff line appearing around the middle, staying to the end.` +
       `\n- Post description: where we are in ${petName}'s journey, what it means to us, and an invitation ` +
       `(where would you take your dog?).`
@@ -822,7 +868,7 @@ function inspireText(petName: string, audience: "pets" | "everyone" = "everyone"
     `video, not this one. It has to give a feeling (hope, courage, calm, gratitude, longing) or a thought worth ` +
     `keeping, e.g. "A year ago this was just a screenshot / Today I'm standing in it", "You don't need a perfect ` +
     `plan / Just a first step", "The best things I own / are the places I've been".` +
-    `\n- It's cut as a montage: this clip plus a few other beautiful moments from the trip, about 3s each. Write ` +
+    `\n- It's cut as a montage: this clip plus other beautiful moments from the trip, about 2s each. Write ` +
     `for that: a setup line at the start, and the payoff line appearing around the middle and staying to the end.` +
     `\n- Post description: the most story-driven of all: where we are and what this chapter means, written so ` +
     `anyone relates, ending with an open question (e.g. "What's the trip you keep putting off?"). The dog can ` +
@@ -1086,7 +1132,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       `\n\nThe finished video should be ${ctx.minSeconds}–${ctx.maxSeconds}s (sum of (end-start)/speed), starting right ` +
       `on the action and ending where it can loop. Text must never cover ${ctx.petName}, a face or the main action: ` +
       `report where they are (subjectTop/subjectBottom) and keep any placed text outside that band. Overlays use y -1 and no arrow (pointX/pointY -1) unless the ` +
-      `format below says otherwise. Play footage at real speed (1). Slow motion only for one short ` +
+      `format below says otherwise. Pacing: cut every 1.5–2s (several segments, jumping past dead moments); one shot holds longer only while continuous action plays out. Play footage at real speed (1). Slow motion only for one short ` +
       `payoff moment that's better slowed down (a jump, a head tilt, a reaction), never to make the video longer; if ` +
       `the clip is short, use all of it at speed 1 (it's replayed to give time to read). Overlay text: the headline at most 9 words (two short lines), any line after it at most 5 words (one line), so everything on screen at once fits in 3 lines; plain words a stranger gets in a second (no airport codes like FLL or LAX, no jargon: city names), sentence case, no hashtags, no emoji; " / " starts ` +
       `a new line (e.g. "me: quick bath / ${ctx.petName}:").` +
@@ -1224,6 +1270,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     overlays.push({ text: ctx.cta.overlay, start: ctaStart, end: longer + 1, y: 0.6 });
     total = longer;
   }
+  // Pacing: no shot holds for more than about 2s (a slowed payoff up to 3s); the length stays the same.
+  segments = paceShots(segments, known, ctx.extraClips ?? []);
   const caption =
     ctx.format === "tips" && ctx.cta?.caption && !r.postCaption.toLowerCase().includes(ctx.cta.site.toLowerCase())
       ? `${r.postCaption.trim()}\n\n${ctx.cta.caption}`

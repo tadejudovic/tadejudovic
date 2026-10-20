@@ -515,9 +515,9 @@ export async function plan(
         const pick = spare
           .filter((c) => !taken.has(c.id) && outside.has(c.id) && c.id !== clip.id)
           .sort((a, b) => filmedWeek(b) - filmedWeek(a) || best(b) - best(a))
-          .slice(0, 12)
+          .slice(0, 16)
           .sort((a, b) => best(b) - best(a))
-          .slice(0, 5);
+          .slice(0, 7);
         for (const c of pick) taken.add(c.id);
         return pick;
       }
@@ -526,7 +526,7 @@ export async function plan(
         .filter((c) => !taken.has(c.id) && outside.has(c.id) === outside.has(clip.id))
         // Same situation first, then the most recently filmed (old footage only when nothing newer fits).
         .sort((a, b) => Number(b.scene === clip.scene) - Number(a.scene === clip.scene) || filmedWeek(b) - filmedWeek(a) || b.duration - a.duration)
-        .slice(0, 3);
+        .slice(0, 5);
       for (const c of pick) taken.add(c.id);
       return pick;
     };

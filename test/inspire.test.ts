@@ -47,5 +47,13 @@ test("basic checks catch airport codes and odd capitals in the headline", async 
   const bad = basicChecks(plan("Dog goes Cross country FLL LA"));
   assert.ok(bad.some((p) => p.includes("FLL")));
   assert.ok(bad.some((p) => p.includes("Cross")));
-  assert.deepEqual(basicChecks(plan("Lex rides the baggage belt to Tokyo")), []);
+  assert.deepEqual(basicChecks(plan("Lex rides the baggage belt to Tokyo"), "Tokyo, Japan"), []);
+});
+
+test("a place on screen must be where the clip was filmed", async () => {
+  const { basicChecks } = await import("../src/checks.ts");
+  const plan = (text: string) => ({ format: "inspire", segments: [{ clipId: "c", start: 0, end: 5 }], overlays: [{ text, start: 0, end: 6 }] }) as any;
+  assert.ok(basicChecks(plan("pov: you take an evening walk in nyc"), "Toronto, Canada").some((p) => p.includes("nyc")));
+  assert.ok(basicChecks(plan("An evening walk in Paris"), undefined).some((p) => p.includes("Paris")));
+  assert.deepEqual(basicChecks(plan("An evening walk in Toronto"), "Toronto, Ontario, Canada"), []);
 });

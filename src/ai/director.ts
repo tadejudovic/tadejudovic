@@ -852,7 +852,8 @@ function provenText(proven: ProvenCaption[], scene?: string, audience: "pets" | 
     `\n\nPROVEN CAPTIONS for this situation${scene ? ` ("${scene}")` : ""}: the on-screen text of the most-viewed ` +
     `TikToks in the same situation, from TikTok search ("pet video" = from pet accounts, "general" = from anyone). ` +
     `The creator's method is to take the one that best matches what happens in this clip and use it as is or with ` +
-    `small changes (names, details), because proven wording performs. ` +
+    `small changes (names, details), because proven wording performs. Its places, airlines and names are ` +
+    `someone else's: replace them with this clip's own, or leave them out. ` +
     (forEveryone
       ? `For THIS video prefer a "general" one (or turn a pet one into the shared human moment); `
       : `For this video prefer a pet one; `) +
@@ -1024,7 +1025,9 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       `These are frames from a ${clip.duration.toFixed(1)}s vertical clip of ${ctx.petName}` +
       (clip.capturedAt ? `, filmed ${clip.capturedAt.slice(0, 10)}` : "") +
       (clip.place ? ` in ${clip.place}` : "") +
-      `. Audio: ${clip.hasAudio ? "yes" : "none"}. Motion+loudness per 0.5s: ${energy || "n/a"}.` +
+      `. Place names in the text: ${clip.place ? `only ${clip.place} (or none)` : "none (where it was filmed isn't known)"}; never a ` +
+      `city or country from a proven caption or a guess from the frames.` +
+      ` Audio: ${clip.hasAudio ? "yes" : "none"}. Motion+loudness per 0.5s: ${energy || "n/a"}.` +
       (clip.note ? `\nThe creator's note about this footage: "${clip.note}"` : "") +
       (clip.ai?.summary ? `\nEarlier read of the clip: ${clip.ai.summary}` : "") +
       (ctx.brief ? `\nCreator's direction for today: ${ctx.brief}` : "") +

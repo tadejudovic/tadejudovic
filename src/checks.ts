@@ -12,7 +12,28 @@ const lengthOf = (s: { start: number; end: number; speed?: number }) => (s.end -
 const NARROW = /\b(your dog|dog owners?|pet parents?|pet owners?|if you have a dog|fur ?babies?)\b/i;
 const WHO_ASKS = /\b(you (always|all|keep) ask|people (always )?ask|everyone asks|#?1 question|number one question|most asked|in (our|my) dms)\b/i;
 
-export function basicChecks(plan: VideoPlan): string[] {
+/** Places people name on screen; checked against where the clip was really filmed. */
+const PLACES: [RegExp, string][] = [
+  [/\b(nyc|new york|manhattan|brooklyn)\b/i, "New York"],
+  [/\b(la|los angeles|hollywood)\b/, "Los Angeles"],
+  [/\b(miami|florida|fort lauderdale)\b/i, "Florida"],
+  [/\b(toronto)\b/i, "Toronto"],
+  [/\b(vancouver)\b/i, "Vancouver"],
+  [/\b(paris)\b/i, "Paris"],
+  [/\b(london)\b/i, "London"],
+  [/\b(rome)\b/i, "Rome"],
+  [/\b(barcelona|madrid)\b/i, "Spain"],
+  [/\b(lisbon|porto)\b/i, "Portugal"],
+  [/\b(amsterdam)\b/i, "Amsterdam"],
+  [/\b(berlin)\b/i, "Berlin"],
+  [/\b(tokyo|kyoto|osaka)\b/i, "Japan"],
+  [/\b(bali)\b/i, "Bali"],
+  [/\b(dubai)\b/i, "Dubai"],
+  [/\b(sydney|melbourne)\b/i, "Australia"],
+  [/\b(mexico city|cancun|tulum)\b/i, "Mexico"],
+];
+
+export function basicChecks(plan: VideoPlan, place?: string): string[] {
   const problems: string[] = [];
   const hook = (plan.overlays?.[0]?.text ?? plan.hook ?? "").trim();
   const edu = plan.format === "tips";
@@ -39,6 +60,16 @@ export function basicChecks(plan: VideoPlan): string[] {
       .flatMap((sentence) => sentence.split(/\s+/).slice(1))
       .filter((w) => /^[A-Z][a-z]{3,}$/.test(w) && !/^(Lex|Lufthansa|Delta|United|Southwest|Japan|Europe|Brazil|Portugal|Lisbon|Tokyo|Toronto|Paris|London|Mexico|Canada|America|Christmas|Sunday|Monday|Friday|Saturday)$/.test(w));
     if (midCaps.length >= 1 && o === (plan.overlays ?? [])[0]) problems.push(`"${o.text}" has odd capitals (${midCaps.join(", ")}): sentence case, capitals only for names.`);
+  }
+  // A place on screen must be where the clip was filmed (not one copied from someone else's caption).
+  for (const o of plan.overlays ?? []) {
+    for (const [re, name] of PLACES) {
+      const m = re.exec(o.text);
+      if (!m) continue;
+      const here = (place ?? "").toLowerCase();
+      if (!here || !(here.includes(m[0].toLowerCase()) || here.includes(name.toLowerCase())))
+        problems.push(`"${o.text}" names ${m[0]}, but this clip was ${place ? `filmed in ${place}` : "filmed somewhere unknown"}: name only where it really is, or no place.`);
+    }
   }
   // Points: short enough to read at a glance.
   for (const o of (plan.overlays ?? []).slice(1)) {

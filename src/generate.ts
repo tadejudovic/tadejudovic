@@ -569,14 +569,14 @@ export async function plan(
           let p = await directClip(clip, direction);
           // The basics first (headline, points, pacing): a draft that breaks one goes back once with
           // the exact problems, and the version with fewer problems is kept.
-          const problems = basicChecks(p);
+          const problems = basicChecks(p, clip.place);
           if (problems.length) {
             console.log(`[checks] ${kind} on ${clip.id}: ${problems.join(" | ")}`);
             const brief = [direction.brief, `THE LAST DRAFT BROKE THESE BASIC RULES, fix every one: ${problems.join(" ")}`].filter(Boolean).join("\n\n");
             const again = await directClip(clip, { ...direction, brief }).catch(() => undefined);
-            if (again && basicChecks(again).length < problems.length) p = again;
+            if (again && basicChecks(again, clip.place).length < problems.length) p = again;
           }
-          p.checks = basicChecks(p);
+          p.checks = basicChecks(p, clip.place);
           if (outside.has(clip.id)) p.outside = true;
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);

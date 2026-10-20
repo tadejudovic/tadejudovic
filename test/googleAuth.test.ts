@@ -7,7 +7,6 @@ process.env.DATA_DIR = path.join(os.tmpdir(), `lexstudio-auth-${process.pid}-${D
 process.env.GOOGLE_CLIENT_ID = "client-123";
 process.env.GOOGLE_CLIENT_SECRET = "secret";
 process.env.ALLOWED_EMAILS = "Owner@Example.com, salah@example.com";
-process.env.APP_PASSWORD = "old-password";
 const auth = await import("../src/auth.ts");
 
 /** Minimal stand-ins for Express's req/res. */
@@ -43,7 +42,7 @@ async function signIn(email: string) {
   return res;
 }
 
-test("Google sign-in replaces the password and only lets allowed accounts in", async () => {
+test("Google sign-in is the only way in, for allowed accounts only", async () => {
   assert.equal(auth.googleLogin, true);
   assert.equal(auth.gateEnabled, true);
 
@@ -68,10 +67,9 @@ test("Google sign-in replaces the password and only lets allowed accounts in", a
   assert.equal(passed, false);
   assert.equal(res.statusCode, 401);
 
-  // The old password no longer works once Google sign-in is on.
-  const pw = fakeRes();
-  auth.login({ ...fakeReq("/login"), body: { password: "old-password" } }, pw);
-  assert.equal(pw.cookies.pawcut_session, undefined);
+  // There is no password login at all.
+  assert.equal((auth as Record<string, unknown>).login, undefined);
+  assert.equal(auth.lockedOut, false);
 });
 
 test("a forged state is rejected", async () => {

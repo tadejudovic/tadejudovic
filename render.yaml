@@ -10,12 +10,10 @@ services:
       mountPath: /data
       sizeGB: 10
     envVars:
-      - key: APP_PASSWORD
-        sync: false # you type it in when deploying
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: GOOGLE_CLIENT_ID
-        sync: false # Google sign-in (see README); with ALLOWED_EMAILS it replaces the password
+        sync: false # Google sign-in, the only way in (see README); without it the app stays locked
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: ALLOWED_EMAILS

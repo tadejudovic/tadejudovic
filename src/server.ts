@@ -31,7 +31,7 @@ import { apifyEnabled, platformOf } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
-import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, login, loginPage, logout, requireAuth, signedInAs } from "./auth.ts";
+import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, listenHost, lockedOut, loginPage, logout, requireAuth, signedInAs } from "./auth.ts";
 import { aiOutOfCredit, monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, StoryDraft, TemplateId, VideoPlan } from "./types.ts";
 
@@ -48,7 +48,6 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10kb" }));
 app.get("/healthz", (_req, res) => res.send("ok"));
 app.get("/login", loginPage);
-app.post("/login", login);
 app.get("/logout", logout);
 app.get("/landing", (_req, res) => sendLanding(res)); // preview the public page while signed in
 app.get("/login/google", googleStart);
@@ -84,7 +83,7 @@ const h = (fn: Handler) => (req: Request, res: Response, next: NextFunction) =>
 
 // ---- Diagnostics ----------------------------------------------------------
 
-/** Everything needed to debug a problem remotely, in one copyable blob (behind the password gate). */
+/** Everything needed to debug a problem remotely, in one copyable blob (behind the sign-in gate). */
 app.get("/api/diagnostics", (_req, res) => {
   const count = <T,>(xs: T[], key: (x: T) => string) =>
     xs.reduce<Record<string, number>>((acc, x) => ((acc[key(x)] = (acc[key(x)] ?? 0) + 1), acc), {});
@@ -1658,15 +1657,12 @@ if (!paused && !store.settings().designRefreshV4) {
     .finally(() => (refreshing = false));
 }
 
-// Public by default only when the password gate is on.
-const host = process.env.HOST ?? (gateEnabled ? "0.0.0.0" : "127.0.0.1");
-if (!gateEnabled && !["127.0.0.1", "localhost", "::1"].includes(host)) {
-  console.error("Refusing to listen on a public address without APP_PASSWORD. Set APP_PASSWORD (or HOST=127.0.0.1).");
-  process.exit(1);
-}
+// Hosted: on all interfaces, behind Google sign-in (locked until it is set up).
+const host = listenHost;
+if (lockedOut) console.error("Google sign-in isn't set up (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ALLOWED_EMAILS): the app is locked, nobody can sign in.");
 app.listen(config.port, host, () => {
   console.log(`Rollcut running at ${config.appUrl}`);
   console.log(`  Google Photos: ${googleConfigured() ? "configured" : "not configured (set GOOGLE_CLIENT_ID/SECRET)"}`);
   console.log(`  AI director:   ${config.claude.enabled ? config.claude.model : "off (set ANTHROPIC_API_KEY)"}`);
-  console.log(`  Sign-in:       ${googleLogin ? "Google (allowed accounts only)" : gateEnabled ? "password" : "off (local only)"}`);
+  console.log(`  Sign-in:       ${googleLogin ? "Google (allowed accounts only)" : gateEnabled ? "locked (Google sign-in not set up)" : "off (local only)"}`);
 });

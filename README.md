@@ -120,23 +120,23 @@ Set three environment variables and the password login is replaced by "Sign in w
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: an OAuth client of type *Web application* from Google Cloud Console (APIs & Services → Credentials). Add `https://<your-domain>/login/google/callback` as an authorized redirect URI, once for every address you open the app on.
 - `ALLOWED_EMAILS`: the Google accounts that may sign in, comma-separated. Everyone else is refused, and removing an address signs that person out immediately.
 
-## Put it online behind a password (studio.lexintheair.com)
+## Put it online behind Google sign-in (studio.lexintheair.com)
 
 The app needs an always-on server with ffmpeg and a disk. Serverless hosts like Vercel can't run long video renders or the daily schedule. The repo ships a `Dockerfile` and a Render blueprint (`render.yaml`).
 
 1. **Deploy on [Render](https://render.com):** *New → Blueprint*, pick this GitHub repo and branch. When prompted, fill in:
-   - `APP_PASSWORD`: the password for the gate (use a long one);
+   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `ALLOWED_EMAILS` (see above): the only way in;
    - `ANTHROPIC_API_KEY`;
    - `TZ`: your time zone, e.g. `Europe/London`, so the morning batch runs at your local time.
 
    This creates an always-on web service (Starter plan) with a 10 GB persistent disk at `/data` for clips, renders and settings.
 2. **Add the domain in Render:** *Settings → Custom Domains → Add* `studio.lexintheair.com`. Render shows a target like `pawcut-xxxx.onrender.com`.
 3. **Point DNS at it.** lexintheair.com's DNS is at Namecheap: *Domain List → Manage → Advanced DNS → Add new record*, type `CNAME`, host `studio`, value = the Render target. Render issues the HTTPS certificate automatically.
-4. Open https://studio.lexintheair.com and sign in with `APP_PASSWORD`.
+4. Open https://studio.lexintheair.com and sign in with an allowed Google account.
 
-The gate covers every page, API call and media file. Sessions last 30 days, and changing `APP_PASSWORD` signs everyone out. Repeated wrong passwords are throttled. Pages are marked `noindex`. The server refuses to listen publicly without `APP_PASSWORD`.
+The gate covers every page, API call and media file. There is no password: only the Google accounts in `ALLOWED_EMAILS` get in, and removing one signs that person out at once. Sessions last 30 days. Pages are marked `noindex`. On a public address without Google sign-in set up, the app stays locked.
 
-The same image runs anywhere with a persistent volume (Railway, Fly.io, a VPS): `docker build -t pawcut . && docker run -p 3000:3000 -v pawcut-data:/data -e APP_PASSWORD=… -e ANTHROPIC_API_KEY=… pawcut`.
+The same image runs anywhere with a persistent volume (Railway, Fly.io, a VPS): `docker build -t pawcut . && docker run -p 3000:3000 -v pawcut-data:/data -e GOOGLE_CLIENT_ID=… -e GOOGLE_CLIENT_SECRET=… -e ALLOWED_EMAILS=… -e ANTHROPIC_API_KEY=… pawcut`.
 
 ## Costs and safety nets
 
@@ -176,7 +176,7 @@ DATA_DIR=/tmp/pc FOOTAGE_DIR=/dir/with/portrait.mp4+landscape.mov npx tsx test/f
 npm run typecheck
 ```
 
-Without `APP_PASSWORD` the server only listens on `127.0.0.1`.
+In development (no `NODE_ENV=production`, no Google sign-in) the server only listens on `127.0.0.1`, without a gate.
 
 ## Roadmap to a commercial product
 

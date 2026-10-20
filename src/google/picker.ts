@@ -43,7 +43,8 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (res.status === 204 ? {} : await res.json()) as T;
 }
 
-export function createSession(maxItems = 200) {
+/** Up to 500 per pick (Google allows 2,000); the disk guard stops downloads if space runs low. */
+export function createSession(maxItems = 500) {
   return call<PickerSession>("/sessions", {
     method: "POST",
     body: JSON.stringify({ pickingConfig: { maxItemCount: String(maxItems) } }),

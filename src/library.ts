@@ -65,17 +65,53 @@ export function enqueueClip(opts: {
   return clip;
 }
 
+/** Picked items' links expire about an hour after picking: they're downloaded right away, two at a
+ * time (network, not CPU), while the analysis follows in the heavy lane at its own pace. */
+const DOWNLOADS_AT_ONCE = 2;
+const MIN_FREE_FOR_DOWNLOAD = 1.5 * 1024 ** 3;
+let downloading = 0;
+const downloadsWaiting: (() => void)[] = [];
+async function downloadSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (downloading >= DOWNLOADS_AT_ONCE) await new Promise<void>((r) => downloadsWaiting.push(r));
+  downloading++;
+  try {
+    return await fn();
+  } finally {
+    downloading--;
+    downloadsWaiting.shift()?.();
+  }
+}
+const freeDisk = () => {
+  try {
+    const s = fs.statfsSync(config.dataDir);
+    return s.bavail * s.bsize;
+  } catch {
+    return Infinity;
+  }
+};
+
 export function importPicked(items: PickedMediaItem[]) {
   const fresh = items.filter((it) => !store.hasSource(it.id));
-  return fresh.map((item) =>
-    enqueueClip({
+  return fresh.map((item) => {
+    let downloaded: Promise<void> | undefined;
+    const clip = enqueueClip({
       source: "google_photos",
       sourceId: item.id,
       filename: item.mediaFile.filename,
       capturedAt: item.createTime,
-      fetch: (dest) => download(item, dest),
-    }),
-  );
+      // The clip's turn can come at once (an idle lane): one tick, and the download below is set.
+      fetch: async (dest) => {
+        await Promise.resolve();
+        return downloaded ?? download(item, dest);
+      },
+    });
+    downloaded = downloadSlot(async () => {
+      if (freeDisk() < MIN_FREE_FOR_DOWNLOAD) throw new Error("The server's disk is nearly full: pick these again after making room (or a bigger disk on Render).");
+      await download(item, clip.file);
+    });
+    downloaded.catch(() => {}); // reported when the clip's turn comes
+    return clip;
+  });
 }
 
 export async function analyzeClip(id: string) {

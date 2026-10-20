@@ -11,7 +11,7 @@ const { awaitingReview } = await import("../src/scheduler.ts");
 const clip = (id: string, capturedAt: string, extra: object = {}) =>
   store.addClip({ id, source: "upload", filename: "x.mp4", file: "/x", kind: "video", importedAt: "2020-01-01T00:00:00Z", capturedAt, duration: 8, width: 1080, height: 1920, hasAudio: true, uses: 0, status: "ready", ...extra } as any);
 
-test("days with 3+ usable vertical clips are offered, newest first, thumbnails in filming order", () => {
+test("days with enough usable vertical clips are offered, newest first, thumbnails in filming order", () => {
   clip("a3", "2026-10-01T18:00:00Z", { place: "Lisbon, Portugal" });
   clip("a1", "2026-10-01T08:00:00Z");
   clip("a2", "2026-10-01T12:00:00Z");
@@ -21,7 +21,7 @@ test("days with 3+ usable vertical clips are offered, newest first, thumbnails i
   clip("c1", "2026-10-07T08:00:00Z");
   clip("c2", "2026-10-07T09:00:00Z");
   clip("c3", "2026-10-07T10:00:00Z");
-  const days = vlogDays();
+  const days = vlogDays(3);
   assert.deepEqual(days.map((d) => d.day), ["2026-10-07", "2026-10-01"]);
   assert.deepEqual(days[1].thumbs, ["a1", "a2", "a3"]);
   assert.deepEqual(days[1].places, ["Lisbon, Portugal"]);
@@ -35,4 +35,8 @@ test("videos made on request don't hold back the daily ones", () => {
   assert.equal(awaitingReview(), before);
   add("fun", "fun");
   assert.equal(awaitingReview(), before + 1);
+});
+
+test("a day vlog needs the whole day: at least 15 clips by default", () => {
+  assert.deepEqual(vlogDays(), []);
 });

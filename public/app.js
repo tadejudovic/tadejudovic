@@ -255,7 +255,7 @@ async function loadVlogDays() {
   const box = $("#vlog-days");
   box.replaceChildren(h("p", { class: "muted" }, "Looking for days…"));
   const { days, made } = await api("/api/vlog/days");
-  if (!days.length) return box.replaceChildren(h("p", { class: "muted" }, "No day has 3 or more vertical clips yet."));
+  if (!days.length) return box.replaceChildren(h("p", { class: "muted" }, "No day has 15 or more vertical clips yet. A day vlog needs the whole day in quick moments."));
   const fmt = (d) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
   box.replaceChildren(
     ...days.map((d) => {

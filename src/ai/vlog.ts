@@ -16,7 +16,10 @@ const usable = (c: Clip) =>
   c.status === "ready" && c.kind === "video" && c.height >= c.width && !c.edited && !c.duplicateOf && c.duration >= 2;
 
 /** Days with enough footage for a vlog, newest first. */
-export function vlogDays(min = 3): { day: string; clips: number; places: string[]; thumbs: string[]; minutes: number }[] {
+/** A day vlog is the whole day in quick moments: only days with at least this many clips. */
+export const VLOG_MIN_CLIPS = 15;
+
+export function vlogDays(min = VLOG_MIN_CLIPS): { day: string; clips: number; places: string[]; thumbs: string[]; minutes: number }[] {
   const byDay = new Map<string, Clip[]>();
   for (const c of store.clips()) {
     const d = dayOf(c);
@@ -46,7 +49,7 @@ export interface VlogProposal {
   others: { clipId: string; duration: number; filmed?: string }[];
 }
 
-export async function planDayVlog(day: string, targetSeconds = 30, clipIds?: string[]): Promise<VideoPlan> {
+export async function planDayVlog(day: string, targetSeconds = 40, clipIds?: string[]): Promise<VideoPlan> {
   return buildDayVlog(await proposeDayVlog(day, targetSeconds, clipIds));
 }
 
@@ -58,13 +61,15 @@ export function dayClips(day: string): Clip[] {
     .sort((a, b) => (a.capturedAt ?? "").localeCompare(b.capturedAt ?? ""));
 }
 
-export async function proposeDayVlog(day: string, targetSeconds = 30, clipIds?: string[]): Promise<VlogProposal> {
+export async function proposeDayVlog(day: string, targetSeconds = 40, clipIds?: string[]): Promise<VlogProposal> {
   const { petName, handle, story } = store.settings();
   // Only the clips the creator kept, when they chose.
   const clips = dayClips(day).filter((c) => !clipIds?.length || clipIds.includes(c.id));
   if (clips.length < 2) throw new Error("Pick at least two clips for the vlog.");
   // At most 12, spread over the day when there are more.
-  const shown = clips.length <= 12 ? clips : Array.from({ length: 12 }, (_, i) => clips[Math.floor((i * clips.length) / 12)]);
+  // At most 30 looked at, spread over the day when there are more.
+  const shown = clips.length <= 30 ? clips : Array.from({ length: 30 }, (_, i) => clips[Math.floor((i * clips.length) / 30)]);
+  const want = Math.min(20, Math.max(2, Math.round(shown.length * 0.75)));
 
   const content: Anthropic.Beta.BetaContentBlockParam[] = [];
   for (const [i, c] of shown.entries()) {
@@ -84,11 +89,13 @@ export async function proposeDayVlog(day: string, targetSeconds = 30, clipIds?: 
     type: "text",
     text:
       `These are all the clips ${petName}${handle ? ` (${handle})` : ""} and their human filmed on ${day}, in order. Make ` +
-      `a day-in-the-life vlog of about ${targetSeconds}s: pick the moments that tell the day (in the order they ` +
-      `happened, skip dull or repetitive ones, 2–4s each), the part of each clip to use (start/end seconds inside it), ` +
-      `a hook that stays on top the whole video and makes people want to see the day (e.g. "A day flying ` +
-      `${petName} to Lisbon", "24 hours in Tokyo with a dog"), and for each moment a short line (3–7 words, like a ` +
-      `vlogger's note: "6am: airport zoomies", "first espresso, he wants some"). ` +
+      `a day-in-the-life vlog of about ${targetSeconds}s, fast-paced: pick about ${want} moments that tell the whole day ` +
+      `(in the order they happened, one per clip, skipping only the truly dull or repetitive ones), the part of each ` +
+      `clip to use (start/end seconds inside it: 1–3s, the instant something happens), and a hook that stays on top ` +
+      `the whole video and makes people want to see the day (e.g. "A day flying ${petName} to Lisbon", "24 hours in ` +
+      `Tokyo with a dog"). Give a short line (3–7 words, like a vlogger's note: "6am: airport zoomies", "first ` +
+      `espresso, he wants some") to only the 5–6 moments that carry the story; leave the text empty for the rest, ` +
+      `so the quick cuts breathe. ` +
       `Then the post description: the day's story in a few sentences, in the creator's voice, ending with a question; ` +
       `no hashtags. And exactly 3 hashtags without #.` +
       (story ? `\nThe account's story: ${story}` : ""),
@@ -134,7 +141,7 @@ export async function proposeDayVlog(day: string, targetSeconds = 30, clipIds?: 
   if (picked.length < 2) throw new Error("Couldn't build a vlog from that day's clips.");
   const moments = picked.map(({ m, clip }) => {
     const start = Math.max(0, Math.min(m.start, clip.duration - 1.5));
-    const end = Math.min(clip.duration, Math.max(start + 1.5, Math.min(m.end, start + 5)));
+    const end = Math.min(clip.duration, Math.max(start + 1, Math.min(m.end, start + 3)));
     return { clipId: clip.id, start, end, text: m.text.trim(), use: true };
   });
   const used = new Set(moments.map((m) => m.clipId));

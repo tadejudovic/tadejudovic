@@ -472,7 +472,14 @@ export const MAX_SHOT = 2;
  * holds): other fitting clips' best moments are cut in between when there are any, and the clip's
  * own footage jumps ahead past dead stretches when it has more than the shot uses.
  */
-export function paceShots(segments: Segment[], clips: Map<string, Clip>, extras: Clip[]): Segment[] {
+export function paceShots(input: Segment[], clips: Map<string, Clip>, extras: Clip[]): Segment[] {
+  // Back-to-back parts of the same clip play as one shot (no visible cut), so they count as one.
+  const segments: Segment[] = [];
+  for (const s of input) {
+    const last = segments.at(-1);
+    if (last && last.clipId === s.clipId && (last.speed ?? 1) === (s.speed ?? 1) && Math.abs(last.end - s.start) < 0.15 && !last.caption && !s.caption) last.end = s.end;
+    else segments.push({ ...s });
+  }
   const used = new Set(segments.map((s) => s.clipId));
   const spare = extras.filter((c) => !used.has(c.id) && c.duration >= 1.5);
   const out: Segment[] = [];
@@ -488,13 +495,15 @@ export function paceShots(segments: Segment[], clips: Map<string, Clip>, extras:
     // Every other shot from another clip, while there are any.
     const fromOthers = Math.min(spare.length, Math.floor(n / 2));
     const own = n - fromOthers;
+    // The window this shot's own footage comes from: a little past its end when the clip has more,
+    // but never into footage another shot of the video already shows (no repeats).
     const clipLength = clips.get(s.clipId)?.duration ?? s.end;
-    // The window this shot's own footage is taken from: a little wider when the clip has more.
-    const windowEnd = Math.min(clipLength, Math.max(s.end, s.start + (s.end - s.start) * 1.6));
-    const step = own > 1 ? (windowEnd - s.start - piece * speed) / (own - 1) : 0;
+    const nextUsed = Math.min(clipLength, ...segments.filter((x) => x !== s && x.clipId === s.clipId && x.start >= s.end - 0.05).map((x) => x.start));
+    const windowEnd = Math.max(s.end, Math.min(nextUsed, s.start + (s.end - s.start) * 1.6));
+    const step = own > 1 ? Math.max(piece * speed, (windowEnd - s.start - piece * speed) / (own - 1)) : 0;
     const ownShots = Array.from({ length: own }, (_, j) => {
-      const start = s.start + j * Math.max(step, piece * speed);
-      return { ...s, start, end: Math.min(clipLength, start + piece * speed) };
+      const start = s.start + j * step;
+      return { ...s, start, end: Math.min(windowEnd, start + piece * speed) };
     });
     for (let i = 0, o = 0; i < n; i++) {
       const other = i % 2 === 1 && i / 2 < fromOthers + 0.5 ? spare.shift() : undefined;

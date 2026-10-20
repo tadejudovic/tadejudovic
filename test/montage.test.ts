@@ -37,3 +37,17 @@ test("short shots and a slowed payoff are left alone", () => {
   const cut = [{ clipId: "main", start: 0, end: 2, speed: 1 }, { clipId: "main", start: 4, end: 5.5, speed: 0.5 }];
   assert.deepEqual(paceShots(cut, new Map(), []), cut);
 });
+
+test("back-to-back parts of one clip count as one long shot, and nothing already shown repeats", () => {
+  const clips = new Map([["main", clip("main", 30)]]);
+  const cut = [
+    { clipId: "main", start: 0, end: 3, speed: 1 },
+    { clipId: "main", start: 3, end: 6, speed: 1 },
+    { clipId: "main", start: 6, end: 9, speed: 1 },
+    { clipId: "main", start: 10, end: 11, speed: 1 },
+  ];
+  const out = paceShots(cut, clips, [clip("a", 6), clip("b", 6)]);
+  assert.ok(out.filter((s) => s.clipId !== "main").length >= 2, "other clips cut in");
+  const own = out.filter((s) => s.clipId === "main");
+  for (const s of own.slice(0, -1)) assert.ok(s.end <= 10 + 1e-9, "doesn't run into the later shot at 10s");
+});

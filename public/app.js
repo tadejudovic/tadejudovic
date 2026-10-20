@@ -649,10 +649,11 @@ async function refreshRenders() {
 const REASON_LABEL = { text: "the text", clip: "the clip", edit: "the cut", other: "" };
 const stack = { shownId: null, node: null, history: [], whyFor: null };
 
-const inProgress = (r) => r.status === "queued" || r.status === "rendering";
+// Spares are made in the background and kept out of sight until they step in.
+const inProgress = (r) => !r.standby && (r.status === "queued" || r.status === "rendering");
 
 function toReview() {
-  return state.renders.filter((r) => r.status === "done" && r.review === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return state.renders.filter((r) => r.status === "done" && r.review === "pending" && !r.standby).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 /** Why there's nothing to make a round from, in plain numbers. */

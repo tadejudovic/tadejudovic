@@ -29,32 +29,65 @@ export function keptToday(kind: PostFormat): number {
   return store.renders().filter((r) => daily(r) && r.plan.format === kind && r.review === "approved" && Date.parse(r.reviewedAt ?? "") >= start).length;
 }
 
-/** Videos of this kind being made or waiting in Review (a remake being written counts too). */
+/** Being made, waiting in Review, or (rejected) with its remake being written. */
+const inFlight = (r: Render) =>
+  r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending") || (r.review === "rejected" && r.remadeAs === "pending");
+
+/** Videos of this kind being made or waiting in Review (spares on standby not counted). */
 export function waitingOf(kind: PostFormat): number {
-  return store
-    .renders()
-    .filter(
-      (r) =>
-        daily(r) &&
-        r.plan.format === kind &&
-        (r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending") || (r.review === "rejected" && r.remadeAs === "pending")),
-    ).length;
+  return store.renders().filter((r) => daily(r) && r.plan.format === kind && inFlight(r) && !r.standby).length;
+}
+
+/** Spares of this kind: made (or being made) in the background, out of Review. */
+export function sparesOf(kind: PostFormat): Render[] {
+  return store.renders().filter((r) => daily(r) && r.plan.format === kind && r.standby && r.review === "pending" && r.status !== "error");
 }
 
 /**
- * The kinds that need a new video now: not kept enough today and nothing of theirs waiting. Right
- * after a rejection without a reason, its kind waits a minute: a reason picked just after the swipe
- * makes a remake that fixes it instead.
+ * What to make now, for a kind not kept enough today: the video for Review if nothing of the kind is
+ * waiting (and no spare can step in), else one spare on standby, so a rejection is replaced at once.
+ * Right after a rejection without a reason, its kind waits a minute: a reason picked just after the
+ * swipe makes a remake that fixes it instead.
  */
-export function kindsToMake(now = Date.now()): PostFormat[] {
+export function toMake(now = Date.now()): { kind: PostFormat; standby: boolean }[] {
   const mix = store.settings().dailyMix;
-  return DAY_KINDS.filter(([kind, key]) => {
-    if (keptToday(kind) >= (mix[key] ?? 0) || waitingOf(kind) > 0) return false;
+  const out: { kind: PostFormat; standby: boolean }[] = [];
+  for (const [kind, key] of DAY_KINDS) {
+    if (keptToday(kind) >= (mix[key] ?? 0)) continue;
     const justRejected = store
       .renders()
-      .some((r) => daily(r) && r.plan.format === kind && r.review === "rejected" && !r.rejectReason && now - Date.parse(r.reviewedAt ?? "") < 60_000);
-    return !justRejected;
-  }).map(([kind]) => kind);
+      .some((r) => daily(r) && r.plan.format === kind && r.review === "rejected" && !r.rejectReason && !r.rejectedBy && now - Date.parse(r.reviewedAt ?? "") < 60_000);
+    if (justRejected) continue;
+    const waiting = waitingOf(kind);
+    const spares = sparesOf(kind).length;
+    if (!waiting && !spares) out.push({ kind, standby: false });
+    else if (waiting && !spares) out.push({ kind, standby: true });
+  }
+  // The videos for Review first, then the spares.
+  return out.sort((a, b) => Number(a.standby) - Number(b.standby));
+}
+
+/** The kinds that need a video for Review now (nothing waiting, no spare). */
+export function kindsToMake(now = Date.now()): PostFormat[] {
+  return toMake(now).filter((x) => !x.standby).map((x) => x.kind);
+}
+
+/**
+ * A kind with nothing waiting in Review gets its spare at once (the finished one first). Called
+ * after every review, so a rejected video is replaced without waiting.
+ */
+export function promoteSpares(): number {
+  const mix = store.settings().dailyMix;
+  let n = 0;
+  for (const [kind, key] of DAY_KINDS) {
+    if (keptToday(kind) >= (mix[key] ?? 0) || waitingOf(kind) > 0) continue;
+    const spare = sparesOf(kind).sort((a, b) => Number(b.status === "done") - Number(a.status === "done") || a.createdAt.localeCompare(b.createdAt))[0];
+    if (spare) {
+      store.updateRender(spare.id, { standby: false });
+      n++;
+    }
+  }
+  return n;
 }
 
 /** Every kind kept for today. */

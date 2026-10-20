@@ -45,3 +45,28 @@ test("recent footage first: a situation with only old clips waits behind one fil
   const newOne = clip("new", scenes[1], "2026-10-12T10:00:00Z");
   assert.deepEqual(pickBySituation([oldOne, newOne], 1).map((c) => c.id), ["new"]);
 });
+
+test("each kind not kept has a spare on standby; a rejection brings it in at once", async () => {
+  const { toMake, promoteSpares, waitingOf, sparesOf } = await import("../src/daySet.ts");
+  // A fresh day for this test: everything before counts as yesterday.
+  store.updateSettings({ countFrom: new Date().toISOString() } as any);
+  for (const r of store.renders()) store.updateRender(r.id, { review: "rejected", rejectReason: "text", remadeAs: undefined, reviewedAt: "2020-01-01T00:00:00Z" } as any);
+  assert.deepEqual(toMake().map((x) => `${x.kind}${x.standby ? "+" : ""}`), ["tips", "fun", "inspire"]);
+  add("vt", "tips", "pending");
+  // The one for Review is there: next comes its spare.
+  assert.deepEqual(toMake().find((x) => x.kind === "tips"), { kind: "tips", standby: true });
+  add("st", "tips", "pending", { standby: true });
+  assert.equal(toMake().find((x) => x.kind === "tips"), undefined);
+  assert.equal(waitingOf("tips"), 1);
+  assert.equal(sparesOf("tips").length, 1);
+  // Rejected (with a reason): the spare steps in straight away.
+  store.updateRender("vt", { review: "rejected", rejectReason: "text", reviewedAt: new Date().toISOString() });
+  assert.equal(promoteSpares(), 1);
+  assert.equal(store.render("st")!.standby, false);
+  assert.equal(waitingOf("tips"), 1);
+  // ...and a new spare is made in the background.
+  assert.deepEqual(toMake().find((x) => x.kind === "tips"), { kind: "tips", standby: true });
+  // Kept: no more for that kind today, spares included.
+  store.updateRender("st", { review: "approved", reviewedAt: new Date().toISOString() });
+  assert.equal(toMake().find((x) => x.kind === "tips"), undefined);
+});

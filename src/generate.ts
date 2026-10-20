@@ -3,7 +3,7 @@ import path from "node:path";
 import { cloneVoice, deleteVoice, speak } from "./voice/elevenlabs.ts";
 import { config } from "./config.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
-import { waitingOf } from "./daySet.ts";
+import { promoteSpares, sparesOf, waitingOf } from "./daySet.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
@@ -1043,12 +1043,15 @@ export async function editorPass(id: string, duration: number): Promise<void> {
     setAside(v.issues.join("; "), "text", "text_fixed");
     const fresh = queueRender(plan, r.options, r.batch, { countUse: false });
     store.updateRender(id, { remadeAs: fresh.id });
+    if (r.standby) store.updateRender(fresh.id, { standby: true });
     console.log(`[editor] ${id}: text fixed → ${fresh.id}`);
     return;
   }
   // Footage, cut or pacing. Weak visuals (a dull opening, footage that doesn't show the points): other
   // footage; otherwise a new cut of the same footage.
   setAside(v.remakeBrief || v.issues.join("; "), v.parts.hook.visual < 7 || v.parts.body.visual < 6 ? "clip" : "edit", "remade");
+  // A spare that passed steps in for the one set aside; the remake becomes the new spare.
+  if (!r.standby) promoteSpares();
   const fresh = await remakeRejected(id, { force: true, editorPass: pass + 1 }).catch(() => undefined);
   if (!fresh) deliverBest(id, base); // no footage left, or the day's cap: the best so far goes on
 }
@@ -1237,9 +1240,10 @@ export async function remakeRejected(id: string, { force = false, editorPass = 0
   // also without a reason; videos made on request (stories, vlogs) aren't.
   if (!r || r.review !== "rejected" || r.remadeAs || !r.rejectReason || r.plan.format === "story" || r.plan.collab) return undefined;
   if (!videosLeftToday()) return undefined;
-  // A new one of its kind is already on its way (the reason came after the next was started): the
-  // reason still counts as feedback, but no second video of the kind.
-  if (!force && r.plan.format && waitingOf(r.plan.format) > 0) return undefined;
+  // Its kind already has a video in Review and a spare (the reason came after they were made): the
+  // reason still counts as feedback, but no third video of the kind.
+  const kindOf = r.plan.format;
+  if (!force && kindOf && waitingOf(kindOf) > 0 && sparesOf(kindOf).length > 0) return undefined;
   if (!config.claude.enabled || !aiAvailable()) return undefined;
   const depth = (r.plan.remakeDepth ?? 0) + 1;
   if (depth > 3) return undefined;
@@ -1275,6 +1279,8 @@ export async function remakeRejected(id: string, { force = false, editorPass = 0
     const p = plans[0];
     if (!p) throw new Error("no plan");
     const fresh = queueRender({ ...p, remakeOf: r.id, remakeDepth: depth, ...(editorPass ? { editorPass } : {}) }, options, localDate(new Date()));
+    // A spare already stepped in for the rejected one: this becomes the new spare.
+    if (kindOf && (r.standby || waitingOf(kindOf) > 0)) store.updateRender(fresh.id, { standby: true });
     store.updateRender(id, { remadeAs: fresh.id });
     console.log(`[remake] ${r.id} (${r.rejectReason}) → ${fresh.id}`);
     return fresh;

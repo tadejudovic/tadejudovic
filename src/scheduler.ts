@@ -5,7 +5,7 @@ import { plan, queueRender, isPortrait, onTopic, outsideClips, noteInspireIssue,
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { syncProfiles } from "./postMatch.ts";
 import { localDate, videosLeftToday } from "./dailyLimit.ts";
-import { daySetDone, kindsToMake } from "./daySet.ts";
+import { daySetDone, promoteSpares, toMake } from "./daySet.ts";
 import { learnFromTikTok } from "./audience.ts";
 
 /**
@@ -16,7 +16,7 @@ export function awaitingReview(): number {
   // Videos made on request (stories, day vlogs) don't count here.
   return store
     .renders()
-    .filter((r) => r.plan.format !== "story" && (r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending"))).length;
+    .filter((r) => r.plan.format !== "story" && !r.standby && (r.status === "queued" || r.status === "rendering" || (r.status === "done" && r.review === "pending"))).length;
 }
 
 /**
@@ -125,7 +125,9 @@ async function runDue({ afterReview = false } = {}) {
   // The day's set: a video of each kind not kept yet waits in Review, from midnight on, so they're
   // ready in the morning. Failures retry every 10 minutes (or as soon as more clips are sorted).
   const retry = Date.now() - lastAttempt > 10 * 60_000 || (lastRoundError !== null && usableClips() > 0);
-  if (!batchRunning && kindsToMake().length && videosLeftToday() > 0 && (afterReview || retry)) {
+  // A kind with nothing waiting gets its spare at once; then what's still missing is made.
+  promoteSpares();
+  if (!batchRunning && toMake().length && videosLeftToday() > 0 && (afterReview || retry)) {
     lastAttempt = Date.now();
     try {
       const r = await runDailyBatch({ force: true });
@@ -161,8 +163,9 @@ export async function runDailyBatch(_opts: { force?: boolean } = {}) {
   roundStage = "Starting…";
   const date = today();
   try {
-    const kinds = kindsToMake();
-    if (!kinds.length) return { renders: [], skipped: daySetDone() ? "today's set is done" : "one of each is waiting for review" };
+    promoteSpares();
+    const kinds = toMake();
+    if (!kinds.length) return { renders: [], skipped: daySetDone() ? "today's set is done" : "one of each is waiting for review, with a spare" };
     if (!videosLeftToday()) return { renders: [], skipped: "daily video limit reached" };
     // Pick up anything added to the albums since the last check, and let it finish analyzing.
     // Listing a big album takes a while: only wait for it when there's nothing to make videos from yet.
@@ -190,10 +193,11 @@ export async function runDailyBatch(_opts: { force?: boolean } = {}) {
     const options: RenderOptions = { keepOriginalAudio: true, textStyle, textSize, fontId };
     const renders: ReturnType<typeof queueRender>[] = [];
     const failures: string[] = [];
-    // One kind at a time, each starting to render as soon as its text is written.
-    for (const kind of kinds) {
+    // One at a time, each starting to render as soon as its text is written: the videos for Review
+    // first, then the spares (quietly, in the background).
+    for (const { kind, standby } of kinds) {
       if (!videosLeftToday()) break;
-      roundStage = `Writing the ${kind === "tips" ? "educational" : kind === "inspire" ? "inspirational" : "fun"} video…`;
+      roundStage = standby ? null : `Writing the ${kind === "tips" ? "educational" : kind === "inspire" ? "inspirational" : "fun"} video…`;
       try {
         const { plans } = await plan({
           template: auto.template,
@@ -207,7 +211,9 @@ export async function runDailyBatch(_opts: { force?: boolean } = {}) {
         });
         const p = plans.find((x) => x.format === kind);
         if (!p) throw new Error(`the ${kind} video couldn't be planned`);
-        renders.push(queueRender(p, options, date));
+        const made = queueRender(p, options, date);
+        if (standby) store.updateRender(made.id, { standby: true });
+        renders.push(made);
         if (kind === "inspire") noteInspireIssue(null);
       } catch (err) {
         failures.push(`${kind}: ${(err as Error).message}`);
@@ -215,7 +221,7 @@ export async function runDailyBatch(_opts: { force?: boolean } = {}) {
       }
     }
     store.updateAuto({ lastBatchDate: date });
-    console.log(`[scheduler] made ${renders.length} video(s) for today's set (${kinds.join(", ")})${failures.length ? `; failed: ${failures.join("; ")}` : ""}`);
+    console.log(`[scheduler] made ${renders.length} video(s) for today's set (${kinds.map((k) => `${k.kind}${k.standby ? " spare" : ""}`).join(", ")})${failures.length ? `; failed: ${failures.join("; ")}` : ""}`);
     if (!renders.length && failures.length) throw new Error(failures.join("; "));
     return { renders, warning: failures.length ? failures.join("; ") : undefined };
   } finally {

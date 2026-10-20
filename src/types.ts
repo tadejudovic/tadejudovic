@@ -309,6 +309,8 @@ export interface Render {
   rejectNote?: string;
   /** Rejected by the editor's review (not by the creator). */
   rejectedBy?: "editor";
+  /** A spare: made in the background and kept out of Review until the one of its kind is rejected. */
+  standby?: boolean;
   /** The editor's review of the finished video. */
   editor?: EditorReview;
   reviewedAt?: string;

@@ -97,6 +97,7 @@ export interface Settings {
   remakePottyV1?: boolean;
   scanSinceSep10?: boolean;
   audienceFirstRead?: boolean;
+  sparesCapV1?: boolean;
   /** What people search for before finding the account (TikTok search analytics), grouped into topics. */
   searchTopics?: SearchTopic[];
   searchTopicsAt?: string;

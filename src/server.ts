@@ -16,6 +16,7 @@ import { previewFor } from "./media/preview.ts";
 import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playbackPaused, seedBandwidth } from "./bandwidth.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { learnFromTikTok } from "./audience.ts";
+import { promoteSpares } from "./daySet.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
@@ -867,6 +868,8 @@ app.patch("/api/renders/:id", (req, res) => {
   syncClipUses(r.id);
   // A reason given for a rejection: a new version that fixes it, right away. Without one, the day's
   // set makes another of its kind a minute later (see daySet.ts).
+  // The kind's spare steps in at once, so the next video is already there.
+  if (now.review === "rejected") promoteSpares();
   if (now.review === "rejected" && now.rejectReason && !now.remadeAs) remakeRejected(r.id).catch((err) => console.warn("[remake]", err));
   // Last video of the round reviewed: start the next round.
   if (review && review !== "pending") afterReview();
@@ -1424,6 +1427,12 @@ if (!paused && !store.settings().ctaAddedV1) {
 if (!paused && !store.settings().zigzagV2) {
   store.updateSettings({ zigzagV1: true, zigzagV2: true });
   zigzagExisting();
+}
+
+// Once: spares (one per kind on standby) and the editor's attempts make more videos a day; the
+// safety cap goes from 15 to 24 (left alone if the creator changed it).
+if (!store.settings().sparesCapV1) {
+  store.updateSettings({ sparesCapV1: true, ...(store.settings().maxVideosPerDay === 15 ? { maxVideosPerDay: 24 } : {}) });
 }
 
 // Once: the creator asked to read their TikTok (90 days of posts and comments) right away.

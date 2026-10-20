@@ -17,6 +17,7 @@ import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playback
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { learnFromTikTok } from "./audience.ts";
 import { promoteSpares } from "./daySet.ts";
+import { linkWinningPosts } from "./postMatch.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, inspireIssue, numberTabsExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
@@ -1019,6 +1020,19 @@ app.post(
   }),
 );
 
+/** Posts that worked well, by their links: linked to their videos so the AI learns from them. */
+app.post(
+  "/api/posts/winners",
+  h(async (req, res) => {
+    const urls = Array.isArray(req.body?.urls) ? req.body.urls.map(String) : String(req.body?.urls ?? "").split(/\s+/);
+    try {
+      res.json(await linkWinningPosts(urls.filter(Boolean).slice(0, 20)));
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
+    }
+  }),
+);
+
 // ---- Day vlogs (only on request) --------------------------------------------------------
 
 app.get("/api/vlog/days", (_req, res) => {
@@ -1526,6 +1540,18 @@ if (!paused && !store.settings().remakeLayoverV1) {
     });
     setTimeout(() => remakeRejected(id, { force: true }).catch((err) => console.warn("[remake]", err)), 30_000);
   }
+}
+
+// Once: two reels the creator said worked well (Oct 20), linked to their videos.
+if (!paused && !store.settings().winnersV1 && apifyEnabled()) {
+  store.updateSettings({ winnersV1: true });
+  setTimeout(
+    () =>
+      linkWinningPosts(["https://www.instagram.com/reel/Def6HCLR_aQ/", "https://www.instagram.com/reel/DerVsbCxe6R/"]).catch((err) =>
+        console.warn("[posts] winners:", (err as Error).message),
+      ),
+    90_000,
+  );
 }
 
 // Once: the creator asked to read their TikTok (90 days of posts and comments) right away.

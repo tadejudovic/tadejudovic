@@ -219,6 +219,20 @@ $("#search-upload").addEventListener("change", async (e) => {
   }
 });
 
+// ---- Posts that worked well (by link) ---------------------------------------------------
+
+$("#winners-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.currentTarget;
+  withBusy(f.querySelector("button"), "Reading…", async () => {
+    const out = await api("/api/posts/winners", { method: "POST", body: { urls: f.urls.value.split(/\s+/).filter(Boolean) } });
+    const linked = out.filter((o) => o.matched).length;
+    toast(`${out.length} post${out.length === 1 ? "" : "s"} read: ${linked} linked to their video${out.length - linked ? `, ${out.length - linked} kept as examples` : ""}`, "check");
+    f.urls.value = "";
+    refreshRenders();
+  });
+});
+
 // ---- Scan everything since a date --------------------------------------------------------
 
 {

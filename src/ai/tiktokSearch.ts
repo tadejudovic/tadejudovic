@@ -195,6 +195,30 @@ export interface ProfilePost {
   stats: PostStats;
 }
 
+/** Specific Instagram posts (reels), read by their links, with their caption and public numbers. */
+export async function fetchInstagramPosts(urls: string[]): Promise<ProfilePost[]> {
+  if (!urls.length) return [];
+  assertBudget();
+  const res = await fetch(
+    `https://api.apify.com/v2/acts/${config.apify.instagramActor}/run-sync-get-dataset-items?token=${encodeURIComponent(config.apify.token)}&timeout=240&memory=1024`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ directUrls: urls, resultsType: "posts", resultsLimit: urls.length, addParentData: false }),
+      signal: AbortSignal.timeout(280_000),
+    },
+  );
+  if (!res.ok) throw new Error(`Apify couldn't read the Instagram posts (${res.status}): ${(await res.text()).slice(0, 160)}`);
+  const items = ((await res.json()) as any[]).filter((x) => x && !x.error);
+  recordCost(Math.max(1, items.length) * USD_PER_RESULT);
+  const n = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : undefined);
+  return items.flatMap((it): ProfilePost[] =>
+    typeof it.url === "string"
+      ? [{ url: it.url, text: String(it.caption ?? ""), postedAt: it.timestamp, stats: { views: n(it.videoPlayCount ?? it.igPlayCount ?? it.videoViewCount) ?? 0, likes: n(it.likesCount), comments: n(it.commentsCount) } }]
+      : [],
+  );
+}
+
 /** The latest posts on the creator's own profile, with their public numbers (one Apify run). */
 export async function fetchProfilePosts(platform: Platform, handle: string, limit = 20): Promise<ProfilePost[]> {
   assertBudget();

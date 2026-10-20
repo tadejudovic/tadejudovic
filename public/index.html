@@ -370,6 +370,11 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Videos that worked</h2></header>
         <div class="sp-body">
           <p class="hint top">Past videos that performed well. Their tone and text style guide new captions.</p>
+          <form id="winners-form" class="inline-form">
+            <input name="urls" placeholder="Paste Instagram reel links made with Rollcut that did well" />
+            <button class="btn" type="submit">Add</button>
+          </form>
+          <p class="hint">Each link is read (caption and plays) and connected to the video it came from, so its numbers teach the AI what works.</p>
           <form id="example-form" class="example-form">
             <label class="btn small">Choose video<input name="file" type="file" accept="video/*" hidden /></label>
             <span id="example-file" class="muted">optional</span>

@@ -63,3 +63,9 @@ test("each theme offers its most-searched topics that weren't covered yet", () =
   store.updateSettings({ keywordTopics: [{ topic: "Airline-approved dog carrier", key: "airline approved", pillar: "prep", queries: ["airline approved dog carrier"], impressions: 9900, clicks: 0, source: "google" }] } as any);
   assert.deepEqual(searchTopicsFor("prep").map((t) => t.topic), ["Kato dog backpack", "Airline-approved dog carrier"]);
 });
+
+test("Instagram post links lose their tracking parameters", async () => {
+  const { cleanPostUrl } = await import("../src/postMatch.ts");
+  assert.equal(cleanPostUrl("https://www.instagram.com/reel/Def6HCLR_aQ/?rpxt=MWF1dDVxaDNmMDRsbw=="), "https://www.instagram.com/reel/Def6HCLR_aQ/");
+  assert.equal(cleanPostUrl("https://www.instagram.com/reel/DerVsbCxe6R?mdxt=x"), "https://www.instagram.com/reel/DerVsbCxe6R/");
+});

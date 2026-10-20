@@ -1,5 +1,6 @@
 import { store } from "./store.ts";
-import { apifyEnabled, fetchProfilePosts, type ProfilePost } from "./ai/tiktokSearch.ts";
+import { apifyEnabled, fetchInstagramPosts, fetchProfilePosts, type ProfilePost } from "./ai/tiktokSearch.ts";
+import { addExample } from "./examples.ts";
 import type { Platform, PostedInfo, Render } from "./types.ts";
 
 /**
@@ -137,4 +138,47 @@ async function checkProfiles(now: number): Promise<void> {
       console.warn(`[profiles] ${platform} @${handle}: ${(err as Error).message}`);
     }
   }
+}
+
+/** A post link without its query string (Instagram adds tracking parameters). */
+export const cleanPostUrl = (url: string) => url.trim().replace(/[?#].*$/, "").replace(/\/?$/, "/");
+
+/**
+ * Posts the creator says worked well, by their links: each is read (caption and numbers), linked to
+ * the Rollcut video it came from (matched by description, any age), so its numbers feed what the AI
+ * learns from posted videos. A post that can't be matched is kept as a "video that worked" example.
+ */
+export async function linkWinningPosts(urls: string[]): Promise<{ url: string; matched?: string; views?: number }[]> {
+  const clean = [...new Set(urls.map(cleanPostUrl).filter((u) => /instagram\.com\/(reel|reels|p)\//i.test(u)))];
+  if (!clean.length) throw new Error("Paste Instagram reel links.");
+  if (!apifyEnabled()) throw new Error("Connect Apify (APIFY_TOKEN on Render) to read Instagram posts.");
+  const posts = await fetchInstagramPosts(clean);
+  const fetchedAt = new Date().toISOString();
+  const out: { url: string; matched?: string; views?: number }[] = [];
+  for (const post of posts) {
+    const url = cleanPostUrl(post.url);
+    const already = store.renders().find((r) => (r.posts ?? []).some((p) => cleanPostUrl(p.url) === url));
+    if (already) {
+      update(already.id, "instagram", { stats: post.stats, fetchedAt });
+      out.push({ url, matched: already.id, views: post.stats.views });
+      continue;
+    }
+    const best = store
+      .renders()
+      .filter((r) => r.status === "done" && !(r.posts ?? []).some((p) => p.platform === "instagram"))
+      .map((r) => ({ r, score: Math.max(captionSimilarity(post.text, r.plan.postCaption ?? ""), captionSimilarity(post.text, r.plan.hook ?? "") * 0.9) }))
+      .sort((a, b) => b.score - a.score)[0];
+    if (best && best.score >= 0.4) {
+      store.updateRender(best.r.id, {
+        review: "approved",
+        posts: [...(best.r.posts ?? []), { platform: "instagram", url, addedAt: fetchedAt, postedAt: post.postedAt, stats: post.stats, fetchedAt }],
+      });
+      out.push({ url, matched: best.r.id, views: post.stats.views });
+    } else {
+      addExample({ note: `Worked well on Instagram (${post.stats.views.toLocaleString("en")} plays). Caption: ${post.text.slice(0, 600)}`, views: post.stats.views });
+      out.push({ url, views: post.stats.views });
+    }
+  }
+  console.log(`[posts] winners: ${out.map((o) => `${o.url} → ${o.matched ?? "example"}`).join(", ")}`);
+  return out;
 }

@@ -102,6 +102,7 @@ export interface Settings {
   sparesCapV1?: boolean;
   fallbackCleanupV1?: boolean;
   remakeLayoverV1?: boolean;
+  winnersV1?: boolean;
   /** What people search for before finding the account (TikTok search analytics), grouped into topics. */
   searchTopics?: SearchTopic[];
   searchTopicsAt?: string;

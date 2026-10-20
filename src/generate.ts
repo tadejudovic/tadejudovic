@@ -588,6 +588,9 @@ export async function plan(
           if (kinds[i] === "inspire") inspireIssue = { at: new Date().toISOString(), message: (err as Error).message.slice(0, 300) };
         }
       }
+      // With the AI on but not answering (out of credit, the month's budget, an outage): no video,
+      // rather than a trending caption pasted as is (the same one every time).
+      if (aiOn) return undefined;
       // A clip without sound analysis still gets its video (from the start of the clip), rather than
       // failing the whole round: that was how the day's inspirational video kept going missing.
       const p = heuristicPlan({
@@ -620,7 +623,7 @@ export async function plan(
     if (chosen.length < req.count) {
       warning = [warning, `Only ${chosen.length} usable clip(s), so only ${chosen.length} video(s).`].filter(Boolean).join(" ");
     }
-    return { plans, warning };
+    return { plans: plans.filter((x): x is VideoPlan => !!x), warning };
   }
 
   if (aiOn) {

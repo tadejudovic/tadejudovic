@@ -164,6 +164,8 @@ export async function runDailyBatch(_opts: { force?: boolean } = {}) {
   const date = today();
   try {
     promoteSpares();
+    // No AI, no videos: a video without it would only be a pasted caption.
+    if (config.claude.enabled && !aiAvailable()) throw new Error("The Anthropic account is out of credit. Add credit at console.anthropic.com → Plans & Billing; videos are made again as soon as it's back.");
     const kinds = toMake();
     if (!kinds.length) return { renders: [], skipped: daySetDone() ? "today's set is done" : "one of each is waiting for review, with a spare" };
     if (!videosLeftToday()) return { renders: [], skipped: "daily video limit reached" };

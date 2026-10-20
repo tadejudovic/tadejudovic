@@ -1436,6 +1436,15 @@ if (!store.settings().sparesCapV1) {
   store.updateSettings({ sparesCapV1: true, ...(store.settings().maxVideosPerDay === 15 ? { maxVideosPerDay: 24 } : {}) });
 }
 
+// Once: videos made while the AI was out of credit are only pasted trending captions (the same one
+// again and again); the ones not reviewed yet go, and the day's set makes proper ones once credit is back.
+if (!store.settings().fallbackCleanupV1) {
+  store.updateSettings({ fallbackCleanupV1: true });
+  const junk = store.renders().filter((r) => r.plan.aiNote && r.review === "pending");
+  for (const r of junk) deleteRender(r.id);
+  if (junk.length) console.log(`[cleanup] removed ${junk.length} video(s) made without the AI`);
+}
+
 // Once: the creator asked to read their TikTok (90 days of posts and comments) right away.
 if (!paused && !store.settings().audienceFirstRead && apifyEnabled() && store.settings().handle?.trim()) {
   store.updateSettings({ audienceFirstRead: true });

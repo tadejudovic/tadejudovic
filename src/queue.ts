@@ -2,20 +2,25 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.ts";
 
-/** Minimal in-process work queue with bounded concurrency. */
+/**
+ * Minimal in-process work queue with bounded concurrency. Tasks run by priority (lower first: the
+ * videos the creator is waiting for, then spares, then previews, then imports), in order within one.
+ */
 export class Queue {
   private running = 0;
-  private waiting: (() => Promise<void>)[] = [];
+  private waiting: { task: () => Promise<void>; priority: number }[] = [];
   constructor(private concurrency: number) {}
 
-  push(task: () => Promise<void>) {
-    this.waiting.push(task);
+  push(task: () => Promise<void>, priority = 3) {
+    // After everything of the same or higher priority, before anything less important.
+    const at = this.waiting.findIndex((w) => w.priority > priority);
+    this.waiting.splice(at === -1 ? this.waiting.length : at, 0, { task, priority });
     this.next();
   }
 
   /** Run this task before anything already waiting. */
   pushFront(task: () => Promise<void>) {
-    this.waiting.unshift(task);
+    this.waiting.unshift({ task, priority: -1 });
     this.next();
   }
 
@@ -30,7 +35,7 @@ export class Queue {
 
   private next() {
     while (this.running < this.concurrency && this.waiting.length) {
-      const task = this.waiting.shift()!;
+      const { task } = this.waiting.shift()!;
       this.running++;
       task()
         .catch((err) => console.error("[queue]", err))
@@ -113,15 +118,19 @@ function tracked(task: () => Promise<void>, job?: Job) {
 /** Drop all waiting imports and renders (used when starting over). */
 export const clearWaitingWork = () => heavy.clear();
 
+/** Priorities in the heavy lane: what the creator waits for first. */
+export const PRIORITY = { video: 0, spare: 1, preview: 2, import: 3 } as const;
+
 export const ingestQueue = {
-  push: (task: () => Promise<void>, job?: Job) => heavy.push(tracked(task, job)),
+  push: (task: () => Promise<void>, job?: Job) => heavy.push(tracked(task, job), PRIORITY.import),
   get pending() {
     return heavy.pending;
   },
 };
 
 export const renderQueue = {
-  push: (task: () => Promise<void>, job?: Job) => heavy.pushFront(tracked(task, job)),
+  /** A video for Review by default; spares and previews wait behind those. */
+  push: (task: () => Promise<void>, job?: Job, priority: number = PRIORITY.video) => heavy.push(tracked(task, job), priority),
   get pending() {
     return heavy.pending;
   },

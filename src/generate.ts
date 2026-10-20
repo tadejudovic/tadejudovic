@@ -10,7 +10,7 @@ import { heuristicPlan, stretchToTarget } from "./planner.ts";
 import { directClip, planVideos, proofreadText, writeCaption, type DirectContext } from "./ai/director.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { basePath, baseKey, renderVideo } from "./media/render.ts";
-import { ingestQueue, renderQueue } from "./queue.ts";
+import { ingestQueue, renderQueue, PRIORITY } from "./queue.ts";
 import type { Clip, DailyMix, EduPillar, GenerateRequest, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
 import { detectSubject } from "./ai/subject.ts";
@@ -683,9 +683,10 @@ export function queueRender(
   planned: VideoPlan,
   options: GenerateRequest["options"],
   batch?: string,
-  { countUse = true } = {},
+  { countUse = true, standby = false } = {},
 ): Render {
   const render = store.addRender({
+    ...(standby ? { standby: true } : {}),
     id: newId(),
     createdAt: new Date().toISOString(),
     plan: planned,
@@ -980,7 +981,9 @@ export function retryRender(id: string, { urgent = true } = {}): Render | undefi
 }
 
 function enqueueRenderJob(id: string, urgent = true) {
-  (urgent ? renderQueue : ingestQueue).push(async () => {
+  // Videos for Review first, then spares, then anything not urgent (behind imports).
+  const priority = !urgent ? PRIORITY.import : store.render(id)?.standby ? PRIORITY.spare : PRIORITY.video;
+  renderQueue.push(async () => {
     const render = store.render(id);
     if (!render) return; // deleted while waiting
     store.updateRender(id, { status: "rendering" });
@@ -1006,7 +1009,7 @@ function enqueueRenderJob(id: string, urgent = true) {
     } catch (err) {
       store.updateRender(id, { status: "error", error: (err as Error).message });
     }
-  }, { kind: "render", id });
+  }, { kind: "render", id }, priority);
 }
 
 /** Who reviews finished videos (swappable in tests). */
@@ -1067,9 +1070,8 @@ export async function editorPass(id: string, duration: number): Promise<void> {
     const fixed = overlays.map((o, i) => ({ ...o, text: v.texts[i]?.trim() || o.text }));
     const plan = healPlan({ ...r.plan, overlays: fixed, hook: fixed[0].text, editorPass: pass + 1, remakeOf: id }, store.settings().cta?.site);
     setAside(v.issues.join("; "), "text", "text_fixed");
-    const fresh = queueRender(plan, r.options, r.batch, { countUse: false });
+    const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
     store.updateRender(id, { remadeAs: fresh.id });
-    if (r.standby) store.updateRender(fresh.id, { standby: true });
     console.log(`[editor] ${id}: text fixed → ${fresh.id}`);
     return;
   }
@@ -1304,9 +1306,9 @@ export async function remakeRejected(id: string, { force = false, editorPass = 0
     });
     const p = plans[0];
     if (!p) throw new Error("no plan");
-    const fresh = queueRender({ ...p, remakeOf: r.id, remakeDepth: depth, ...(editorPass ? { editorPass } : {}) }, options, localDate(new Date()));
     // A spare already stepped in for the rejected one: this becomes the new spare.
-    if (kindOf && (r.standby || waitingOf(kindOf) > 0)) store.updateRender(fresh.id, { standby: true });
+    const asSpare = !!kindOf && (!!r.standby || waitingOf(kindOf) > 0);
+    const fresh = queueRender({ ...p, remakeOf: r.id, remakeDepth: depth, ...(editorPass ? { editorPass } : {}) }, options, localDate(new Date()), { standby: asSpare });
     store.updateRender(id, { remadeAs: fresh.id });
     console.log(`[remake] ${r.id} (${r.rejectReason}) → ${fresh.id}`);
     return fresh;

@@ -393,7 +393,9 @@ async function renderSegment(
     "-filter_complex", `${base};[v0]${video}[vout];${audio}`,
     "-map", "[vout]", "-map", "[aout]",
     "-t", outLen.toFixed(3),
-    "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-r", String(FPS),
+    // An intermediate piece (the final pass encodes again): about twice as fast as veryfast, bigger
+    // files that are temporary, a notch higher quality so nothing is lost.
+    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "17", "-r", String(FPS),
     ...LEAN_X264,
     "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2",
     "-video_track_timescale", "15360",

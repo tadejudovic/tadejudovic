@@ -213,8 +213,7 @@ export async function runDailyBatch(_opts: { force?: boolean } = {}) {
         });
         const p = plans.find((x) => x.format === kind);
         if (!p) throw new Error(`the ${kind} video couldn't be planned`);
-        const made = queueRender(p, options, date);
-        if (standby) store.updateRender(made.id, { standby: true });
+        const made = queueRender(p, options, date, { standby });
         renders.push(made);
         if (kind === "inspire") noteInspireIssue(null);
       } catch (err) {

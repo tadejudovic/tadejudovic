@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.ts";
 import { run } from "./ffmpeg.ts";
-import { renderQueue } from "../queue.ts";
+import { renderQueue, PRIORITY } from "../queue.ts";
 
 /**
  * Light copies for watching in the app: 720 px wide at a low bitrate (~4 MB for a 20 s video instead
@@ -23,10 +23,14 @@ export function previewFor(key: string, source: string, width = 720): string | u
   if (fs.existsSync(out) && fs.statSync(out).mtimeMs >= fs.statSync(source).mtimeMs) return out;
   if (!making.has(key)) {
     making.add(key);
-    renderQueue.push(() =>
-      makePreview(source, out, width)
-        .catch((err) => console.warn(`[preview] ${key}:`, (err as Error).message))
-        .finally(() => making.delete(key)),
+    // Behind the videos and spares being made (the original plays until it's ready).
+    renderQueue.push(
+      () =>
+        makePreview(source, out, width)
+          .catch((err) => console.warn(`[preview] ${key}:`, (err as Error).message))
+          .finally(() => making.delete(key)),
+      undefined,
+      PRIORITY.preview,
     );
   }
   return undefined;

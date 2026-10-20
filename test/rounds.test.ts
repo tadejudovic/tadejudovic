@@ -70,3 +70,17 @@ test("each kind not kept has a spare on standby; a rejection brings it in at onc
   store.updateRender("st", { review: "approved", reviewedAt: new Date().toISOString() });
   assert.equal(toMake().find((x) => x.kind === "tips"), undefined);
 });
+
+test("the heavy lane runs the videos for Review first, then spares, previews, imports", async () => {
+  const { Queue } = await import("../src/queue.ts");
+  const q = new Queue(1);
+  const order: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  q.push(() => gate.then(() => void order.push("running import")), 3);
+  for (const [name, p] of [["import", 3], ["preview", 2], ["spare", 1], ["video", 0], ["video 2", 0]] as const)
+    q.push(async () => void order.push(name), p);
+  release();
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(order, ["running import", "video", "video 2", "spare", "preview", "import"]);
+});

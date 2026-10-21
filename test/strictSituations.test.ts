@@ -24,8 +24,8 @@ test("only clips from the creator's situations are used automatically", () => {
 
 test("imports are capped per day", () => {
   const today = new Date().toISOString();
-  for (let i = 0; i < 148; i++) store.addClip({ ...base, id: `t${i}`, scene: "other", importedAt: today });
-  assert.equal(importBudget(), 2); // 150 per day, 148 already imported today
+  for (let i = 0; i < 398; i++) store.addClip({ ...base, id: `t${i}`, scene: "other", importedAt: today });
+  assert.equal(importBudget(), 2); // 400 per day, 398 already imported today
 });
 
 test("videos that are already edits (text on them) are never used automatically", () => {

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { store, newId } from "./store.ts";
 import { config } from "./config.ts";
 import { aiAvailable } from "./ai/budget.ts";
-import { albumUrlFrom, fetchAlbum, isAlbumUrl, openVideo, saveResponse } from "./google/sharedAlbum.ts";
+import { albumUrlFrom, fetchAlbum, isAlbumUrl, openVideo, saveResponse, type AlbumItem } from "./google/sharedAlbum.ts";
 import { enqueueClip, deleteClip, SkipItem } from "./library.ts";
 import { onTopic } from "./generate.ts";
 import type { AlbumSource, Clip } from "./types.ts";
@@ -16,7 +16,7 @@ export const DEFAULT_RECENT_DAYS = 30;
  * disk is nearly full. (Items left waiting aren't marked seen, so later checks pick them up.)
  */
 /** At most this many album clips are imported (and analyzed by the AI, ~$0.001 each) per day. */
-export const MAX_IMPORTS_PER_DAY = 150;
+export const MAX_IMPORTS_PER_DAY = 400;
 /** Imports pause when the data disk has less than this free (renders and recordings need room too). */
 const MIN_FREE_BYTES = 1.5 * 1024 ** 3;
 
@@ -42,7 +42,7 @@ export function importPause(): string | undefined {
  * scanned backwards (within the daily import budget and the disk guard) until this many unused clips
  * are waiting, so there's always plenty of recent footage to choose from.
  */
-const MAX_UNUSED = 400;
+const MAX_UNUSED = 1500;
 export function footageNeeded(): number {
   const unused = store.clips().filter((c) => c.status === "ready" && c.uses === 0 && !c.disliked && c.height >= c.width).length;
   const inFlight = store.clips().filter((c) => c.status === "importing" || c.status === "analyzing").length;
@@ -67,7 +67,7 @@ export function addAlbum(pasted: string, recentDays = DEFAULT_RECENT_DAYS): Albu
 const syncing = new Set<string>();
 
 /** Bump when video detection changes, so items wrongly skipped as photos get another look. */
-const DETECT_VERSION = 3;
+const DETECT_VERSION = 4; // 4: items skipped because their link had expired (404) get another try
 
 /** Forget an album item so the next check imports it again (e.g. its clip failed and was removed). */
 export function forgetItem(sourceId: string) {
@@ -116,6 +116,35 @@ export function markDuplicates(): number {
  */
 const listings = new Map<string, { at: number; page: Awaited<ReturnType<typeof fetchAlbum>> }>();
 const LISTING_TTL_MS = 30 * 60_000;
+
+/** A listing older than this has links that may have expired: read the album again before downloading. */
+const LINKS_FRESH_MS = 25 * 60_000;
+const relisting = new Map<string, Promise<Awaited<ReturnType<typeof fetchAlbum>>>>();
+
+/**
+ * An album item with a link that still works. Links in a listing expire after a while, and a big
+ * import reaches the last items hours after the album was read, so the album is read again (once,
+ * shared by every download waiting) when the listing has gone stale.
+ */
+async function freshItem(albumId: string, item: AlbumItem): Promise<AlbumItem> {
+  const cached = listings.get(albumId);
+  if (cached && Date.now() - cached.at < LINKS_FRESH_MS) return cached.page.items.find((it) => it.id === item.id) ?? item;
+  const album = store.album(albumId);
+  if (!album) return item;
+  let pending = relisting.get(albumId);
+  if (!pending) {
+    pending = fetchAlbum(album.url, { allPages: true }).finally(() => relisting.delete(albumId));
+    relisting.set(albumId, pending);
+  }
+  const page = await pending.catch(() => null);
+  if (!page) return item;
+  listings.set(albumId, { at: Date.now(), page });
+  return page.items.find((it) => it.id === item.id) ?? item;
+}
+
+/** Every version of the video answered "not found" or didn't answer: a dead link, not a photo. */
+export const deadLink = (answer: string) =>
+  answer.split(", ").every((a) => /\b(400|401|403|404|410)\b|no answer|abort|fetch failed/i.test(a));
 
 export async function syncAlbum(
   id: string,
@@ -203,7 +232,14 @@ export async function syncAlbum(
         filename: `${page.title ?? "album"}-${item.id.slice(-8)}.mp4`,
         capturedAt: item.takenAt ? new Date(item.takenAt).toISOString() : undefined,
         fetch: async (dest) => {
-          const { res, answer } = await openVideo(item);
+          let { res, answer } = await openVideo(await freshItem(id, item));
+          // The link died anyway: read the album again right now and try once more.
+          if (!res && deadLink(answer)) {
+            listings.delete(id);
+            ({ res, answer } = await openVideo(await freshItem(id, item)));
+          }
+          // Still dead: an error (tried again on a later check), not a photo to skip for good.
+          if (!res && deadLink(answer)) throw new Error(`Google's link didn't work (${answer.slice(0, 80)})`);
           if (!res) throw new SkipItem(answer);
           await saveResponse(res, dest);
         },

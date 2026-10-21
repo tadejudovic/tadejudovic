@@ -578,8 +578,10 @@ function renderClips() {
     if (!ka !== !kb) return ka ? -1 : 1;
     return sort === "filmed-old" ? ka.localeCompare(kb) : kb.localeCompare(ka);
   });
-  const main = sorted.filter((c) => !notUsed(c));
-  const parked = sorted.filter(notUsed);
+  // Downloads that failed fold away too: they're retried on their own, and aren't clips to pick from.
+  const failed = sorted.filter((c) => c.status === "error");
+  const main = sorted.filter((c) => c.status !== "error" && !notUsed(c));
+  const parked = sorted.filter((c) => c.status !== "error" && notUsed(c));
   const card = (c) => {
       const tags = c.ai?.tags?.slice(0, 3) ?? [];
       const landscape = c.status === "ready" && c.width > c.height;
@@ -590,7 +592,7 @@ function renderClips() {
       return h(
         "div",
         {
-          class: `clip ${landscape ? "landscape" : ""}`,
+          class: `clip ${landscape ? "landscape" : ""} ${c.status === "error" ? "failed" : ""}`,
           "data-clip": c.id,
           title: c.error || c.ai?.summary || c.filename,
         },
@@ -682,6 +684,12 @@ function renderClips() {
           h("summary", {}, `Not used (${parked.length})`,
             h("span", { class: "muted" }, " · not from your situations, already edited, duplicates or landscape. Their files are deleted after 7 days; set a situation to keep one.")),
           h("div", { class: "clips" }, ...parked.map(card)))
+      : null,
+    failed.length
+      ? h("details", { class: "not-used failed-clips", open: state.failedOpen, ontoggle: (e) => (state.failedOpen = e.currentTarget.open) },
+          h("summary", {}, `Couldn't download (${failed.length})`,
+            h("span", { class: "muted" }, " · Google wouldn't hand these videos over. Each is tried again on later album checks (up to 3 times).")),
+          h("div", { class: "clips" }, ...failed.map(card)))
       : null,
   ].filter(Boolean));
   const n = state.selected.size;

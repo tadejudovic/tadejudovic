@@ -164,7 +164,7 @@ select { max-width: 100%; }
 .clip .name { display: none; }
 .clip .sub { color: var(--muted); display: flex; justify-content: space-between; gap: 6px; }
 .clip .energy, .clip .tags { display: none; }
-.clip .badge { position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: rgba(255,255,255,0.92); color: var(--ink); }
+.clip .badge { position: absolute; top: 8px; left: 8px; bottom: auto; width: auto; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: rgba(255,255,255,0.92); color: var(--ink); }
 .clip .badge.err { background: var(--err); color: #fff; }
 .clip .del { position: absolute; top: 6px; right: 6px; border: 0; border-radius: 50%; width: 26px; height: 26px;
   background: rgba(255,255,255,0.92); color: var(--ink); cursor: pointer; opacity: 0; transition: opacity 0.1s; }
@@ -812,3 +812,6 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .ready-filter .kind-chip { flex: none; border: 1px solid rgba(127,127,127,.3); background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 14px; color: inherit; cursor: pointer; }
 .ready-filter .kind-chip.on { background: var(--ink, #111); color: var(--bg, #fff); border-color: transparent; }
 .section-title .clip-sort { margin-left: 10px; font: inherit; font-size: 13px; font-weight: 500; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line, rgba(127,127,127,.3)); background: transparent; color: inherit; max-width: 100%; }
+.clip.failed .thumb { aspect-ratio: auto; height: 48px; }
+.clip.failed .clip-err { word-break: break-word; }
+.not-used.failed-clips { margin-top: 12px; }

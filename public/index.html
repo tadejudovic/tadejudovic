@@ -186,7 +186,13 @@
       <div id="suggestions" class="suggestions"></div>
       <p id="suggestions-empty" class="muted" hidden>Every clip has been used. Add more videos to your album.</p>
 
-      <h2 class="section-title">All clips</h2>
+      <h2 class="section-title">All clips
+        <select id="clip-sort" class="clip-sort" title="Sort clips">
+          <option value="filmed">Filmed in Google Photos · newest</option>
+          <option value="filmed-old">Filmed in Google Photos · oldest</option>
+          <option value="added">Added to the app · newest</option>
+        </select>
+      </h2>
       <div id="drop" class="drop">
         <div id="clips" class="clips"></div>
         <p id="clips-empty" class="muted">No clips yet. Add a Google Photos album above.</p>

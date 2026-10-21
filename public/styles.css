@@ -811,3 +811,4 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .ready-filter { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 12px; }
 .ready-filter .kind-chip { flex: none; border: 1px solid rgba(127,127,127,.3); background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 14px; color: inherit; cursor: pointer; }
 .ready-filter .kind-chip.on { background: var(--ink, #111); color: var(--bg, #fff); border-color: transparent; }
+.section-title .clip-sort { margin-left: 10px; font: inherit; font-size: 13px; font-weight: 500; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line, rgba(127,127,127,.3)); background: transparent; color: inherit; max-width: 100%; }

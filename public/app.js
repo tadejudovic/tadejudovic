@@ -537,6 +537,26 @@ function energyBars(curve = []) {
   return h("div", { class: "energy", title: "Motion + sound energy" }, bins.map((v) => h("i", { style: { height: `${Math.max(4, v * 100)}%` } })));
 }
 
+function clipSort() {
+  try {
+    return localStorage.getItem("clipSort") || "filmed";
+  } catch {
+    return "filmed";
+  }
+}
+{
+  const sel = document.querySelector("#clip-sort");
+  if (sel) {
+    sel.value = clipSort();
+    sel.addEventListener("change", () => {
+      try {
+        localStorage.setItem("clipSort", sel.value);
+      } catch {}
+      renderClips();
+    });
+  }
+}
+
 function renderClips() {
   // Don't rebuild the grid while the creator is typing a note.
   if (document.activeElement?.classList.contains("note")) return;
@@ -549,8 +569,17 @@ function renderClips() {
   const notUsed = (c) =>
     c.status === "ready" && !c.uses &&
     (c.width > c.height || c.edited || c.duplicateOf || (c.kind === "video" && c.duration < 3) || (strict && c.scene && !st.scenes.includes(c.scene)));
-  const main = state.clips.filter((c) => !notUsed(c));
-  const parked = state.clips.filter(notUsed);
+  // Sorted by when the video was filmed (Google Photos' date), or when it was added; clips whose
+  // filming date isn't known go last when sorting by filming date.
+  const sort = clipSort();
+  const key = (c) => (sort === "added" ? c.importedAt ?? "" : c.capturedAt ?? "");
+  const sorted = [...state.clips].sort((a, b) => {
+    const ka = key(a), kb = key(b);
+    if (!ka !== !kb) return ka ? -1 : 1;
+    return sort === "filmed-old" ? ka.localeCompare(kb) : kb.localeCompare(ka);
+  });
+  const main = sorted.filter((c) => !notUsed(c));
+  const parked = sorted.filter(notUsed);
   const card = (c) => {
       const tags = c.ai?.tags?.slice(0, 3) ?? [];
       const landscape = c.status === "ready" && c.width > c.height;
@@ -582,7 +611,7 @@ function renderClips() {
           h("div", { class: "name" }, c.filename),
           h("div", { class: "sub" },
             h("span", {}, c.duration ? fmt(c.duration) : "–"),
-            h("span", {}, c.capturedAt ? new Date(c.capturedAt).toLocaleDateString() : ""),
+            h("span", { title: c.capturedAt ? "Filmed (Google Photos date)" : "Filming date unknown" }, c.capturedAt ? new Date(c.capturedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "date unknown"),
             c.status === "ready" && !landscape
               ? c.duplicateOf
                 ? h("span", { class: "use", title: "The same video is already in your library from another album" }, "duplicate")
@@ -646,7 +675,7 @@ function renderClips() {
         ),
       );
   };
-  el.replaceChildren(
+  el.replaceChildren(...[
     ...main.map(card),
     parked.length
       ? h("details", { class: "not-used", open: state.notUsedOpen, ontoggle: (e) => (state.notUsedOpen = e.currentTarget.open) },
@@ -654,7 +683,7 @@ function renderClips() {
             h("span", { class: "muted" }, " · not from your situations, already edited, duplicates or landscape. Their files are deleted after 7 days; set a situation to keep one.")),
           h("div", { class: "clips" }, ...parked.map(card)))
       : null,
-  );
+  ].filter(Boolean));
   const n = state.selected.size;
   $("#selection-hint").textContent = state.clips.length
     ? n ? `${n} clip${n === 1 ? "" : "s"} selected — videos will only use these. Click again to deselect.` : "Click clips to restrict generation to them; otherwise the whole library is used."

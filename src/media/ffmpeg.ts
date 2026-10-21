@@ -173,7 +173,8 @@ export async function makeProxy(input: string, out: string, p: ProbeInfo) {
       "-i", source,
       "-map", "0:v:0", "-map", "0:a:0?",
       "-vf", vf,
-      "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p",
+      // The working copy every video is cut from: near-transparent quality.
+      "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
       "-x264-params", "rc-lookahead=8:sync-lookahead=0",
       "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
       "-c:a", "aac", "-b:a", "192k",

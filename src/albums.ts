@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { store, newId } from "./store.ts";
-import { config } from "./config.ts";
+import { config, canDecode4K } from "./config.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { albumUrlFrom, fetchAlbum, isAlbumUrl, openVideo, saveResponse, type AlbumItem } from "./google/sharedAlbum.ts";
 import { enqueueClip, deleteClip, SkipItem } from "./library.ts";
@@ -142,6 +142,13 @@ async function freshItem(albumId: string, item: AlbumItem): Promise<AlbumItem> {
   return page.items.find((it) => it.id === item.id) ?? item;
 }
 
+/**
+ * Which version of a video to download. With enough memory to decode 4K: the original (=dv), far
+ * sharper than Google's 1080p copy, turned into a high-quality 1080p working copy here. Otherwise
+ * Google's 1080p copy first (light to decode on a small server).
+ */
+const VERSIONS = canDecode4K ? ["=dv", "=m37", "=m22", "=m18"] : ["=m37", "=m22", "=dv", "=m18"];
+
 /** Every version of the video answered "not found" or didn't answer: a dead link, not a photo. */
 export const deadLink = (answer: string) =>
   answer.split(", ").every((a) => /\b(400|401|403|404|410)\b|no answer|abort|fetch failed/i.test(a));
@@ -232,11 +239,11 @@ export async function syncAlbum(
         filename: `${page.title ?? "album"}-${item.id.slice(-8)}.mp4`,
         capturedAt: item.takenAt ? new Date(item.takenAt).toISOString() : undefined,
         fetch: async (dest) => {
-          let { res, answer } = await openVideo(await freshItem(id, item));
+          let { res, answer } = await openVideo(await freshItem(id, item), VERSIONS);
           // The link died anyway: read the album again right now and try once more.
           if (!res && deadLink(answer)) {
             listings.delete(id);
-            ({ res, answer } = await openVideo(await freshItem(id, item)));
+            ({ res, answer } = await openVideo(await freshItem(id, item), VERSIONS));
           }
           // Still dead: an error (tried again on a later check), not a photo to skip for good.
           if (!res && deadLink(answer)) throw new Error(`Google's link didn't work (${answer.slice(0, 80)})`);

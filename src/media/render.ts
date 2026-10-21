@@ -376,7 +376,9 @@ async function renderSegment(
   const len = Math.max(0.3, end - start);
   const outLen = len / speed;
   // Portrait only: fill the 9:16 frame.
-  const base = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1[v0]`;
+  // Lanczos scaling and a light sharpen: phone footage (and Google's 1080p copies) reads crisper
+  // after TikTok and Instagram compress it again.
+  const base = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H},unsharp=5:5:0.4:5:5:0,setsar=1[v0]`;
   const text = caption
     ? textFilters(caption, { yFrac: CAPTION_Y, size: Math.round(textPx(options) * 0.95), maxChars: charsFor(textPx(options), 22), style: options.textStyle, font, tmp, key }).filters
     : [];
@@ -396,9 +398,9 @@ async function renderSegment(
     "-filter_complex", `${base};[v0]${video}[vout];${audio}`,
     "-map", "[vout]", "-map", "[aout]",
     "-t", outLen.toFixed(3),
-    // An intermediate piece (the final pass encodes again): about twice as fast as veryfast, bigger
-    // files that are temporary, a notch higher quality so nothing is lost.
-    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "17", "-r", String(FPS),
+    // An intermediate piece (the final pass encodes again): ultrafast but near-lossless (bigger
+    // files, temporary), so the only real compression is the final pass.
+    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "12", "-r", String(FPS),
     ...LEAN_X264,
     "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2",
     "-video_track_timescale", "15360",
@@ -690,7 +692,11 @@ async function finalize(
     ...arrows.flatMap((a) => ["-i", a.file]),
     "-map", arrows.length ? `[t${arrows.length}]` : "0:v:0", "-map", "1:a:0",
     ...(arrows.length ? ["-filter_complex", graph] : ["-vf", vf]),
-    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-profile:v", "high", "-pix_fmt", "yuv420p",
+    // The file that gets posted: a high quality target, so TikTok and Instagram start from a clean
+    // picture when they compress it again. (veryfast keeps most of what slower presets add, at a
+    // third of their time on a small server.)
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-profile:v", "high", "-pix_fmt", "yuv420p",
+    "-maxrate", "25M", "-bufsize", "50M",
     ...LEAN_X264,
     "-c:a", "copy",
     "-r", String(FPS), "-movflags", "+faststart",

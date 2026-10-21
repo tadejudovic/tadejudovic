@@ -237,7 +237,9 @@ export async function ensureProxy(id: string) {
   const proxy = path.join(config.mediaDir, `${id}.mp4`);
   const target = clip.file === proxy ? path.join(config.mediaDir, `${id}.proxy.mp4`) : proxy;
 
-  if (clip.source === "shared_album" && clip.sourceId) {
+  // On a small server, Google's 1080p copy instead of decoding the original here; with enough memory
+  // the original is kept and converted below (sharper).
+  if (clip.source === "shared_album" && clip.sourceId && !canDecode4K) {
     for (const album of store.albums()) {
       if (!albumPages.has(album.url)) albumPages.set(album.url, fetchAlbum(album.url).catch(() => null));
       const item = (await albumPages.get(album.url))?.items.find((it) => it.id === clip.sourceId);

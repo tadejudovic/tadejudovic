@@ -92,7 +92,9 @@ export function applyProfilePosts(platform: Platform, posts: ProfilePost[], now 
 function update(renderId: string, platform: Platform, patch: Partial<PostedInfo>) {
   const r = store.render(renderId);
   if (!r) return;
-  store.updateRender(r.id, { posts: (r.posts ?? []).map((p) => (p.platform === platform ? { ...p, ...patch } : p)) });
+  // Fresh numbers keep what only the creator could enter (the 3-second hold from their insights).
+  const merge = (p: PostedInfo) => ({ ...p, ...patch, ...(patch.stats ? { stats: { ...patch.stats, ...(p.stats?.held3s !== undefined ? { held3s: p.stats.held3s } : {}) } } : {}) });
+  store.updateRender(r.id, { posts: (r.posts ?? []).map((p) => (p.platform === platform ? merge(p) : p)) });
 }
 
 /** The creator's handles that can be checked. */

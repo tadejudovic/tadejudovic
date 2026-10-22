@@ -861,7 +861,9 @@ export async function refreshPostStats(renderId: string, platform: Platform): Pr
     store.updateRender(r.id, { posts: (store.render(r.id)!.posts ?? []).map((p) => (p.platform === platform ? { ...p, ...patch } : p)) })!;
   try {
     const { stats, postedAt } = await fetchPostStats(post.url);
-    return save({ stats, postedAt: postedAt ?? post.postedAt, fetchedAt: new Date().toISOString(), error: undefined });
+    // The 3-second hold the creator entered from their insights stays with the fresh numbers.
+    const held3s = post.stats?.held3s;
+    return save({ stats: held3s !== undefined ? { ...stats, held3s } : stats, postedAt: postedAt ?? post.postedAt, fetchedAt: new Date().toISOString(), error: undefined });
   } catch (err) {
     save({ fetchedAt: new Date().toISOString(), error: (err as Error).message.slice(0, 200) });
     throw err;

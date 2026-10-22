@@ -17,7 +17,7 @@ import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playback
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { learnFromTikTok } from "./audience.ts";
 import { DAY_KINDS, keptToday, promoteSpares, waitingOf } from "./daySet.ts";
-import { linkWinningPosts } from "./postMatch.ts";
+import { linkWinningPosts, syncProfiles } from "./postMatch.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
@@ -1603,6 +1603,34 @@ if (!paused && !store.settings().winnersV1 && apifyEnabled()) {
       ),
     90_000,
   );
+}
+
+// Once: the creator's Instagram reels of Oct 22 linked to their videos (views, likes, saves read by
+// Apify), with the 3-second hold from their reel insights; and their TikTok read again.
+if (!paused && !store.settings().insightsOct22 && apifyEnabled()) {
+  store.updateSettings({ insightsOct22: true });
+  const reels = ["Dexv6jHRYnW", "DexCTblNFbH", "Deu9ithxNk1", "DeubiOkt4sj", "DeqcqX8tMS8", "DepU3yStTb0", "Dekllw9thWi", "Def6HCLR_aQ", "Dec9DtVRO0X"];
+  const held: [RegExp, number][] = [
+    [/how do dogs get into another country/i, 0.62],
+    [/what do airlines check before a dog flies/i, 0.7],
+    [/pretending i belong in the priority line/i, 0.68],
+    [/do these 3 things with the airline/i, 0.63],
+    [/spending the night in the airport/i, 0.62],
+    [/plane hits turbulence/i, 0.7],
+    [/every sleeping position in economy/i, 0.8],
+    [/crew wanted a photo/i, 0.71],
+  ];
+  setTimeout(async () => {
+    await linkWinningPosts(reels.map((id) => `https://www.instagram.com/reel/${id}/`)).catch((err) => console.warn("[posts] reels:", (err as Error).message));
+    for (const r of store.renders()) {
+      const hold = held.find(([re]) => re.test(r.plan.hook ?? ""))?.[1];
+      const ig = (r.posts ?? []).find((p) => p.platform === "instagram");
+      if (hold === undefined || !ig) continue;
+      store.updateRender(r.id, { posts: (r.posts ?? []).map((p) => (p === ig ? { ...p, stats: { ...(p.stats ?? { views: 0 }), held3s: hold } } : p)) });
+    }
+    await syncProfiles().catch((err) => console.warn("[posts] profiles:", (err as Error).message));
+    console.log("[posts] Oct 22 reel insights linked");
+  }, 90_000);
 }
 
 // Once: the creator asked to read their TikTok (90 days of posts and comments) right away.

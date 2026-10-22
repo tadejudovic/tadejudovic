@@ -433,6 +433,8 @@ export interface PostStats {
   comments?: number;
   shares?: number;
   saves?: number;
+  /** Share of viewers still watching at 3s (0..1), from the platform's insights (entered by hand). */
+  held3s?: number;
 }
 
 export type Platform = "tiktok" | "instagram";

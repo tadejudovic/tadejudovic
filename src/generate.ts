@@ -798,9 +798,37 @@ export async function makeCollabFromLibrary(partnerId: string, note?: string): P
   return { render, reason };
 }
 
-async function collabPlan(clip: Clip, partner: Partner, note?: string): Promise<VideoPlan> {
+/**
+ * An extra educational video about a brand partner: a real lesson in the brand's area (what people
+ * search for), with the brand as the practical answer in one point. Made when a partner is added,
+ * or on request; it doesn't count toward the day's set.
+ */
+export async function makeCollabEducational(partnerId: string, note?: string): Promise<{ render: Render; reason: string }> {
+  const partner = store.partner(partnerId);
+  if (!partner) throw new Error("Unknown partner.");
+  if (!config.claude.enabled) throw new Error("Collab videos need the AI (ANTHROPIC_API_KEY).");
+  const { clip, reason } = await findClipFor(partner, note);
+  const { fontId, textStyle, textSize } = store.settings();
+  const render = queueRender(await collabPlan(clip, partner, note, true), { keepOriginalAudio: true, textStyle, textSize, fontId }, undefined, { countUse: false });
+  store.updateClip(clip.id, { uses: clip.uses + 1 });
+  return { render, reason };
+}
+
+async function collabPlan(clip: Clip, partner: Partner, note?: string, educational = false): Promise<VideoPlan> {
   const { petName, handle, story } = store.settings();
   const target = store.auto().targetSeconds;
+  const edu: Partial<DirectContext> = educational
+    ? {
+        format: "tips",
+        audience: "everyone",
+        eduFormat: "list",
+        topPosts: store.settings().audience?.topPosts,
+        broll: brollPool(clip),
+        cta: store.settings().cta,
+        minSeconds: Math.max(6, target - 3, 12),
+        maxSeconds: Math.max(target + 5, 18),
+      }
+    : {};
   const p = await directClip(clip, {
     petName,
     handle,
@@ -812,7 +840,8 @@ async function collabPlan(clip: Clip, partner: Partner, note?: string): Promise<
     proven: provenCaptions(clip.scene),
     feedback: reviewFeedback(),
     story,
-    collab: { name: partner.name, handle: partner.handle, about: partner.about, mustInclude: partner.mustInclude, note },
+    collab: { name: partner.name, handle: partner.handle, about: partner.about, mustInclude: partner.mustInclude, note, educational },
+    ...edu,
   });
   applyHashtags(p, clip.scene);
   p.collab = { partnerId: partner.id, name: partner.name, handle: partner.handle };

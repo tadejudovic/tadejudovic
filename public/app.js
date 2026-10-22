@@ -1932,6 +1932,12 @@ async function refreshPartners() {
             await refreshRenders();
             banner(`Making a ${p.name} video. Picked: ${r.reason} It shows up on Review in a minute or two.`, "ok");
           }) }, "Find a clip & make it"),
+        h("button", { class: "btn small", title: "An educational video in this brand's area, with the brand as the practical answer in one point", onclick: (e) =>
+          withBusy(e.currentTarget, "Finding a clip…", async () => {
+            const r = await api(`/api/partners/${p.id}/educational`, { method: "POST", body: {} });
+            await refreshRenders();
+            banner(`Making an educational ${p.name} video. Picked: ${r.reason} It shows up on Review in a minute or two.`, "ok");
+          }) }, "Educational video"),
         h("button", { class: "btn small", onclick: () => {
           form.partnerId.value = p.id;
           for (const k of ["name", "handle", "about", "mustInclude"]) form[k].value = p[k] ?? "";
@@ -1951,11 +1957,16 @@ $("#partner-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const f = e.currentTarget;
   withBusy(f.querySelector("button[type=submit]"), "Saving…", async () => {
-    await api("/api/partners", { method: "POST", body: { id: f.partnerId.value || undefined, ...Object.fromEntries(["name", "handle", "about", "mustInclude"].map((k) => [k, f[k].value])) } });
+    const saved = await api("/api/partners", { method: "POST", body: { id: f.partnerId.value || undefined, ...Object.fromEntries(["name", "handle", "about", "mustInclude"].map((k) => [k, f[k].value])) } });
     f.reset();
     f.partnerId.value = "";
     await refreshPartners();
-    banner("Partner saved. Open any video and tap Collab version.", "ok");
+    banner(
+      saved.educationalVideo
+        ? `${saved.name} added. An educational video about it is being made now; it shows up on Review in a few minutes.`
+        : "Partner saved. Open any video and tap Collab version.",
+      "ok",
+    );
   });
 });
 

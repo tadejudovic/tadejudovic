@@ -18,7 +18,7 @@ import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDe
 import { learnFromTikTok } from "./audience.ts";
 import { DAY_KINDS, keptToday, promoteSpares, waitingOf } from "./daySet.ts";
 import { linkWinningPosts, syncProfiles } from "./postMatch.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, EDITOR_ATTEMPTS } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, makeCollabEducational, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -955,16 +955,27 @@ app.post("/api/partners", (req, res) => {
   const name = String(b.name ?? "").trim().slice(0, 80);
   if (!name) return res.status(400).json({ error: "Give the brand a name." });
   const existing = b.id ? store.partner(String(b.id)) : undefined;
-  res.json(
-    store.savePartner({
-      id: existing?.id ?? newId(),
-      name,
-      handle: handleOf(b.handle),
-      about: String(b.about ?? "").trim().slice(0, 1500),
-      mustInclude: String(b.mustInclude ?? "").trim().slice(0, 500) || undefined,
-    }),
-  );
+  const saved = store.savePartner({
+    id: existing?.id ?? newId(),
+    name,
+    handle: handleOf(b.handle),
+    about: String(b.about ?? "").trim().slice(0, 1500),
+    mustInclude: String(b.mustInclude ?? "").trim().slice(0, 500) || undefined,
+  });
+  // A new partner gets an educational video about it right away (in the background; it shows up
+  // in Review when it's ready).
+  if (!existing && config.claude.enabled)
+    makeCollabEducational(saved.id).catch((err) => console.warn(`[collab] educational video for ${name}:`, (err as Error).message));
+  res.json({ ...saved, educationalVideo: !existing && config.claude.enabled });
 });
+
+app.post(
+  "/api/partners/:id/educational",
+  h(async (req, res) => {
+    const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) || undefined : undefined;
+    res.json(await makeCollabEducational(String(req.params.id), note));
+  }),
+);
 
 app.post(
   "/api/partners/:id/collab",

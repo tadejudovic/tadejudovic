@@ -675,7 +675,7 @@ export interface DirectContext {
   /** Educational: the call to action at the end (on screen) and in the description. */
   cta?: { site: string; overlay: string; caption: string };
   /** Make this a collab version for a brand partner. */
-  collab?: { name: string; handle?: string; about: string; mustInclude?: string; note?: string };
+  collab?: { name: string; handle?: string; about: string; mustInclude?: string; note?: string; educational?: boolean };
 }
 
 const PILLAR_TEXT: Record<EduPillar, string> = {
@@ -705,7 +705,7 @@ function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: st
             search
               .map(
                 (t, i) =>
-                  `${i + 1}. ${t.topic} (${t.source === "google" ? `${t.impressions.toLocaleString("en")} searches a month` : t.source === "comments" ? "asked in the comments on the creator's own videos" : "searches that brought people to the creator's TikToks"}), ` +
+                  `${i + 1}. ${t.topic} (${t.source === "google" ? `${t.impressions.toLocaleString("en")} searches a month` : t.source === "comments" ? "asked in the comments on the creator's own videos" : t.source === "suggest" ? "suggested by Google and YouTube search, so many people type it" : "searches that brought people to the creator's TikToks"}), ` +
                   `searched as: ${t.queries.map((q) => `"${q}"`).join(", ")}`,
               )
               .join("\n") +
@@ -921,8 +921,15 @@ function collabText(c: NonNullable<DirectContext["collab"]>, petName: string): s
     `creator's words: ${c.about}` +
     (c.note ? `\nThe creator's note for this video: ${c.note}` : "") +
     `\n- Pick the part of the clip where ${c.name}'s product or place is visible or most relevant.` +
-    `\n- On-screen text: about the moment, with ${c.name} naturally part of it (what it makes possible for ` +
-    `${petName} and us). It must still feel like a creator's post, never an ad read or a slogan.` +
+    (c.educational
+      ? `\n- This is an EDUCATIONAL video built around ${c.name}: a real lesson people search for, in the area ` +
+        `${c.name} is about (e.g. a carrier brand → what makes a carrier work in the cabin; a pet-friendly hotel → ` +
+        `what to check before booking a stay with a dog). The headline is the question, the points answer it ` +
+        `honestly from our experience, and ${c.name} shows up as the practical answer in ONE point (named, ` +
+        `specific: what it does for us), not in every line. It must be useful even to someone who never buys ` +
+        `from ${c.name}; that's what makes the brand look good.`
+      : `\n- On-screen text: about the moment, with ${c.name} naturally part of it (what it makes possible for ` +
+        `${petName} and us). It must still feel like a creator's post, never an ad read or a slogan.`) +
     `\n- Post description: weave ${c.name} into the story, mention ${c.handle || c.name}` +
     (c.mustInclude ? `, and include exactly: ${c.mustInclude}` : "") +
     `, and end with the disclosure "#ad".` +

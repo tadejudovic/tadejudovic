@@ -461,7 +461,7 @@ app.get("/api/renders/:id/diagnostics", (req, res) => {
             searchTopic: p.searchTopic ?? null,
             question: p.faq,
             // Whether search topics were available at all (Settings > What people search).
-            searchTopicsLoaded: { tiktok: store.settings().searchTopics?.length ?? 0, google: store.settings().keywordTopics?.length ?? 0 },
+            searchTopicsLoaded: { tiktok: store.settings().searchTopics?.length ?? 0, google: store.settings().keywordTopics?.length ?? 0, autocomplete: store.settings().suggestTopics?.length ?? 0 },
           }
         : undefined,
     collab: p.collab?.name,

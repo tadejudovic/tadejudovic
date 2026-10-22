@@ -282,7 +282,7 @@ export interface SearchTopic {
   clicks: number;
   /** Where it comes from: TikTok's search analytics (this account), Google Ads Keyword Planner
    * (everyone), or questions in the comments on the creator's own videos. */
-  source?: "tiktok" | "google" | "comments";
+  source?: "tiktok" | "google" | "comments" | "suggest";
 }
 
 /** Educational themes, rotated over the week ("gear" is the old name of "prep", on older videos). */

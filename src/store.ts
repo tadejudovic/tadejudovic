@@ -123,6 +123,9 @@ export interface Settings {
   /** What people search on Google (Keyword Planner export), grouped into topics the same way. */
   keywordTopics?: SearchTopic[];
   keywordTopicsAt?: string;
+  /** What people type into Google and YouTube search (autocomplete), refreshed weekly. */
+  suggestTopics?: SearchTopic[];
+  suggestTopicsAt?: string;
   /** Every Keyword Planner search added so far (exports add up; the newest numbers win). */
   keywordQueries?: { query: string; clicks: number; impressions: number }[];
   /** Learned from the creator's own TikTok: questions in the comments (as topics) and the posts people

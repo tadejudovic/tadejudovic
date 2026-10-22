@@ -17,7 +17,7 @@ export interface SearchQuery {
   impressions: number;
 }
 
-export type SearchSource = "tiktok" | "google" | "comments";
+export type SearchSource = "tiktok" | "google" | "comments" | "suggest";
 
 /** The files in a zip archive (stored or deflated entries; enough for TikTok's export). */
 export function unzip(buf: Buffer): Map<string, Buffer> {
@@ -138,6 +138,8 @@ export async function groupQueries(queries: SearchQuery[], source: SearchSource 
         text:
           (source === "google"
             ? `What people search on Google, with average monthly searches (Google Ads Keyword Planner):\n`
+            : source === "suggest"
+              ? `What people type into Google and YouTube search (autocomplete suggestions; the number is how high and how often it's suggested):\n`
             : source === "comments"
               ? `Questions people asked in the comments on the creator's own TikToks (with 1 + the comment's likes):\n`
               : `What people searched on Google before finding the creator's TikToks (with how often they saw it):\n`) +
@@ -220,8 +222,8 @@ export function mergeQueries(before: SearchQuery[], added: SearchQuery[]): Searc
 
 /** Both lists: TikTok's (what brought people to this account) and Google's (what everyone searches). */
 export function allSearchTopics(): SearchTopic[] {
-  const { searchTopics, keywordTopics, audience } = store.settings();
-  return [...(audience?.topics ?? []), ...(searchTopics ?? []).map((t) => ({ ...t, source: t.source ?? ("tiktok" as const) })), ...(keywordTopics ?? [])];
+  const { searchTopics, keywordTopics, suggestTopics, audience } = store.settings();
+  return [...(audience?.topics ?? []), ...(searchTopics ?? []).map((t) => ({ ...t, source: t.source ?? ("tiktok" as const) })), ...(keywordTopics ?? []), ...(suggestTopics ?? [])];
 }
 
 /** Whether an educational video in the last 45 days already answered this topic. */
@@ -251,9 +253,9 @@ export function searchTopicsFor(pillar: EduPillar | undefined, n = 3): SearchTop
   if (last?.plan.searchTopic) return [];
   // The sources take turns, each in its own order (their numbers aren't comparable): what the
   // audience asked in the comments first, then what brought people to the account, then Google.
-  const { searchTopics, keywordTopics, audience } = store.settings();
+  const { searchTopics, keywordTopics, suggestTopics, audience } = store.settings();
   const open = (list?: SearchTopic[]) => (list ?? []).filter((t) => t.pillar === p && !searchTopicUsed(t));
-  const lists = [open(audience?.topics), open(searchTopics), open(keywordTopics)];
+  const lists = [open(audience?.topics), open(searchTopics), open(keywordTopics), open(suggestTopics)];
   const out: SearchTopic[] = [];
   for (let i = 0; out.length < n && lists.some((l) => i < l.length); i++)
     for (const l of lists) if (l[i] && out.length < n) out.push(l[i]);

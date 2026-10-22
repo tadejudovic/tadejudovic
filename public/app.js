@@ -199,7 +199,7 @@ async function loadSearchTopics() {
             h(
               "span",
               { class: "muted" },
-              `${t.source === "google" ? `Google · ${t.impressions.toLocaleString()}/month` : t.source === "comments" ? `Your comments · ${t.queries.length} question${t.queries.length === 1 ? "" : "s"}` : `TikTok · ${t.impressions.toLocaleString()} seen`}` +
+              `${t.source === "google" ? `Google · ${t.impressions.toLocaleString()}/month` : t.source === "suggest" ? "Google & YouTube search suggestions" : t.source === "comments" ? `Your comments · ${t.queries.length} question${t.queries.length === 1 ? "" : "s"}` : `TikTok · ${t.impressions.toLocaleString()} seen`}` +
                 `${t.used ? " · covered" : ""} · ${t.queries.slice(0, 3).join(", ")}`,
             ),
           ),

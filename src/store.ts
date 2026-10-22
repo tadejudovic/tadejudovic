@@ -96,6 +96,7 @@ export interface Settings {
   ctaWwwV1?: boolean;
   openerV1?: boolean;
   insightsOct22?: boolean;
+  heavyImportV1?: boolean;
   mixV2?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;

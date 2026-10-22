@@ -1645,6 +1645,15 @@ if (!paused && !store.settings().scanSinceSep10) {
   setTimeout(() => fullScan(Date.parse("2026-09-10T00:00:00")).catch((err) => console.warn("[albums] full scan:", (err as Error).message)), 45_000);
 }
 
+// Once: the creator wants as much footage as possible. Every album covers the last year (was 30-60
+// days), and everything filmed in that year that isn't in the library is imported now, newest first,
+// not held to the daily cap (the disk guard still pauses it when space runs low).
+if (!paused && !store.settings().heavyImportV1) {
+  store.updateSettings({ heavyImportV1: true });
+  for (const a of store.albums()) if ((a.recentDays ?? 0) > 0 && (a.recentDays ?? 0) < 365) setRecentDays(a.id, 365);
+  setTimeout(() => fullScan(Date.now() - 365 * 86400_000).catch((err) => console.warn("[albums] heavy import:", (err as Error).message)), 60_000);
+}
+
 // Once: the creator asked for the airport potty video (34d625ab05316488) to be made again: same first
 // clip, footage that shows each point, text off Lex's face, a short hook. It goes back to Review.
 if (!paused && !store.settings().remakePottyV1) {

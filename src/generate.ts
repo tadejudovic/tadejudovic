@@ -617,7 +617,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((opener) => ({ opener, broll: brollPool(clip, opener ? [...chosen, opener] : chosen) }))(strongFootage(clip) ? undefined : openerFor(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 15), maxSeconds: Math.max(ctx.maxSeconds, 30) } : {}),
+            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((opener) => ({ opener, broll: brollPool(clip, opener ? [...chosen, opener] : chosen) }))(strongFootage(clip) ? undefined : openerFor(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
           };
           let p = await directClip(clip, direction);
           // The basics first (headline, points, pacing): a draft that breaks one goes back once with

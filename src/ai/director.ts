@@ -804,8 +804,9 @@ function tipsText(petName: string, scene?: string, faq?: { q: string; a?: string
     `just sits in a clear part of the frame.` +
     `\n- Only facts that hold for most airlines and countries; no specific rules, fees or legal requirements you ` +
     `aren't sure of.` +
-    `\n- Length: whatever the lesson needs to be read comfortably, usually 15–30s: the hook alone for ~2.5s, then ` +
-    `~3–4s per point. Don't pad it, and don't rush it.` +
+    `\n- Length: short. The creator's numbers: half the viewers are gone by ~7s, and the 23s lessons lost the ` +
+    `most; the ones that held best were 12–19s. So 12–17s before the call to action: the hook alone for ~2.5s, ` +
+    `then ~3s per point, 3 points (never more than 4). Short points (a few words) read fast. Don't pad it.` +
     `\n\nTHE ANSWER TEST: when the headline is a question, every point is a DIRECT answer to that exact question, ` +
     `of the kind it asks for: "Where do dogs pee on a layover?" → each point is a place ("1. Pet relief areas, ` +
     `after security", "2. Outside, before check-in", "3. A pee pad in the carrier"), not general advice ("book ` +
@@ -837,7 +838,7 @@ export type EduFormat = "list" | "myth" | "mistake" | "qa" | "dodont" | "nobody"
 
 const EDU_FORMAT_TEXT: Record<EduFormat, string> = {
   list:
-    `\nSTRUCTURE FOR THIS VIDEO: A NUMBERED LIST. 2–4 points that build up on screen, each starting "1.", "2.", … ` +
+    `\nSTRUCTURE FOR THIS VIDEO: A NUMBERED LIST. 3 points (2–4 at most) that build up on screen, each starting "1.", "2.", … ` +
     `e.g. "1. Kato backpack", "2. PetPace health tracker", "3. A ton of documents". A light, funny last point is ` +
     `great if it fits ("4. Optional: a patient owner").`,
   myth:

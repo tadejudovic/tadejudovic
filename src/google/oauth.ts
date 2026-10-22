@@ -11,7 +11,10 @@ import { store } from "../store.ts";
  * scope is read-only and limited to what the user picked.
  */
 export const PICKER_SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly";
-const redirectUri = () => `${config.appUrl}/auth/google/callback`;
+/** Where Google sends people back: the address they're actually using (studio.… or onrender.com), like sign-in. */
+const redirectUri = (origin = config.appUrl) => `${origin}/auth/google/callback`;
+/** The address each pending connection started from, so the code is exchanged with the same redirect. */
+const stateOrigins = new Map<string, string>();
 const pendingStates = new Set<string>();
 
 /**
@@ -22,12 +25,13 @@ const pendingStates = new Set<string>();
 export const googleConfigured = () =>
   process.env.GOOGLE_PHOTOS_PICKER !== "0" && Boolean(config.google.clientId && config.google.clientSecret);
 
-export function authUrl(): string {
+export function authUrl(origin?: string): string {
   const state = crypto.randomBytes(16).toString("hex");
   pendingStates.add(state);
+  if (origin) stateOrigins.set(state, origin);
   const params = new URLSearchParams({
     client_id: config.google.clientId,
-    redirect_uri: redirectUri(),
+    redirect_uri: redirectUri(origin),
     response_type: "code",
     scope: PICKER_SCOPE,
     access_type: "offline",
@@ -40,10 +44,12 @@ export function authUrl(): string {
 
 export async function handleCallback(code: string, state: string) {
   if (!pendingStates.delete(state)) throw new Error("Invalid OAuth state — please try connecting again.");
+  const origin = stateOrigins.get(state);
+  stateOrigins.delete(state);
   const tokens = await tokenRequest({
     code,
     grant_type: "authorization_code",
-    redirect_uri: redirectUri(),
+    redirect_uri: redirectUri(origin),
   });
   store.setGoogle({
     access_token: tokens.access_token,

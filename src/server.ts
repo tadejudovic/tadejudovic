@@ -311,9 +311,9 @@ app.get("/media/example/:id.jpg", (req, res) => {
 
 // ---- Google Photos --------------------------------------------------------
 
-app.get("/auth/google", (_req, res) => {
+app.get("/auth/google", (req, res) => {
   if (!googleConfigured()) return res.status(400).send("Google isn't set up on the server (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET).");
-  res.redirect(authUrl());
+  res.redirect(authUrl(`${req.protocol}://${req.get("host")}`));
 });
 
 app.get(

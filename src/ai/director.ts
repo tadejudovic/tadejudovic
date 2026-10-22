@@ -469,11 +469,11 @@ export function montage(segments: Segment[], extras: Clip[], minSeconds: number)
  * The first `seconds` of the video replaced by the opener clip's best moment (same length, so the
  * text timing holds): what plays under the headline before the first point.
  */
-export function withOpener(segments: Segment[], opener: Clip, seconds: number): Segment[] {
+export function withOpener(segments: Segment[], opener: Clip, seconds: number, from?: number): Segment[] {
   if (segments.some((s) => s.clipId === opener.id)) return segments;
   const m = [...(opener.ai?.moments ?? opener.moments ?? [])].sort((a, b) => b.score - a.score)[0];
   const len = Math.min(seconds, opener.duration);
-  const start = Math.max(0, Math.min(m ? m.start : (opener.duration - len) / 2, opener.duration - len));
+  const start = Math.max(0, Math.min(from ?? (m ? m.start : (opener.duration - len) / 2), opener.duration - len));
   const out: Segment[] = [{ clipId: opener.id, start, end: start + len, speed: 1 }];
   let skip = len;
   for (const s of segments) {
@@ -700,6 +700,8 @@ export interface DirectContext {
   broll?: Clip[];
   /** Educational: the strongest footage to open on (Lex in the backpack at the airport, on the plane). */
   opener?: Clip;
+  /** Where in the opener its sharpest stretch starts (seconds). */
+  openerFrom?: number;
   /** Educational: the call to action at the end (on screen) and in the description. */
   cta?: { site: string; overlay: string; caption: string };
   /** Make this a collab version for a brand partner. */
@@ -1334,7 +1336,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   // footage there is, not on whatever the video's main clip starts with.
   if (ctx.format === "tips" && ctx.opener) {
     const firstPoint = overlays.find((o, i) => i > 0 && o.y !== undefined)?.start ?? 2.5;
-    segments = withOpener(segments, ctx.opener, Math.max(1.5, Math.min(3, firstPoint)));
+    segments = withOpener(segments, ctx.opener, Math.max(1.5, Math.min(3, firstPoint)), ctx.openerFrom);
     known.set(ctx.opener.id, ctx.opener);
   }
   // Educational: end on the creator's call to action (their site, link in bio) for the last 3s.

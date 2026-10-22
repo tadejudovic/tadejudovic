@@ -18,7 +18,7 @@ import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDe
 import { learnFromTikTok } from "./audience.ts";
 import { DAY_KINDS, keptToday, promoteSpares, waitingOf } from "./daySet.ts";
 import { linkWinningPosts, syncProfiles } from "./postMatch.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, makeCollabEducational, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, EDITOR_ATTEMPTS } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, makeCollabEducational, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, newOpening, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -1673,6 +1673,16 @@ if (!paused && !store.settings().heavyImportV1) {
   store.updateSettings({ heavyImportV1: true });
   for (const a of store.albums()) if ((a.recentDays ?? 0) > 0 && (a.recentDays ?? 0) < 365) setRecentDays(a.id, 365);
   setTimeout(() => fullScan(Date.now() - 365 * 86400_000).catch((err) => console.warn("[albums] heavy import:", (err as Error).message)), 60_000);
+}
+
+// Once, asked by the creator: the "Can dogs fly to Europe in the cabin?" video gets a sharp opening
+// (its first frame was blurry), and point 1 says the actual rule (8 kg is the usual European limit).
+if (!paused && !store.settings().europeOpeningV1) {
+  store.updateSettings({ europeOpeningV1: true });
+  setTimeout(
+    () => newOpening("6f734f77ee024ea0", { 1: "1. Yes, if dog + bag is under 8 kg" }).catch((err) => console.warn("[layout] Europe opening:", (err as Error).message)),
+    30_000,
+  );
 }
 
 // Once: the creator asked for the airport potty video (34d625ab05316488) to be made again: same first

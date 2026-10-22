@@ -23,7 +23,7 @@ import { basicChecks } from "./checks.ts";
 import { reviewVideo, type EditorVerdict } from "./ai/editor.ts";
 import { previewFor, removePreview } from "./media/preview.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
-import { run, probe } from "./media/ffmpeg.ts";
+import { run, probe, blurOf } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
 
 function applyHashtags(p: VideoPlan, scene: string | undefined) {
@@ -151,7 +151,35 @@ export function strongFootage(c: Clip): boolean {
  * backpack at the airport, boarding, on the plane, with a strong moment; unused footage first, then
  * footage not opened on recently, the most recent first.
  */
+/**
+ * The opening that looks best: among the strongest candidates, the stretch whose first frame is
+ * sharp (a soft, blurry first frame loses people before they've seen anything) and stays sharp.
+ * Falls back to the first candidate's best moment when blur can't be measured.
+ */
+export async function sharpOpener(main: Clip, roundClips: Clip[] = [], seconds = 2.5): Promise<{ clip: Clip; from: number } | undefined> {
+  const candidates = openerCandidates(main, roundClips).slice(0, 5);
+  if (!candidates.length) return undefined;
+  let best: { clip: Clip; from: number; score: number } | undefined;
+  for (const c of candidates) {
+    const len = Math.min(seconds, c.duration);
+    const moments = [...(c.ai?.moments ?? c.moments ?? [])].sort((a, b) => b.score - a.score).slice(0, 2);
+    const starts = [...new Set([...moments.flatMap((m) => [m.start, m.start + 0.7]), (c.duration - len) / 2].map((t) => Math.max(0, Math.min(t, c.duration - len))).map((t) => Math.round(t * 10) / 10))];
+    for (const from of starts) {
+      const blur = await blurOf(c.file, from, len);
+      if (!blur) return { clip: candidates[0], from: Math.max(0, Math.min(moments[0]?.start ?? 0, candidates[0].duration - len)) };
+      // The first frame counts double; a stronger moment breaks ties.
+      const score = blur.first * 2 + blur.mean - (moments[0]?.score ?? 0);
+      if (!best || score < best.score) best = { clip: c, from, score };
+    }
+  }
+  return best && { clip: best.clip, from: best.from };
+}
+
 export function openerFor(main: Clip, roundClips: Clip[] = []): Clip | undefined {
+  return openerCandidates(main, roundClips)[0];
+}
+
+function openerCandidates(main: Clip, roundClips: Clip[] = []): Clip[] {
   const skip = new Set([main.id, ...roundClips.map((c) => c.id)]);
   const recentOpeners = new Set(store.renders().slice(0, 15).map((r) => r.plan.segments[0]?.clipId));
   const best = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
@@ -162,7 +190,39 @@ export function openerFor(main: Clip, roundClips: Clip[] = []): Clip | undefined
         !skip.has(c.id) && !recentOpeners.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width &&
         !c.disliked && !c.edited && !c.duplicateOf && c.duration >= 2 && strongFootage(c) && best(c) >= 0.5,
     )
-    .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || filmedWeek(b) - filmedWeek(a) || best(b) - best(a))[0];
+    // Footage the AI described as blurry, soft or shaky is the last choice for an opening.
+    .sort((a, b) => Number(soft(a)) - Number(soft(b)) || Number(a.uses > 0) - Number(b.uses > 0) || filmedWeek(b) - filmedWeek(a) || best(b) - best(a));
+}
+
+const soft = (c: Clip) => /blurr|out of focus|soft focus|somewhat soft|shaky|grainy/i.test(c.ai?.summary ?? "");
+
+/**
+ * A video waiting in Review gets a new opening: the seconds under the headline swapped for the
+ * sharpest strong footage (not used in the video), optionally with corrected point texts. The rest,
+ * and the editor's review, stay.
+ */
+export async function newOpening(id: string, texts: Record<number, string> = {}): Promise<Render | undefined> {
+  const r = store.render(id);
+  if (!r || r.status !== "done" || r.posts?.length) return undefined;
+  const used = r.plan.segments.map((s) => store.clip(s.clipId)).filter((c): c is Clip => !!c);
+  const first = used[0];
+  if (!first) return undefined;
+  const overlays = (r.plan.overlays ?? []).map((o, i) => (texts[i] ? { ...o, text: texts[i] } : o));
+  const firstPoint = overlays.find((o, i) => i > 0 && o.y !== undefined)?.start ?? 2.5;
+  const seconds = Math.max(1.5, Math.min(3, firstPoint));
+  const o = await sharpOpener(first, used, seconds);
+  if (!o) return undefined;
+  // The old opening shot goes (it's the one being replaced), the rest stays in place.
+  const rest = r.plan.segments[0]?.clipId === first.id ? r.plan.segments.slice(1) : r.plan.segments;
+  const head = r.plan.segments[0];
+  const headLen = head ? (head.end - head.start) / (head.speed ?? 1) : 0;
+  const segments = withOpener(headLen >= seconds - 0.05 ? rest : r.plan.segments, o.clip, seconds, o.from);
+  const plan = { ...r.plan, overlays, hook: overlays[0]?.text ?? r.plan.hook, editorPass: EDITOR_ATTEMPTS, segments };
+  const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
+  store.updateRender(fresh.id, { ...(r.editor ? { editor: r.editor } : {}), ...(r.review === "approved" ? { review: "approved", reviewedAt: r.reviewedAt } : {}) });
+  deleteRender(r.id);
+  console.log(`[layout] ${id} opens on ${o.clip.id} at ${o.from}s → ${fresh.id}`);
+  return fresh;
 }
 
 /** The country a clip was filmed in is switched off in Themes ("place:Portugal"). */
@@ -617,7 +677,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((opener) => ({ opener, broll: brollPool(clip, opener ? [...chosen, opener] : chosen) }))(strongFootage(clip) ? undefined : openerFor(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
+            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((o) => ({ opener: o?.clip, openerFrom: o?.from, broll: brollPool(clip, o ? [...chosen, o.clip] : chosen) }))(strongFootage(clip) ? undefined : await sharpOpener(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
           };
           let p = await directClip(clip, direction);
           // The basics first (headline, points, pacing): a draft that breaks one goes back once with

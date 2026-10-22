@@ -254,3 +254,22 @@ export async function photoToClip(input: string, out: string, seconds = 3) {
     out,
   ]);
 }
+
+/**
+ * How blurry a stretch of a clip is (ffmpeg's blurdetect: lower is sharper), sampled at 3 frames a
+ * second: the first frame on its own (what viewers see first) and the stretch's average. Undefined
+ * when this ffmpeg has no blurdetect (added in 5.1).
+ */
+export async function blurOf(file: string, start: number, seconds: number): Promise<{ first: number; mean: number } | undefined> {
+  try {
+    const { stdout } = await run("ffmpeg", [
+      "-v", "error", "-ss", start.toFixed(2), "-t", seconds.toFixed(2), "-i", file,
+      "-vf", "fps=3,scale=360:-2,blurdetect,metadata=print:file=-", "-an", "-f", "null", "-",
+    ]);
+    const values = [...stdout.toString().matchAll(/lavfi\.blur=([\d.]+)/g)].map((m) => Number(m[1]));
+    if (!values.length) return undefined;
+    return { first: values[0], mean: values.reduce((a, b) => a + b, 0) / values.length };
+  } catch {
+    return undefined;
+  }
+}

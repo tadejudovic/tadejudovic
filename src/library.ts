@@ -67,7 +67,7 @@ export function enqueueClip(opts: {
 
 /** Picked items' links expire about an hour after picking: they're downloaded right away, two at a
  * time (network, not CPU), while the analysis follows in the heavy lane at its own pace. */
-const DOWNLOADS_AT_ONCE = 2;
+const DOWNLOADS_AT_ONCE = 3;
 const MIN_FREE_FOR_DOWNLOAD = 1.5 * 1024 ** 3;
 let downloading = 0;
 const downloadsWaiting: (() => void)[] = [];

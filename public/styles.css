@@ -815,3 +815,5 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .clip.failed .thumb { aspect-ratio: auto; height: 48px; }
 .clip.failed .clip-err { word-break: break-word; }
 .not-used.failed-clips { margin-top: 12px; }
+.picker-box { margin: 16px 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); display: grid; gap: 8px; justify-items: start; }
+.picker-box .hint { margin: 0; }

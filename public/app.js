@@ -125,7 +125,7 @@ async function loadStatus() {
   $("#videos-today").textContent = `${s.videosToday.made} of ${s.videosToday.limit} made today. Each day runs until you've kept one of each kind; this cap only stops a day of rejections from running up costs.`;
   const btn = $("#btn-google");
   // The picker needs Google Cloud credentials; the album link doesn't, so only show the picker when it's set up.
-  btn.hidden = !s.google.configured;
+  $("#picker-box").hidden = !s.google.configured;
   btn.textContent = s.google.connected ? "Pick from Google Photos" : "Connect Google Photos";
   $("#google-hint").textContent = "New videos you add to the album are picked up automatically every few hours.";
   const tpl = $("#templates");
@@ -447,7 +447,7 @@ function renderSummaries() {
 
 $("#btn-google").addEventListener("click", async () => {
   const s = state.status;
-  if (!s.google.configured) return banner("Add Google OAuth credentials to .env first (see README).");
+  if (!s.google.configured) return banner("Google isn't set up on the server yet.");
   if (!s.google.connected) return (location.href = "/auth/google");
   const btn = $("#btn-google");
   // Open the window synchronously so popup blockers allow it.
@@ -464,7 +464,7 @@ $("#btn-google").addEventListener("click", async () => {
       await new Promise((r) => setTimeout(r, interval));
       const r = await api(`/api/google/picker/${encodeURIComponent(session.id)}`);
       if (r.done) {
-        banner(`Imported ${r.imported} new item${r.imported === 1 ? "" : "s"} (${r.picked - r.imported} already in your library). Analyzing…`, "ok");
+        banner(`${r.imported} new item${r.imported === 1 ? "" : "s"} downloading now${r.picked - r.imported ? ` (${r.picked - r.imported} already in your clips)` : ""}. They appear in Clips as they're sorted.`, "ok");
         refreshClips();
         return;
       }

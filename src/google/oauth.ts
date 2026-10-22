@@ -15,11 +15,12 @@ const redirectUri = () => `${config.appUrl}/auth/google/callback`;
 const pendingStates = new Set<string>();
 
 /**
- * The Google Photos picker is optional and off unless GOOGLE_PHOTOS_PICKER=1: the same Google
- * keys are used for signing in, and the picker also needs the Photos Picker API enabled.
+ * The Google Photos picker is on whenever the Google keys are set (the same ones used for signing
+ * in; the Google Cloud project also needs the Photos Picker API enabled). GOOGLE_PHOTOS_PICKER=0
+ * turns it off.
  */
 export const googleConfigured = () =>
-  process.env.GOOGLE_PHOTOS_PICKER === "1" && Boolean(config.google.clientId && config.google.clientSecret);
+  process.env.GOOGLE_PHOTOS_PICKER !== "0" && Boolean(config.google.clientId && config.google.clientSecret);
 
 export function authUrl(): string {
   const state = crypto.randomBytes(16).toString("hex");

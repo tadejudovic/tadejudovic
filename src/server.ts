@@ -312,7 +312,7 @@ app.get("/media/example/:id.jpg", (req, res) => {
 // ---- Google Photos --------------------------------------------------------
 
 app.get("/auth/google", (_req, res) => {
-  if (!googleConfigured()) return res.status(400).send("Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env first.");
+  if (!googleConfigured()) return res.status(400).send("Google isn't set up on the server (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET).");
   res.redirect(authUrl());
 });
 
@@ -333,7 +333,17 @@ app.post("/api/google/disconnect", (_req, res) => {
 app.post(
   "/api/google/picker",
   h(async (_req, res) => {
-    const s = await createSession();
+    const s = await createSession().catch((err: Error) => {
+      // The usual first-time problem: the Photos Picker API isn't switched on in Google Cloud.
+      if (/SERVICE_DISABLED|has not been used|is disabled/i.test(err.message))
+        throw new Error("Turn on the Photos Picker API in Google Cloud Console (APIs & Services → Library → Photos Picker API → Enable), then try again.");
+      // Signed in with Google, but not given access to Photos yet (or the access was withdrawn).
+      if (/\b(401|403)\b/.test(err.message)) {
+        disconnect();
+        throw new Error("Google Photos needs to be connected again: tap Pick from Google Photos.");
+      }
+      throw err;
+    });
     res.json({ id: s.id, pickerUri: s.pickerUri, pollInterval: s.pollingConfig?.pollInterval });
   }),
 );

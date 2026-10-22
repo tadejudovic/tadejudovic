@@ -169,10 +169,14 @@
         </form>
         <p class="hint">Reads every album again and brings in every video filmed since that date that isn't in your clips yet, not held to the daily import limit. Clips without an AI look get one, and clips filed as "other" are sorted into your themes again.</p>
         <p class="hint">Tip: make the album add Lex by itself: in Google Photos open the album, ⋮ → Options → Automatically add → People &amp; pets → Lex. New albums use videos from the last 30 days, then keep scanning back in time, newest first.</p>
+        <div id="picker-box" class="picker-box" hidden>
+          <b>Pick videos from Google Photos</b>
+          <p class="hint">The reliable way in: choose up to 500 videos at a time in Google Photos (a whole trip, the last few weeks) and they're downloaded straight away, including ones a shared album won't hand over.</p>
+          <button id="btn-google" class="btn" type="button">Pick from Google Photos</button>
+        </div>
         <p class="hint">
           <span id="google-hint"></span>
           <label class="link">Or upload videos<input id="file-input" type="file" accept="video/*,image/*" multiple hidden /></label>
-          <button id="btn-google" class="link-btn" hidden>Pick from Google Photos</button>
         </p>
         </div>
       </div>

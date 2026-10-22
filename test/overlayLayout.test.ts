@@ -13,13 +13,13 @@ test("edited list text: hook stays on top, points one after another in different
   assert.ok(o[o.length - 1].end > 14);
 });
 
-test("more text makes the footage longer: the clip runs on, then replays once at most", () => {
+test("more text makes the footage longer: the clip runs on, never replays", () => {
   const need = readingSeconds(4);
   const longClip = lengthenFootage([{ clipId: "a", start: 0, end: 6, speed: 1 }], need, () => 30);
   assert.equal(longClip.length, 1);
   assert.ok(Math.abs(longClip[0].end - need) < 1e-9);
   const shortClip = lengthenFootage([{ clipId: "a", start: 0, end: 6, speed: 1 }], need, () => 7);
-  assert.equal(shortClip.length, 2); // runs on to the clip's end, then one replay at most
+  assert.equal(shortClip.length, 1); // runs on to the clip's end, no replay
   assert.ok(shortClip.every((s) => s.speed === 1));
 });
 
@@ -57,14 +57,13 @@ test("every point stays on screen long enough to read; a too-short video asks fo
   for (let i = 2; i < ok.overlays.length; i++) assert.ok(Math.abs(ok.overlays[i].start - ok.overlays[i - 1].end) < 1e-9);
 });
 
-test("a short clip is never played more than twice, however many times the video is lengthened", async () => {
-  const { replayOnce, lengthenFootage } = await import("../src/overlayLayout.ts");
-  let segs: { clipId: string; start: number; end: number; speed?: number }[] = [{ clipId: "a", start: 0, end: 9.38, speed: 1 }];
-  segs = replayOnce(segs, 17); // reading time
-  segs = lengthenFootage(segs, 25, () => 9.38); // then the call to action
-  const plays = segs.filter((s) => s.clipId === "a" && s.start === 0).length;
-  assert.ok(plays <= 2, `played ${plays} times`);
-  assert.ok(segs.reduce((a, s) => a + (s.end - s.start), 0) <= 18.8);
+test("lengthening never replays footage: shots run on into the rest of their clips", async () => {
+  const { lengthenFootage } = await import("../src/overlayLayout.ts");
+  const segs = lengthenFootage([{ clipId: "a", start: 0, end: 4, speed: 1 }, { clipId: "b", start: 2, end: 5, speed: 1 }], 12, (id) => (id === "a" ? 9 : 7));
+  assert.deepEqual(segs.map((s) => [s.clipId, s.start, s.end]), [["a", 0, 7], ["b", 2, 7]]);
+  // A clip that's too short stays short rather than looping.
+  const short = lengthenFootage([{ clipId: "a", start: 0, end: 9.38, speed: 1 }], 25, () => 9.38);
+  assert.equal(short.length, 1);
 });
 
 test("points without an arrow each take a clearly different spot", () => {

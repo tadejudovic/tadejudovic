@@ -1,4 +1,4 @@
-import { lengthenFootage, replayOnce, spreadPoints, timePoints } from "../overlayLayout.ts";
+import { lengthenFootage, spreadPoints, timePoints } from "../overlayLayout.ts";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
@@ -312,10 +312,9 @@ export async function fittingClips(concept: string, main: Clip, extras: Clip[], 
 }
 
 /** Too short for the text to be read: play the footage again (videos loop anyway) rather than slow it down. */
-export function fillByRepeating(segments: Segment[], minSeconds: number): Segment[] {
-  if (!segments.length) return segments;
-  // Only what's missing, and no part played more than twice in the whole video.
-  return replayOnce(segments, minSeconds);
+/** No replays any more (each clip once per video): a short video stays short rather than looping. */
+export function fillByRepeating(segments: Segment[], _minSeconds: number): Segment[] {
+  return segments;
 }
 
 /**
@@ -512,35 +511,64 @@ export function paceShots(input: Segment[], clips: Map<string, Clip>, extras: Cl
   for (const s of segments) {
     const speed = s.speed ?? 1;
     const shown = (s.end - s.start) / speed;
-    if (shown <= (speed < 1 ? 3 : MAX_SHOT) + 0.5) {
+    if (shown <= (speed < 1 ? 3 : MAX_SHOT) + 0.5 || !spare.length) {
       out.push(s);
       continue;
     }
+    // The shot's opening, then the best moments of other fitting clips (each clip once in the whole
+    // video). Never back to the same clip later: that reads as the same footage again. When the
+    // other clips run out, this shot simply plays on.
     const n = Math.ceil(shown / MAX_SHOT);
     const piece = shown / n;
-    // Every other shot from another clip, while there are any.
-    const fromOthers = Math.min(spare.length, Math.floor(n / 2));
-    const own = n - fromOthers;
-    // The window this shot's own footage comes from: a little past its end when the clip has more,
-    // but never into footage another shot of the video already shows (no repeats).
-    const clipLength = clips.get(s.clipId)?.duration ?? s.end;
-    const nextUsed = Math.min(clipLength, ...segments.filter((x) => x !== s && x.clipId === s.clipId && x.start >= s.end - 0.05).map((x) => x.start));
-    const windowEnd = Math.max(s.end, Math.min(nextUsed, s.start + (s.end - s.start) * 1.6));
-    const step = own > 1 ? Math.max(piece * speed, (windowEnd - s.start - piece * speed) / (own - 1)) : 0;
-    const ownShots = Array.from({ length: own }, (_, j) => {
-      const start = s.start + j * step;
-      return { ...s, start, end: Math.min(windowEnd, start + piece * speed) };
-    });
-    for (let i = 0, o = 0; i < n; i++) {
-      const other = i % 2 === 1 && i / 2 < fromOthers + 0.5 ? spare.shift() : undefined;
-      if (other) {
-        const m = [...(other.ai?.moments ?? other.moments ?? [])].sort((a, b) => b.score - a.score)[0];
-        const len = Math.min(piece, other.duration);
-        const mid = m ? (m.start + m.end) / 2 : other.duration / 2;
-        const start = Math.max(0, Math.min(mid - len / 2, other.duration - len));
-        out.push({ clipId: other.id, start, end: start + len, speed: 1 });
-      } else if (ownShots[o]) out.push(ownShots[o++]);
+    const others: Segment[] = [];
+    for (let i = 1; i < n && spare.length; i++) {
+      const other = spare.shift()!;
+      const m = [...(other.ai?.moments ?? other.moments ?? [])].sort((a, b) => b.score - a.score)[0];
+      const len = Math.min(piece, other.duration);
+      const mid = m ? (m.start + m.end) / 2 : other.duration / 2;
+      const start = Math.max(0, Math.min(mid - len / 2, other.duration - len));
+      others.push({ clipId: other.id, start, end: start + len, speed: 1 });
     }
+    const othersLen = others.reduce((a, x) => a + (x.end - x.start), 0);
+    out.push({ ...s, end: s.start + Math.max(piece, shown - othersLen) * speed }, ...others);
+  }
+  return onceEach(out, clips, spare);
+}
+
+/**
+ * Every clip appears once in a video. A jump forward within the shot that's playing (skipping a dull
+ * second) is fine; coming back to a clip after other footage, or showing a part twice, isn't: that
+ * part is joined onto where the clip plays, as one longer shot, when the clip has unused footage
+ * right after it, and dropped otherwise.
+ */
+export function onceEach(segments: Segment[], clips: Map<string, Clip>, spare: Clip[] = []): Segment[] {
+  const out: Segment[] = [];
+  const shown = (id: string) => out.filter((x) => x.clipId === id);
+  const unused = spare.filter((c) => !segments.some((s) => s.clipId === c.id) && c.duration >= 1);
+  for (const s of segments) {
+    const last = out.at(-1);
+    const before = shown(s.clipId);
+    if (!before.length || (last?.clipId === s.clipId && s.start >= last.end - 0.05)) {
+      out.push({ ...s });
+      continue;
+    }
+    // Back to a clip already shown: an unused clip's best moment takes that spot first (the timing
+    // of the text above it stays right).
+    const len = (s.end - s.start) / (s.speed ?? 1);
+    const fresh = unused.shift();
+    if (fresh) {
+      const m = [...(fresh.ai?.moments ?? fresh.moments ?? [])].sort((a, b) => b.score - a.score)[0];
+      const take = Math.min(len, fresh.duration);
+      const mid = m ? (m.start + m.end) / 2 : fresh.duration / 2;
+      const start = Math.max(0, Math.min(mid - take / 2, fresh.duration - take));
+      out.push({ clipId: fresh.id, start, end: start + take, speed: 1 });
+      continue;
+    }
+    // Otherwise run that clip's last shot on instead, if the clip has unused footage.
+    const end = before.at(-1)!;
+    const raw = s.end - s.start;
+    const clipLength = clips.get(s.clipId)?.duration ?? end.end;
+    if (end.end + raw <= clipLength + 0.05) end.end = Math.min(clipLength, end.end + raw);
   }
   return out;
 }
@@ -1179,7 +1207,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       `report where they are (subjectTop/subjectBottom) and keep any placed text outside that band. Overlays use y -1 and no arrow (pointX/pointY -1) unless the ` +
       `format below says otherwise. Pacing: cut every 1.5–2s (several segments, jumping past dead moments); one shot holds longer only while continuous action plays out. Play footage at real speed (1). Slow motion only for one short ` +
       `payoff moment that's better slowed down (a jump, a head tilt, a reaction), never to make the video longer; if ` +
-      `the clip is short, use all of it at speed 1 (it's replayed to give time to read). Overlay text: the headline at most 9 words (two short lines), any line after it at most 5 words (one line), so everything on screen at once fits in 3 lines; plain words a stranger gets in a second (no airport codes like FLL or LAX, no jargon: city names), sentence case, no hashtags, no emoji; " / " starts ` +
+      `the clip is short, use all of it at speed 1 (never the same part twice: more footage from other clips is added if needed). Overlay text: the headline at most 9 words (two short lines), any line after it at most 5 words (one line), so everything on screen at once fits in 3 lines; plain words a stranger gets in a second (no airport codes like FLL or LAX, no jargon: city names), sentence case, no hashtags, no emoji; " / " starts ` +
       `a new line (e.g. "me: quick bath / ${ctx.petName}:").` +
       (ctx.trends.length
         ? `\n\nText formats currently working for pet accounts (optional inspiration):\n` +

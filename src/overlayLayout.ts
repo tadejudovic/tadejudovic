@@ -91,40 +91,28 @@ export function spreadPoints(overlays: Overlay[]): Overlay[] {
 }
 
 /**
- * Make the footage long enough for `seconds`: first let the last part run on into the rest of its
- * clip, then replay the footage at real speed.
+ * Make the footage long enough for `seconds` without showing anything twice: the shots run on into
+ * the rest of their clips (the last one first). May stay shorter than asked when the clips run out.
  */
 export function lengthenFootage(segments: Segment[], seconds: number, clipDuration: (id: string) => number): Segment[] {
   const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
-  let out = segments.map((s) => ({ ...s }));
-  const lastSeg = out[out.length - 1];
-  if (lastSeg && len(out) < seconds) {
-    const room = clipDuration(lastSeg.clipId) - lastSeg.end;
-    lastSeg.end += Math.max(0, Math.min(room, (seconds - len(out)) * (lastSeg.speed ?? 1)));
+  const out = segments.map((s) => ({ ...s }));
+  for (let i = out.length - 1; i >= 0 && len(out) < seconds - 0.05; i--) {
+    const s = out[i];
+    // Up to where this clip is used next in the video (never into footage shown elsewhere).
+    const nextUse = Math.min(clipDuration(s.clipId), ...out.filter((x) => x !== s && x.clipId === s.clipId && x.start >= s.end - 0.05).map((x) => x.start));
+    const room = Math.max(0, nextUse - s.end);
+    s.end += Math.min(room, (seconds - len(out)) * (s.speed ?? 1));
   }
-  return replayOnce(out, seconds);
+  return out;
 }
 
 /**
- * Replay footage to reach `seconds`, but only as much as is missing, and never any part more than
- * twice in the whole video: footage on a loop looks like a loop. May stay shorter than asked.
+ * Footage is never replayed (the creator's rule: the same clip shows up once in a video), so this
+ * returns the footage as it is; kept for the callers that used to replay a short clip.
  */
-export function replayOnce(segments: Segment[], seconds: number): Segment[] {
-  const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
-  const key = (s: Segment) => `${s.clipId}:${s.start.toFixed(2)}`;
-  const plays = new Map<string, number>();
-  for (const s of segments) plays.set(key(s), (plays.get(key(s)) ?? 0) + 1);
-  const out = [...segments];
-  for (const s of segments) {
-    const missing = seconds - len(out);
-    if (missing < 0.3) break;
-    if ((plays.get(key(s)) ?? 0) >= 2) continue;
-    const take = Math.min(s.end - s.start, missing);
-    if (take < 1) continue;
-    out.push({ ...s, end: s.start + take, speed: 1 });
-    plays.set(key(s), (plays.get(key(s)) ?? 0) + 1);
-  }
-  return out;
+export function replayOnce(segments: Segment[], _seconds: number): Segment[] {
+  return segments;
 }
 
 /**
@@ -134,13 +122,13 @@ export function replayOnce(segments: Segment[], seconds: number): Segment[] {
  */
 export function healPlan<P extends { format?: string; segments: Segment[]; overlays?: Overlay[] }>(plan: P, ctaSite?: string): P {
   const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
-  // Footage: each part at most twice.
+  // Footage: each part once (no replays).
   const key = (s: Segment) => `${s.clipId}:${s.start.toFixed(2)}`;
   const plays = new Map<string, number>();
   let segments = plan.segments.filter((s) => {
     const n = (plays.get(key(s)) ?? 0) + 1;
     plays.set(key(s), n);
-    return n <= 2;
+    return n <= 1;
   });
   if (plan.format !== "tips" || !plan.overlays?.length) return { ...plan, segments };
   const site = ctaSite?.toLowerCase();

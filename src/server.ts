@@ -1707,6 +1707,17 @@ if (!paused && !store.settings().heavyImportV1) {
   setTimeout(() => fullScan(Date.now() - 365 * 86400_000).catch((err) => console.warn("[albums] heavy import:", (err as Error).message)), 60_000);
 }
 
+// Once, asked by the creator: every clip goes (files and records, whatever its source), so the
+// library starts again from fresh Google Photos picks. Videos already made stay playable; their
+// waiting downloads are dropped (a queued job finds its clip gone and does nothing).
+if (!store.settings().allClipsRemovedV1) {
+  store.updateSettings({ allClipsRemovedV1: true });
+  const all = store.clips();
+  for (const c of all) deleteClip(c.id);
+  const freed = freeDiskSpace();
+  console.log(`[library] removed all ${all.length} clip(s); freed ${(freed / 1024 ** 3).toFixed(2)} GB`);
+}
+
 // Once, asked by the creator: footage comes only from the Google Photos picker (and uploads) from now
 // on. Every clip imported from a shared-album link goes (files and records), the album links are
 // removed so nothing is imported again, their waiting downloads are dropped, and the disk is freed.

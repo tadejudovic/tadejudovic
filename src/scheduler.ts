@@ -208,7 +208,7 @@ export async function runDailyBatch({ manual = false }: { force?: boolean; manua
       throw new Error(
         any
           ? "Every clip has been used. Older footage from your albums is being imported now; the next video starts as soon as it's sorted."
-          : "No analyzed vertical videos yet. Add a shared album or upload some clips.",
+          : "No clips yet. Pick videos in Settings → Google Photos (or upload some).",
       );
     }
     const auto = store.auto();

@@ -474,7 +474,7 @@ $("#btn-google").addEventListener("click", async () => {
         return;
       }
     }
-    banner("The Google Photos picker timed out. Try again.");
+    banner("Still waiting for your picks. If you already tapped Done, they're being imported in the background: check Clips in a minute.");
   } catch (err) {
     win?.close();
     banner(err.message);

@@ -124,6 +124,7 @@ app.get("/api/diagnostics", (_req, res) => {
       videosByStyle: count(renders, (r) => r.options?.textStyle ?? "none"),
     },
     imports: { paused: importPause(), freeDiskGb: Math.round((freeDiskBytes() / 1024 ** 3) * 10) / 10 },
+    googlePhotos: { connected: Boolean(store.google()), lastPick, clipsFromPicker: clips.filter((c) => c.source === "google_photos").length },
     clips: {
       byStatus: count(clips, (c) => c.status),
       byScene: count(clips.filter((c) => c.status === "ready"), (c) => c.scene ?? "unsorted"),
@@ -330,6 +331,36 @@ app.post("/api/google/disconnect", (_req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * The last Google Photos pick, collected by the server itself: it checks with Google until the
+ * creator taps Done, then imports what was picked, so the picks arrive even if the phone's tab was
+ * put to sleep or closed meanwhile.
+ */
+let lastPick: { id: string; at: string; status: "waiting" | "imported" | "expired" | "error"; picked?: number; imported?: number; message?: string } | null = null;
+
+async function collectPick(id: string, pollMs: number) {
+  const until = Date.now() + 45 * 60_000;
+  while (Date.now() < until) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    if (lastPick?.id !== id) return; // a newer pick took over
+    try {
+      const s = await getSession(id);
+      if (!s.mediaItemsSet) continue;
+      const items = await listPicked(id);
+      const clips = importPicked(items);
+      await deleteSession(id);
+      lastPick = { id, at: new Date().toISOString(), status: "imported", picked: items.length, imported: clips.length };
+      console.log(`[picker] ${items.length} picked, ${clips.length} new, importing`);
+      return;
+    } catch (err) {
+      lastPick = { id, at: new Date().toISOString(), status: "error", message: (err as Error).message.slice(0, 300) };
+      console.warn("[picker]", (err as Error).message);
+      return;
+    }
+  }
+  if (lastPick?.id === id) lastPick = { ...lastPick, status: "expired", at: new Date().toISOString() };
+}
+
 app.post(
   "/api/google/picker",
   h(async (_req, res) => {
@@ -344,22 +375,20 @@ app.post(
       }
       throw err;
     });
+    lastPick = { id: s.id, at: new Date().toISOString(), status: "waiting" };
+    void collectPick(s.id, Math.max(3000, parseFloat(s.pollingConfig?.pollInterval || "5") * 1000));
     res.json({ id: s.id, pickerUri: s.pickerUri, pollInterval: s.pollingConfig?.pollInterval });
   }),
 );
 
-app.get(
-  "/api/google/picker/:id",
-  h(async (req, res) => {
-    const id = String(req.params.id);
-    const s = await getSession(id);
-    if (!s.mediaItemsSet) return res.json({ done: false });
-    const items = await listPicked(id);
-    const clips = importPicked(items);
-    await deleteSession(id);
-    res.json({ done: true, picked: items.length, imported: clips.length });
-  }),
-);
+/** How the pick is going (the server collects it; the page only shows the result). */
+app.get("/api/google/picker/:id", (req, res) => {
+  const p = lastPick?.id === String(req.params.id) ? lastPick : null;
+  if (!p || p.status === "waiting") return res.json({ done: false });
+  if (p.status === "error") return res.status(400).json({ error: p.message });
+  if (p.status === "expired") return res.status(400).json({ error: "The Google Photos pick timed out. Try again." });
+  res.json({ done: true, picked: p.picked, imported: p.imported });
+});
 
 // ---- Shared albums --------------------------------------------------------
 

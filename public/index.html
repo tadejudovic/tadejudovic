@@ -119,7 +119,7 @@
 
       <p class="group-label">Footage</p>
       <div class="group">
-        <button class="srow" data-open="sp-album"><span class="row-title">Google Photos albums</span><span class="row-value" id="sum-album"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow" data-open="sp-album"><span class="row-title">Google Photos</span><span class="row-value" id="sum-album"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-clips"><span class="row-title">Your clips</span><span class="row-value" id="sum-clips"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       </div>
 
@@ -155,8 +155,15 @@
       <p class="muted app-version" id="app-version"></p>
 
       <div class="subpage" id="sp-album" hidden>
-        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Google Photos albums</h2></header>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Google Photos</h2></header>
         <div class="sp-body">
+        <div id="picker-box" class="picker-box" hidden>
+          <b>Pick videos from Google Photos</b>
+          <p class="hint">Choose up to 500 videos at a time in Google Photos (a whole trip, the last few weeks: tap a date to select the whole day) and they're downloaded straight away. Videos already in your clips are skipped.</p>
+          <button id="btn-google" class="btn" type="button">Pick from Google Photos</button>
+        </div>
+        <div id="album-links" hidden>
+          <h3 class="theme-h">Shared album links (Labs)</h3>
         <p class="sp-intro">Put the videos you want to use in shared Google Photos albums and paste their links here, as many as you like. New videos are picked up every few hours, and a video that's in more than one album is only imported once.</p>
         <form id="album-form" class="inline-form" novalidate>
           <input name="url" type="text" inputmode="url" autocomplete="off" placeholder="Paste a shared-album link (photos.google.com/share/… works best)" required />
@@ -169,10 +176,6 @@
         </form>
         <p class="hint">Reads every album again and brings in every video filmed since that date that isn't in your clips yet, not held to the daily import limit. Clips without an AI look get one, and clips filed as "other" are sorted into your themes again.</p>
         <p class="hint">Tip: make the album add Lex by itself: in Google Photos open the album, ⋮ → Options → Automatically add → People &amp; pets → Lex. New albums use videos from the last 30 days, then keep scanning back in time, newest first.</p>
-        <div id="picker-box" class="picker-box" hidden>
-          <b>Pick videos from Google Photos</b>
-          <p class="hint">The reliable way in: choose up to 500 videos at a time in Google Photos (a whole trip, the last few weeks) and they're downloaded straight away, including ones a shared album won't hand over.</p>
-          <button id="btn-google" class="btn" type="button">Pick from Google Photos</button>
         </div>
         <p class="hint">
           <span id="google-hint"></span>
@@ -340,6 +343,7 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
             <label class="srow lab"><span class="lab-text"><span class="row-title">Brand partners &amp; collabs</span><span class="muted">Save brand partners and make collab versions of videos built around them.</span></span><input type="checkbox" name="collab" /></label>
             <label class="srow lab"><span class="lab-text"><span class="row-title">Spares on standby</span><span class="muted">A second video of each kind made in the background, so a rejection is replaced instantly. More AI cost.</span></span><input type="checkbox" name="spares" /></label>
             <label class="srow lab"><span class="lab-text"><span class="row-title">Retries</span><span class="muted">Up to 3 attempts per video: a plan that breaks a basic rule is rewritten, and a video the editor's review fails is made again. Off: one attempt, the review only leaves notes. More AI cost.</span></span><input type="checkbox" name="retries" /></label>
+            <label class="srow lab"><span class="lab-text"><span class="row-title">Shared album links</span><span class="muted">Import from shared Google Photos album links, checked every few hours. Some videos can't be downloaded this way; the Google Photos picker is the reliable route.</span></span><input type="checkbox" name="albums" /></label>
             <label class="srow lab"><span class="lab-text"><span class="row-title">Make videos by hand</span><span class="muted">Pick clips and a template yourself instead of the daily videos.</span></span><input type="checkbox" name="manual" /></label>
           </div>
         </div>

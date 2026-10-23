@@ -25,8 +25,8 @@ interface DB {
 }
 
 /** Features beyond the daily videos, each behind a switch (Settings > Labs). */
-export type Feature = "vlog" | "story" | "collab" | "manual" | "spares" | "retries";
-export const FEATURES: Feature[] = ["vlog", "story", "collab", "manual", "spares", "retries"];
+export type Feature = "vlog" | "story" | "collab" | "manual" | "spares" | "retries" | "albums";
+export const FEATURES: Feature[] = ["vlog", "story", "collab", "manual", "spares", "retries", "albums"];
 export const featureOn = (f: Feature) => !!store.settings().features?.[f];
 
 export interface Settings {
@@ -98,6 +98,7 @@ export interface Settings {
   insightsOct22?: boolean;
   heavyImportV1?: boolean;
   europeOpeningV1?: boolean;
+  albumClipsRemovedV1?: boolean;
   mixV2?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;

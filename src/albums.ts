@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { store, newId } from "./store.ts";
+import { featureOn, store, newId } from "./store.ts";
 import { config, canDecode4K } from "./config.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { albumUrlFrom, fetchAlbum, isAlbumUrl, openVideo, saveResponse, type AlbumItem } from "./google/sharedAlbum.ts";
@@ -180,10 +180,11 @@ export async function syncAlbum(
     for (const c of store.clips()) {
       if (c.status === "error" && c.sourceId && page.items.some((it) => it.id === c.sourceId)) {
         const failures = { ...store.album(id)!.failures };
+        // Give up after 3 failed attempts; the clip stays in the library with its error (and
+        // isn't counted again).
+        if ((failures[c.sourceId] ?? 0) >= 3) continue;
         failures[c.sourceId] = (failures[c.sourceId] ?? 0) + 1;
         store.updateAlbum(id, { failures });
-        // Give up after 3 failed attempts; the clip stays in the library with its error.
-        if (failures[c.sourceId] > 3) continue;
         deleteClip(c.id);
         forgetItem(c.sourceId);
       }
@@ -296,6 +297,8 @@ export async function scanSince(since: number): Promise<{ newItems: number }> {
 
 export async function syncAll() {
   let newItems = 0;
+  // Shared album links are a Labs feature: off, nothing is read from them.
+  if (!featureOn("albums")) return { newItems };
   for (const a of store.albums()) {
     try {
       newItems += (await syncAlbum(a.id)).newItems;

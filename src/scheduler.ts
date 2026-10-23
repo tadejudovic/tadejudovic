@@ -30,7 +30,7 @@ export function afterReview() {
   setTimeout(go, 65_000).unref();
 }
 import { ingestQueue } from "./queue.ts";
-import { archiveUnusable, ARCHIVE_AFTER_DAYS, queueMissingAiLooks } from "./library.ts";
+import { archiveUnusable, ARCHIVE_AFTER_DAYS, freeDiskSpace, queueMissingAiLooks } from "./library.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { researchScene, researchStale } from "./ai/research.ts";
 import type { RenderOptions, VideoPlan } from "./types.ts";
@@ -92,6 +92,8 @@ async function runDue({ afterReview = false } = {}) {
     lastArchive = Date.now();
     const n = archiveUnusable();
     if (n) console.log(`[library] deleted the files of ${n} unused clip(s) older than ${ARCHIVE_AFTER_DAYS} days`);
+    const freed = freeDiskSpace();
+    if (freed > 50 * 1024 ** 2) console.log(`[library] freed ${(freed / 1024 ** 3).toFixed(2)} GB of files nothing needs`);
   }
   const auto = store.auto();
   if (!auto.enabled || paused) return;

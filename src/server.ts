@@ -9,7 +9,7 @@ import { allScenes, store, newId, mixSize, featureOn, FEATURES, type Feature } f
 import { TEMPLATES } from "./templates.ts";
 import { authUrl, handleCallback, disconnect, googleConfigured } from "./google/oauth.ts";
 import { createSession, getSession, listPicked, deleteSession } from "./google/picker.ts";
-import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks } from "./library.ts";
+import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastModelError, queueMissingAiLooks, diskUse, freeDiskSpace } from "./library.ts";
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { dayClips, proposeDayVlog, vlogDays, type VlogProposal } from "./ai/vlog.ts";
 import { previewFor } from "./media/preview.ts";
@@ -59,6 +59,7 @@ const FEATURE_ROUTES: [RegExp, Feature, string][] = [
   [/^\/api\/(story|voice)/, "story", "Story video"],
   [/^\/api\/(partners(\/|$)|renders\/[^/]+\/collab$)/, "collab", "Brand partners"],
   [/^\/api\/(plan|render)$/, "manual", "Making videos by hand"],
+  [/^\/api\/albums/, "albums", "Shared album links"],
 ];
 app.use((req, res, next) => {
   if (req.method === "GET") return next();
@@ -123,7 +124,7 @@ app.get("/api/diagnostics", (_req, res) => {
       font: store.settings().fontId,
       videosByStyle: count(renders, (r) => r.options?.textStyle ?? "none"),
     },
-    imports: { paused: importPause(), freeDiskGb: Math.round((freeDiskBytes() / 1024 ** 3) * 10) / 10 },
+    imports: { paused: importPause(), freeDiskGb: Math.round((freeDiskBytes() / 1024 ** 3) * 10) / 10, diskUse: diskUse() },
     googlePhotos: { connected: Boolean(store.google()), lastPick, clipsFromPicker: clips.filter((c) => c.source === "google_photos").length },
     clips: {
       byStatus: count(clips, (c) => c.status),
@@ -1704,6 +1705,25 @@ if (!paused && !store.settings().heavyImportV1) {
   store.updateSettings({ heavyImportV1: true });
   for (const a of store.albums()) if ((a.recentDays ?? 0) > 0 && (a.recentDays ?? 0) < 365) setRecentDays(a.id, 365);
   setTimeout(() => fullScan(Date.now() - 365 * 86400_000).catch((err) => console.warn("[albums] heavy import:", (err as Error).message)), 60_000);
+}
+
+// Once, asked by the creator: footage comes only from the Google Photos picker (and uploads) from now
+// on. Every clip imported from a shared-album link goes (files and records), the album links are
+// removed so nothing is imported again, their waiting downloads are dropped, and the disk is freed.
+// Videos already made stay playable.
+if (!store.settings().albumClipsRemovedV1) {
+  store.updateSettings({ albumClipsRemovedV1: true });
+  const fromAlbums = store.clips().filter((c) => c.source === "shared_album");
+  for (const a of store.albums()) store.removeAlbum(a.id);
+  const gone = new Set(fromAlbums.map((c) => c.id));
+  for (const c of fromAlbums) deleteClip(c.id);
+  // A picked copy of an album video was set aside as its duplicate: it's the one to use now.
+  for (const c of store.clips()) if (c.duplicateOf && gone.has(c.duplicateOf)) store.updateClip(c.id, { duplicateOf: undefined });
+  const freed = freeDiskSpace();
+  console.log(`[library] removed ${fromAlbums.length} album clip(s) and the album links; freed ${(freed / 1024 ** 3).toFixed(2)} GB`);
+} else {
+  const freed = freeDiskSpace();
+  if (freed > 50 * 1024 ** 2) console.log(`[library] freed ${(freed / 1024 ** 3).toFixed(2)} GB of files nothing needs`);
 }
 
 // Once, asked by the creator: the "Can dogs fly to Europe in the cabin?" video gets a sharp opening

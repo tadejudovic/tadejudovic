@@ -44,8 +44,10 @@ function playable(url) {
 
 /** Extra features (Settings > Labs): what's switched off is hidden. */
 const featureOn = (f) => !!state.status?.settings?.features?.[f];
-const FEATURE_ROWS = { vlog: "sp-vlog", story: "sp-story", collab: "sp-partners", manual: "sp-manual", spares: null, retries: null };
+const FEATURE_ROWS = { vlog: "sp-vlog", story: "sp-story", collab: "sp-partners", manual: "sp-manual", spares: null, retries: null, albums: null };
 function applyFeatures(features) {
+  const links = document.getElementById("album-links");
+  if (links) links.hidden = !features.albums;
   for (const [f, page] of Object.entries(FEATURE_ROWS)) {
     const row = page && document.querySelector(`[data-open="${page}"]`);
     if (row) row.hidden = !features[f];
@@ -127,7 +129,7 @@ async function loadStatus() {
   // The picker needs Google Cloud credentials; the album link doesn't, so only show the picker when it's set up.
   $("#picker-box").hidden = !s.google.configured;
   btn.textContent = s.google.connected ? "Pick from Google Photos" : "Connect Google Photos";
-  $("#google-hint").textContent = "New videos you add to the album are picked up automatically every few hours.";
+  $("#google-hint").textContent = s.settings?.features?.albums ? "New videos you add to a shared album are picked up automatically every few hours." : "";
   const tpl = $("#templates");
   if (!tpl.children.length) {
     s.templates.forEach((t, i) =>

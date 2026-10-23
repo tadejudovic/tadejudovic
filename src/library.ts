@@ -48,6 +48,8 @@ export function enqueueClip(opts: {
     uses: 0,
   });
   ingestQueue.push(async () => {
+    // Removed while it waited (e.g. its album was dropped): nothing to download.
+    if (!store.clip(id)) return;
     try {
       await opts.fetch(original);
       await analyzeClip(id);
@@ -91,6 +93,8 @@ const freeDisk = () => {
 };
 
 export function importPicked(items: PickedMediaItem[]) {
+  // A video picked before whose download failed (e.g. the disk was full) is tried again.
+  for (const it of items) for (const c of store.clips()) if (c.sourceId === it.id && c.status === "error") deleteClip(c.id);
   const fresh = items.filter((it) => !store.hasSource(it.id));
   return fresh.map((item) => {
     let downloaded: Promise<void> | undefined;
@@ -290,6 +294,84 @@ export function deleteClip(id: string) {
   if (!clip) return;
   removeClipFiles(clip);
   store.removeClip(id);
+}
+
+/** Size of a file or a folder's files, in bytes (0 if missing). */
+function sizeOf(p: string): number {
+  try {
+    const st = fs.statSync(p);
+    if (!st.isDirectory()) return st.size;
+    return fs.readdirSync(p).reduce((a, f) => a + sizeOf(path.join(p, f)), 0);
+  } catch {
+    return 0;
+  }
+}
+
+/** What's using the data disk, in GB, for diagnostics. */
+export function diskUse(): Record<string, number> {
+  const gb = (b: number) => Math.round((b / 1024 ** 3) * 100) / 100;
+  return {
+    clipsGb: gb(sizeOf(config.mediaDir)),
+    videosGb: gb(sizeOf(config.rendersDir)),
+    previewsGb: gb(sizeOf(path.join(config.dataDir, "previews"))),
+    thumbsGb: gb(sizeOf(config.thumbsDir)),
+    tempGb: gb(sizeOf(config.tmpDir)),
+  };
+}
+
+/**
+ * Free disk space that nothing needs (the records stay, so nothing is imported or paid for again):
+ * - files of clips that failed (a half-finished download, a dead link) and of archived clips;
+ * - files in the media folder that belong to no clip (interrupted downloads, replaced copies);
+ * - render work folders older than two hours, light previews older than three days (made again
+ *   when played);
+ * - the video files of videos rejected more than three days ago, and files that belong to no video.
+ * Returns the bytes freed.
+ */
+export function freeDiskSpace(now = Date.now()): number {
+  let freed = 0;
+  const rm = (p: string) => {
+    const n = sizeOf(p);
+    if (!n) return;
+    fs.rmSync(p, { recursive: true, force: true });
+    freed += n;
+  };
+  const clips = store.clips();
+  const keep = new Set(clips.filter((c) => c.status !== "error" && c.status !== "archived").map((c) => c.id));
+  for (const c of clips) if (c.status === "error" || c.status === "archived") for (const f of [c.file, c.thumb]) if (f) rm(f);
+  const ids = new Set(clips.map((c) => c.id));
+  for (const f of fs.existsSync(config.mediaDir) ? fs.readdirSync(config.mediaDir) : []) {
+    const id = f.split(".")[0];
+    if (!keep.has(id) || !ids.has(id)) rm(path.join(config.mediaDir, f));
+  }
+  for (const d of fs.existsSync(config.tmpDir) ? fs.readdirSync(config.tmpDir) : []) {
+    const p = path.join(config.tmpDir, d);
+    try {
+      if (now - fs.statSync(p).mtimeMs > 2 * 3600_000) rm(p);
+    } catch {}
+  }
+  const previews = path.join(config.dataDir, "previews");
+  for (const f of fs.existsSync(previews) ? fs.readdirSync(previews) : []) {
+    const p = path.join(previews, f);
+    try {
+      if (now - fs.statSync(p).atimeMs > 3 * 86400_000 && now - fs.statSync(p).mtimeMs > 3 * 86400_000) rm(p);
+    } catch {}
+  }
+  const renders = store.renders();
+  const wanted = new Set<string>();
+  for (const r of renders) {
+    const old = r.review === "rejected" && !r.posts?.length && now - Date.parse(r.reviewedAt ?? r.createdAt) > 3 * 86400_000;
+    for (const f of [r.file, r.thumb]) {
+      if (!f) continue;
+      if (old) rm(f);
+      else wanted.add(path.resolve(f));
+    }
+  }
+  for (const f of fs.existsSync(config.rendersDir) ? fs.readdirSync(config.rendersDir) : []) {
+    const p = path.resolve(config.rendersDir, f);
+    if (!wanted.has(p) && !renders.some((r) => r.status === "queued" || r.status === "rendering")) rm(p);
+  }
+  return freed;
 }
 
 /** Clips that are never used automatically are kept this long (to fix a wrong situation by hand), then their files go. */

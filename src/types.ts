@@ -179,6 +179,8 @@ export interface VideoPlan {
   /** Educational: the theme (airline, destination, airport, prep), the angle within it, and the specific topic, so it isn't repeated. */
   pillar?: EduPillar;
   angle?: string;
+  /** Trending TikTok sounds that fit this video (picked when it's opened), best first. */
+  sounds?: { id: string; name: string; author?: string; url: string; why: string }[];
   /** Educational: broad (the big-picture guide) or deep (one specific case: a route, an airline, a rule). */
   depth?: "broad" | "deep";
   /** Educational, deep Trips: the route it's about (a trip Lex actually made). */

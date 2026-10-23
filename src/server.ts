@@ -18,6 +18,7 @@ import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDe
 import { learnFromTikTok } from "./audience.ts";
 import { DAY_KINDS, keptToday, promoteSpares, waitingOf } from "./daySet.ts";
 import { linkWinningPosts, syncProfiles } from "./postMatch.ts";
+import { refreshSounds, soundsFor, trendingSounds } from "./sounds.ts";
 import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, makeCollabEducational, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, newOpening, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
@@ -125,6 +126,7 @@ app.get("/api/diagnostics", (_req, res) => {
       videosByStyle: count(renders, (r) => r.options?.textStyle ?? "none"),
     },
     imports: { paused: importPause(), freeDiskGb: Math.round((freeDiskBytes() / 1024 ** 3) * 10) / 10, diskUse: diskUse() },
+    sounds: { at: store.settings().soundsAt ?? null, tracked: Object.keys(store.settings().sounds ?? {}).length, trending: trendingSounds(10).map((x) => `${x.name}${x.author ? ` – ${x.author}` : ""}: ${x.recent} new posts in 3 days, ${x.growth}x`) },
     googlePhotos: { connected: Boolean(store.google()), lastPick, clipsFromPicker: clips.filter((c) => c.source === "google_photos").length },
     clips: {
       byStatus: count(clips, (c) => c.status),
@@ -959,6 +961,28 @@ app.patch("/api/renders/:id", (req, res) => {
   if (review && review !== "pending") afterReview();
   res.json(store.render(r.id));
 });
+
+// ---- Trending sounds ------------------------------------------------------------
+
+app.get("/api/sounds", (_req, res) => res.json({ at: store.settings().soundsAt ?? null, sounds: trendingSounds(10) }));
+
+app.post(
+  "/api/sounds/refresh",
+  h(async (_req, res) => {
+    await refreshSounds();
+    res.json({ at: store.settings().soundsAt ?? null, sounds: trendingSounds(10) });
+  }),
+);
+
+/** The trending sounds that fit this video (picked once, kept on it). */
+app.get(
+  "/api/renders/:id/sounds",
+  h(async (req, res) => {
+    const r = store.render(String(req.params.id));
+    if (!r) return void res.sendStatus(404);
+    res.json({ sounds: config.claude.enabled ? await soundsFor(r).catch(() => []) : [], trending: trendingSounds(10).length });
+  }),
+);
 
 app.post(
   "/api/renders/:id/redo-editor",

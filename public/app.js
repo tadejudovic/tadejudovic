@@ -168,7 +168,7 @@ function openSubpage(id) {
   page.scrollTop = 0;
   document.body.classList.add("no-scroll");
   if (id === "sp-vlog") loadVlogDays();
-  if (id === "sp-search") loadSearchTopics();
+  if (id === "sp-search") loadSearchTopics(), refreshSoundsList();
 }
 
 // ---- What people search (TikTok search analytics → educational topics) -----------------
@@ -1166,6 +1166,7 @@ function detailsBody(r) {
         h("span", { class: "d-play" }, "Play ›"),
       ),
     ) : null,
+    soundsSection(r),
     r.editor ? h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Editor's review")),
       h("div", { class: "muted" },
@@ -1195,6 +1196,45 @@ function detailsBody(r) {
     ) : null,
   );
 }
+
+/** One trending sound: name, why or how fast it's growing, and a link to use it in TikTok. */
+const soundRow = (x, note) =>
+  h("li", { class: "sound" },
+    h("div", { class: "grow" }, h("b", {}, x.name), x.author ? h("span", { class: "muted" }, ` · ${x.author}`) : null, note ? h("div", { class: "muted" }, note) : null),
+    h("a", { class: "btn small", href: x.url, target: "_blank", rel: "noopener noreferrer" }, "Open in TikTok"));
+
+/** Trending sounds that fit this video, loaded when the details open (TikTok adds the sound when posting). */
+function soundsSection(r) {
+  if (r.status !== "done") return null;
+  const list = h("ul", { class: "sounds" }, h("li", { class: "muted" }, "Finding sounds that fit…"));
+  api(`/api/renders/${r.id}/sounds`)
+    .then(({ sounds, trending }) =>
+      list.replaceChildren(
+        ...(sounds.length
+          ? sounds.map((x) => soundRow(x, x.why))
+          : [h("li", { class: "muted" }, trending ? "None of the trending sounds fit this one." : "No trending sounds yet: they're read every few days (Search page → Trending sounds).")]),
+      ),
+    )
+    .catch(() => list.replaceChildren(h("li", { class: "muted" }, "Couldn't load sounds.")));
+  return h("section", { class: "d-sec" },
+    h("div", { class: "d-sec-head" }, h("span", {}, "Trending sounds that fit")),
+    h("p", { class: "d-hint" }, "Picking up fast on TikTok right now. Open one in TikTok, tap Use this sound, and keep the video's own sound low."),
+    list);
+}
+
+async function refreshSoundsList(force = false) {
+  const el = document.getElementById("sounds-list");
+  if (!el) return;
+  const r = await api(force ? "/api/sounds/refresh" : "/api/sounds", force ? { method: "POST" } : undefined).catch((err) => ({ error: err.message }));
+  if (r.error) return void el.replaceChildren(h("li", { class: "muted" }, r.error));
+  document.getElementById("sounds-at").textContent = r.at ? `Read ${new Date(r.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "Not read yet";
+  el.replaceChildren(
+    ...(r.sounds.length
+      ? r.sounds.map((x, i) => soundRow({ ...x, name: `${i + 1}. ${x.name}` }, `${x.recent} new posts in 3 days · ${x.growth}× faster than the 11 days before${x.original ? " · original audio" : ""}`))
+      : [h("li", { class: "muted" }, r.at ? "Nothing is taking off in the sample right now." : "Not read yet: tap Read now.")]),
+  );
+}
+document.getElementById("sounds-refresh")?.addEventListener("click", (e) => withBusy(e.currentTarget, "Reading TikTok…", () => refreshSoundsList(true)));
 
 function dragToSwipe(card, handle, onSwipe, onTap) {
   let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false, id = null;

@@ -126,6 +126,11 @@ export interface Settings {
   /** What people search on Google (Keyword Planner export), grouped into topics the same way. */
   keywordTopics?: SearchTopic[];
   keywordTopicsAt?: string;
+  /** Sounds seen on recent TikTok posts, with posts per day (for trending sounds), and when read. */
+  sounds?: Record<string, import("./sounds.ts").SoundStats>;
+  soundsAt?: string;
+  /** Posts already counted for a sound (so a post seen twice counts once). */
+  soundPostsSeen?: string[];
   /** What people type into Google and YouTube search (autocomplete), refreshed weekly. */
   suggestTopics?: SearchTopic[];
   suggestTopicsAt?: string;

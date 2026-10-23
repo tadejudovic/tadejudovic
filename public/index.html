@@ -278,7 +278,7 @@
       <div class="subpage" id="sp-themes" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Themes for videos</h2></header>
         <div class="sp-body">
-          <p class="hint top">Every clip is sorted into a theme. Tap a theme to switch it on or off: only footage from themes that are on goes into videos. The numbers are clips not used yet / all clips.</p>
+          <p class="hint lead">Every clip is sorted into a theme. Tap a theme to switch it on or off: only footage from themes that are on goes into videos. The numbers are clips not used yet / all clips.</p>
           <h3 class="theme-h">Travel days</h3>
           <p class="muted theme-sub">The daily fun and educational videos.</p>
           <div id="themes-travel" class="theme-chips"></div>
@@ -300,8 +300,8 @@
       <div class="subpage" id="sp-scenes" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Situations &amp; TikTok captions</h2></header>
         <div class="sp-body">
-          <p class="hint top">Clips are sorted into these situations. For each one, captions that did well on TikTok are researched automatically and adapted to your clips. You can add captions you found yourself.</p>
-          <p class="hint top" id="research-source"></p>
+          <p class="hint lead">Clips are sorted into these situations. For each one, captions that did well on TikTok are researched automatically and adapted to your clips. You can add captions you found yourself.</p>
+          <p class="hint lead" id="research-source"></p>
           <div id="scenes" class="scenes"></div>
           <form id="scene-add" class="inline-form spaced">
             <input name="scene" placeholder="Add a situation, e.g. baggage claim" maxlength="60" />
@@ -336,7 +336,7 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
       <div class="subpage" id="sp-labs" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Labs</h2></header>
         <div class="sp-body">
-          <p class="hint top">Beta features. For now Rollcut focuses on getting the daily educational, fun and inspirational videos right; these are extras you can switch on to try. Each shows up in Settings when it's on.</p>
+          <p class="hint lead">Beta features. For now Rollcut focuses on getting the daily educational, fun and inspirational videos right; these are extras you can switch on to try. Each shows up in Settings when it's on.</p>
           <div class="group" id="labs">
             <label class="srow lab"><span class="lab-text"><span class="row-title">Day vlog</span><span class="muted">A whole day in 15–20 quick moments, from days with 15+ clips. You choose the clips.</span></span><input type="checkbox" name="vlog" /></label>
             <label class="srow lab"><span class="lab-text"><span class="row-title">Story video</span><span class="muted">Write or speak a script with scene tags; Rollcut finds the clips, records it in your cloned voice.</span></span><input type="checkbox" name="story" /></label>
@@ -352,7 +352,7 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
       <div class="subpage" id="sp-vlog" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Day vlog</h2></header>
         <div class="sp-body">
-          <p class="hint top">The whole day in quick moments: days with at least 15 clips. Look through the clips, switch off any you don't want, and the AI cuts 15–20 of them into a fast 35–45s vlog in the order you filmed them, with a headline and a few lines. Vlogs are only made when you ask, never in the daily videos. They go to Review like the others.</p>
+          <p class="hint lead">The whole day in quick moments: days with at least 15 clips. Look through the clips, switch off any you don't want, and the AI cuts 15–20 of them into a fast 35–45s vlog in the order you filmed them, with a headline and a few lines. Vlogs are only made when you ask, never in the daily videos. They go to Review like the others.</p>
           <div id="vlog-days" class="vlog-days"></div>
         </div>
       </div>
@@ -360,11 +360,15 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
       <div class="subpage" id="sp-search" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>What people search</h2></header>
         <div class="sp-body">
-          <p class="hint top">What people search for, grouped into topics per theme. Every other educational video answers the most-searched topic of its theme that isn't covered yet, in the searchers' own words, so it comes up for those searches. Searches that aren't about traveling with a dog are left out.</p>
-          <p class="hint top">Two sources, each kept until you add a newer one: <b>TikTok</b> (TikTok Studio → Analytics → Search → Export: the zip) for what brought people to your videos, and <b>Google</b> (Google Ads Keyword Planner → download keyword ideas: the .csv) for what everyone searches.</p>
+          <p class="hint lead">What people search for, grouped into topics per theme. Every other educational video answers the most-searched topic of its theme that isn't covered yet, in the searchers' own words, so it comes up for those searches. Searches that aren't about traveling with a dog are left out.</p>
+          <p class="hint lead">Two sources, each kept until you add a newer one: <b>TikTok</b> (TikTok Studio → Analytics → Search → Export: the zip) for what brought people to your videos, and <b>Google</b> (Google Ads Keyword Planner → download keyword ideas: the .csv) for what everyone searches.</p>
           <label class="btn" id="search-upload-label">Add an export<input type="file" id="search-upload" accept=".zip,.csv,.tsv" hidden /></label>
+          <h3 class="theme-h">Trending sounds</h3>
+          <p class="hint lead">The 10 sounds being picked up fastest on TikTok in travel, airport and dog posts: new posts using each sound per day in the last 3 days against the 11 before (a hockey stick, not just big). Read every 3 days (about 240 posts, under $1.20 each time; usually far less). Each video's details suggest the ones that fit it.</p>
+          <div class="inline-form"><span class="muted" id="sounds-at"></span><button class="btn" type="button" id="sounds-refresh">Read now</button></div>
+          <ul id="sounds-list" class="sounds"></ul>
           <h3 class="theme-h">From your TikTok</h3>
-          <p class="hint top">Reads your posts of the last days you pick: what people want to know in your comments becomes topics, however they put it (comments under 4 words, emojis, tags and your own replies are skipped; compliments and jokes don't count), and the posts people saved and shared most guide the lessons. Up to 3 replies per comment are read too (follow-up questions hide there). About $2–6 for 90 days, then a few cents a week to keep it fresh.</p>
+          <p class="hint lead">Reads your posts of the last days you pick: what people want to know in your comments becomes topics, however they put it (comments under 4 words, emojis, tags and your own replies are skipped; compliments and jokes don't count), and the posts people saved and shared most guide the lessons. Up to 3 replies per comment are read too (follow-up questions hide there). About $2–6 for 90 days, then a few cents a week to keep it fresh.</p>
           <form id="audience-form" class="inline-form">
             <label>Last <input type="number" name="days" min="7" max="365" value="90" /> days</label>
             <button class="btn" type="submit">Read my TikTok</button>
@@ -403,7 +407,7 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
       <div class="subpage" id="sp-examples" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Videos that worked</h2></header>
         <div class="sp-body">
-          <p class="hint top">Past videos that performed well. Their tone and text style guide new captions.</p>
+          <p class="hint lead">Past videos that performed well. Their tone and text style guide new captions.</p>
           <form id="winners-form" class="inline-form">
             <input name="urls" placeholder="Paste Instagram reel links made with Rollcut that did well" />
             <button class="btn" type="submit">Add</button>

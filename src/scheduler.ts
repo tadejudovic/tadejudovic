@@ -8,6 +8,7 @@ import { localDate, MANUAL_EXTRA, videosLeftToday } from "./dailyLimit.ts";
 import { DAY_KINDS, daySetDone, promoteSpares, toMake, waitingOf } from "./daySet.ts";
 import { learnFromTikTok } from "./audience.ts";
 import { refreshSuggestTopics } from "./searchSuggest.ts";
+import { refreshSounds, SOUNDS_EVERY_MS } from "./sounds.ts";
 
 /**
  * The day runs until one video of each kind (educational, fun, inspirational) is kept: each kind not
@@ -58,6 +59,7 @@ let lastTopUp = 0;
 let lastArchive = 0;
 let lastStats = 0;
 let lastSuggest = 0;
+let lastSounds = 0;
 let lastAudience = 0;
 let researching = false;
 let lastRelook = Date.now(); // startup already queues them
@@ -131,6 +133,12 @@ async function runDue({ afterReview = false } = {}) {
   if (config.claude.enabled && Date.now() - sAt > 7 * 86400_000 && Date.now() - lastSuggest > 6 * 3600_000) {
     lastSuggest = Date.now();
     void refreshSuggestTopics().catch((err) => console.warn("[search] autocomplete:", (err as Error).message));
+  }
+  // Every 3 days: a sample of recent TikTok posts for trending sounds (Apify; cents).
+  const soundsAt = Date.parse(store.settings().soundsAt ?? "") || 0;
+  if (apifyEnabled() && Date.now() - soundsAt > SOUNDS_EVERY_MS && Date.now() - lastSounds > 6 * 3600_000) {
+    lastSounds = Date.now();
+    void refreshSounds().catch((err) => console.warn("[sounds]", (err as Error).message));
   }
   // The day's set: a video of each kind not kept yet waits in Review, from midnight on, so they're
   // ready in the morning. Failures retry every 10 minutes (or as soon as more clips are sorted).

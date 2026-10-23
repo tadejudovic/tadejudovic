@@ -464,7 +464,8 @@ async function finalize(
   const dialogue = (t: string) => t.split(/\s+\/\s+/).every((part) => part.trim().split(/\s+/).length <= 3);
   const shown = (o: Overlay) => (o.y === undefined && !dialogue(o.text) ? o.text.replace(/\s+\/\s+/g, " ") : o.text);
   // Numbered points share one box width: the widest point's (wrapped to at most 64% of the frame).
-  const pointPx = (o: Overlay) => (overlays.some((x) => x.text.split(/\s+\/\s+/).length >= 3 && (x.at ?? "") === (o.at ?? "")) ? Math.round(textPx(options) * 0.82) : textPx(options));
+  // Points read under the headline, so they're smaller than it: the headline leads, the points follow.
+  const pointPx = (_o: Overlay) => Math.round(textPx(options) * 0.8);
   const pointW = Math.max(0, ...numbered.map((o) => pointBoxWidth(o.text, pointPx(o), font, Math.round(W * 0.64))));
   const filters: string[] = [];
   const placed: { o: Overlay; bottom: number; top: number; end: number }[] = [];
@@ -487,6 +488,18 @@ async function finalize(
       const h = Math.min(top + height, f.y1 * H) - Math.max(top, f.y0 * H);
       return a + (w > 0 && h > 0 ? w * h : 0);
     }, 0);
+  // A pair (myth → fact) only stays on screen together when the frame has room for both beside Lex
+  // and faces; otherwise the first goes when the second comes, so neither has to cover him.
+  for (const first of paired) {
+    const second = points[points.indexOf(first) + 1];
+    if (!second) continue;
+    const wide = faceBoxes(first).filter((b) => b.x1 - b.x0 > 0.45);
+    if (!wide.length) continue;
+    const top = Math.min(...wide.map((b) => b.y0));
+    const bottom = Math.max(...wide.map((b) => b.y1));
+    const free = Math.max(0, top - SAFE.top - 0.1) + Math.max(0, SAFE.bottom - bottom);
+    if (free < 0.24) first.end = second.start;
+  }
   for (const i of order) {
     const o = overlays[i];
     let px = smaller.has(o.at ?? "") && !headers.has(o) ? Math.round(textPx(options) * 0.82) : textPx(options);
@@ -511,6 +524,7 @@ async function finalize(
     }
     // Placed by the AI next to what it's about (educational points), maybe with an arrow pointing at it.
     if (o.y !== undefined) {
+      px = pointPx(o);
       const num = numbered.includes(o) ? splitNumber(screenText(o.text)) : undefined;
       let xNow = o.x;
       const draw = (y: number, x = xNow) => {
@@ -538,25 +552,35 @@ async function finalize(
         const prev = lastPointY;
         const knowFaces = faceBoxes(o).length > 0;
         // Every height on both sides of the frame (and where the AI put it); the lowest score wins.
-        const xs = [o.x, 0.3, 0.63].filter((v, k, all) => all.indexOf(v) === k);
-        let best: { x: number | undefined; y: number; s: number } | undefined;
-        for (const cx of xs) {
-          for (const cy of [y, 0.34, 0.4, 0.46, 0.52, 0.58, 0.64, 0.7]) {
-            const d = draw(cy, cx);
-            const t = d.top - boxPad;
-            const b = d.top + d.height + boxPad;
-            const face = onFaces(o, d.left - 12, t, d.width + 24, b - t);
-            // On a face: almost never. The body band only matters when faces weren't found.
-            const faceHit = face > 0 ? 15_000 + face / 50 : 0;
-            const bandPx = plan.keepClear ? Math.max(0, Math.min(b, plan.keepClear.bottom * H) - Math.max(t, plan.keepClear.top * H)) : 0;
-            const band = knowFaces ? bandPx * 0.2 : bandPx;
-            const textHit = others.some((p) => p.top < b + 20 && t - 20 < p.bottom) ? 10_000 : 0;
-            const sameAsBefore = prev !== undefined && Math.abs(cy - prev) < 0.12 ? 5_000 : 0;
-            const unsafe = t < H * SAFE.top || b > H * SAFE.bottom ? 20_000 : 0;
-            const s = faceHit + band + textHit + sameAsBefore + unsafe + Math.abs(cy - y) * 200 + (cx === o.x ? 0 : 800);
-            if (!best || s < best.s) best = { x: cx, y: cy, s };
+        const xs = [o.x, 0.3, 0.5, 0.63].filter((v, k, all) => all.indexOf(v) === k);
+        const ys = [y, 0.2, 0.26, 0.32, 0.38, 0.44, 0.5, 0.56, 0.62, 0.68, 0.74, 0.8];
+        const base = px;
+        let best: { x: number | undefined; y: number; s: number; px: number } | undefined;
+        // Text never covers Lex or a face: every spot is tried, then a little smaller text, before
+        // anything would land on them.
+        for (const k of [1, 0.88, 0.76]) {
+          px = Math.round(base * k);
+          for (const cx of xs) {
+            for (const cy of ys) {
+              const d = draw(cy, cx);
+              const t = d.top - boxPad;
+              const b = d.top + d.height + boxPad;
+              const face = onFaces(o, d.left - 12, t, d.width + 24, b - t);
+              // On the dog or a face: the worst thing it can do, worse than any other trade-off.
+              const faceHit = face > 0 ? 50_000 + face / 50 : 0;
+              const bandPx = plan.keepClear ? Math.max(0, Math.min(b, plan.keepClear.bottom * H) - Math.max(t, plan.keepClear.top * H)) : 0;
+              const band = knowFaces ? bandPx * 0.2 : bandPx * 4;
+              const textHit = others.some((p) => p.top < b + 20 && t - 20 < p.bottom) ? 10_000 : 0;
+              const sameAsBefore = prev !== undefined && Math.abs(cy - prev) < 0.12 ? 5_000 : 0;
+              const unsafe = t < H * SAFE.top || b > H * SAFE.bottom ? 20_000 : 0;
+              const s = faceHit + band + textHit + sameAsBefore + unsafe + Math.abs(cy - y) * 200 + (cx === o.x ? 0 : 800) + (1 - k) * 3_000;
+              if (!best || s < best.s) best = { x: cx, y: cy, s, px };
+            }
           }
+          // Clear of Lex, faces and other text: done. Otherwise a smaller size may fit.
+          if (best && best.s < 10_000) break;
         }
+        px = best!.px;
         y = best!.y;
         xNow = best!.x;
         ({ filters: f, height, top: drawnTop } = draw(y));
@@ -574,11 +598,20 @@ async function finalize(
       const bottom0 = drawnTop + height + boxPad;
       const hit = clash.filter((p) => p.top < bottom0 && top0 < p.bottom);
       if (hit.length) {
-        // Below the other text, or above it when that would leave the safe zone.
+        // Below the other text or above it, whichever stays in the safe zone and off Lex and faces
+        // (below first); if both would cover him, it stays where it was placed.
         const below = Math.max(...hit.map((p) => p.bottom)) + 30 + boxPad + height / 2;
         const above = Math.min(...hit.map((p) => p.top)) - 30 - boxPad - height / 2;
-        y = below + height / 2 + boxPad <= H * SAFE.bottom || above - height / 2 - boxPad < H * SAFE.top ? below / H : above / H;
-        ({ filters: f, height, top: drawnTop } = draw(y));
+        const ok = (c: number) => {
+          if (c + height / 2 + boxPad > H * SAFE.bottom || c - height / 2 - boxPad < H * SAFE.top) return false;
+          const d = draw(c / H);
+          return onFaces(o, d.left - 12, d.top - boxPad, d.width + 24, d.height + 2 * boxPad) === 0;
+        };
+        const to = ok(below) ? below : ok(above) ? above : undefined;
+        if (to !== undefined) {
+          y = to / H;
+          ({ filters: f, height, top: drawnTop } = draw(y));
+        }
       }
       placed.push({ o, top: drawnTop - boxPad, bottom: drawnTop + height + boxPad, end: o.end });
       filters.push(...f);
@@ -622,6 +655,17 @@ async function finalize(
     const hitFaces = faceBoxes(o).filter((b) => b.x1 * W > drawnLeft && b.x0 * W < drawnLeft + drawnWidth && b.y1 * H > drawnTop - boxPad && b.y0 * H < drawnTop + height + boxPad);
     const faceBand = hitFaces.length ? { top: Math.min(...hitFaces.map((b) => b.y0)), bottom: Math.max(...hitFaces.map((b) => b.y1)) } : undefined;
     const avoid = faceBand ?? (faceBoxes(o).length ? undefined : plan.keepClear);
+    // The pinned headline stays at the top, unless that's where Lex or a face is: then just below
+    // them, or above them, whichever is inside the safe zone (at the top when neither is).
+    if (headers.has(o) && faceBand) {
+      // It's on screen the whole video: the spot that covers Lex and faces least over every moment
+      // seen, with the top winning ties.
+      const cover = (top: number) => onFaces(o, drawnLeft - 12, top - boxPad, drawnWidth + 24, height + 2 * boxPad);
+      const fits = (top: number) => top - boxPad >= H * SAFE.top && top + height + boxPad <= H * SAFE.bottom;
+      const spots = [drawnTop, Math.round(faceBand.bottom * H + boxPad + 10), Math.round(faceBand.top * H - height - boxPad - 10), Math.round(H * 0.66), Math.round(H * 0.74)].filter((t, k) => k === 0 || fits(t));
+      const spot = spots.reduce((a, b) => (cover(b) < cover(a) * 0.5 ? b : a));
+      if (spot !== drawnTop) ({ filters: f, height, top: drawnTop } = drawAt(spot));
+    }
     if (!offset && o.at !== "caption" && !headers.has(o) && avoid) {
       const top = Math.round(clearOfSubject(drawnTop, height, boxPad, avoid));
       if (top !== drawnTop) {

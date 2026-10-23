@@ -20,8 +20,8 @@ export interface Box {
 export async function facesDuring(file: string, windows: { start: number; end: number }[], duration: number): Promise<Box[][]> {
   const none = windows.map(() => [] as Box[]);
   if (!config.claude.enabled || !aiAvailable() || !windows.length) return none;
-  // Up to 3 moments per window (start, middle, end), at most 14 frames in all.
-  const per = Math.max(1, Math.min(3, Math.floor(14 / windows.length)));
+  // Up to 3 moments per window (start, middle, end), at most 20 frames in all.
+  const per = Math.max(1, Math.min(3, Math.floor(20 / windows.length)));
   const frames: { w: number; t: number }[] = [];
   windows.forEach((win, w) => {
     const a = Math.max(0, win.start + 0.2);
@@ -42,9 +42,10 @@ export async function facesDuring(file: string, windows: { start: number; end: n
   content.push({
     type: "text",
     text:
-      "For each frame of this vertical video, give a box around the dog's head (eyes, snout, ears) and around each " +
-      "person's face, as fractions of the frame (x 0 = left … 1 = right, y 0 = top … 1 = bottom), a little generous. " +
-      "No box when there's no face in the frame. Not the whole body: only heads and faces.",
+      "For each frame of this vertical video, give a box around the whole dog (head, body and tail, including the " +
+      "bag or carrier it's in when it peeks out of one) and around each person's face, as fractions of the frame " +
+      "(x 0 = left … 1 = right, y 0 = top … 1 = bottom), a little generous: text must never cover them. No box when " +
+      "neither is in the frame.",
   });
   try {
     const r = await structured<{ frames: { n: number; boxes: Box[] }[] }>({

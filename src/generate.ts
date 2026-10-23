@@ -464,6 +464,32 @@ export function nextEduFormat(): NonNullable<VideoPlan["eduFormat"]> {
 }
 
 /** The angle within a theme used least recently (rejected videos don't count). */
+/** Broad and deep take turns: the big-picture guide, then one specific case (a route, an airline, a rule). */
+export function nextDepth(): "broad" | "deep" {
+  const last = store
+    .renders()
+    .filter((r) => r.plan.format === "tips" && r.plan.depth && r.review !== "rejected")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  return last?.plan.depth === "broad" ? "deep" : "broad";
+}
+
+/**
+ * The trips Lex actually made, from where and when the clips were filmed: each move from one country
+ * to the next ("Canada → Portugal"), most recent first, routes already made into a video last.
+ */
+export function travelRoutes(max = 6): string[] {
+  const stops = store
+    .clips()
+    .filter((c) => c.capturedAt && countryOf(c.place))
+    .sort((a, b) => a.capturedAt!.localeCompare(b.capturedAt!))
+    .map((c) => countryOf(c.place)!);
+  const moves: string[] = [];
+  for (let i = 1; i < stops.length; i++) if (stops[i] !== stops[i - 1]) moves.push(`${stops[i - 1]} → ${stops[i]}`);
+  const done = new Set(store.renders().map((r) => r.plan.route).filter(Boolean));
+  const recent = [...new Set(moves.reverse())];
+  return [...recent.filter((r) => !done.has(r)), ...recent.filter((r) => done.has(r))].slice(0, max);
+}
+
 export function nextAngle(pillar: EduPillar): string | undefined {
   const angles = PILLAR_ANGLES[pillar];
   if (!angles?.length) return undefined;
@@ -688,7 +714,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((o) => ({ opener: o?.clip, openerFrom: o?.from, broll: brollPool(clip, o ? [...chosen, o.clip] : chosen) }))(strongFootage(clip) ? undefined : await sharpOpener(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
+            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((o) => ({ opener: o?.clip, openerFrom: o?.from, broll: brollPool(clip, o ? [...chosen, o.clip] : chosen) }))(strongFootage(clip) ? undefined : await sharpOpener(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, depth: nextDepth(), routes: pillar === "destination" ? travelRoutes() : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
           };
           let p = await directClip(clip, direction);
           // The basics first (headline, points, pacing): a draft that breaks one goes back once with

@@ -69,3 +69,20 @@ test("footage beyond the airport is offered for the daily outside video: long en
   store.addClip({ ...base, id: "edit", scene: "beach", duration: 12, edited: true });
   assert.deepEqual(outsideClips().map((c) => c.id), ["beach"]);
 });
+
+test("broad and deep take turns, and deep trips use routes Lex actually traveled", async () => {
+  const { nextDepth, travelRoutes } = await import("../src/generate.ts");
+  add({ format: "tips", pillar: "destination", depth: "broad", hook: "Europe" });
+  assert.equal(nextDepth(), "deep");
+  add({ format: "tips", pillar: "airline", depth: "deep", hook: "Lufthansa" });
+  assert.equal(nextDepth(), "broad");
+  const c = (id: string, at: string, place: string) =>
+    store.addClip({ id, source: "upload", filename: "x", file: "/x", kind: "video", importedAt: at, capturedAt: at, duration: 8, width: 1080, height: 1920, hasAudio: false, uses: 0, status: "ready", place } as any);
+  c("t1", "2026-08-01T10:00:00Z", "Mexico City, Mexico");
+  c("t2", "2026-08-03T10:00:00Z", "Cancún, Mexico");
+  c("t3", "2026-09-01T10:00:00Z", "Toronto, Ontario, Canada");
+  c("t4", "2026-10-01T10:00:00Z", "Lisbon, Portugal");
+  assert.deepEqual(travelRoutes(), ["Canada → Portugal", "Mexico → Canada"]);
+  add({ format: "tips", pillar: "destination", depth: "deep", route: "Canada → Portugal", hook: "CA-PT" });
+  assert.deepEqual(travelRoutes(), ["Mexico → Canada", "Canada → Portugal"]);
+});

@@ -687,6 +687,10 @@ export interface DirectContext {
   pillar?: EduPillar;
   /** Educational: the angle within the theme (e.g. "the bag"). */
   angle?: string;
+  /** Educational: broad (the big-picture guide) or deep (one specific case). */
+  depth?: "broad" | "deep";
+  /** Deep Trips videos: routes Lex actually traveled ("Canada → Portugal"), most recent first. */
+  routes?: string[];
   /** Educational: the shape of the lesson (a list, myth vs. fact, …), in rotation. */
   eduFormat?: EduFormat;
   /** Educational: what people search for in this theme, most searched first. */
@@ -728,6 +732,36 @@ const PILLAR_TEXT: Record<EduPillar, string> = {
 };
 
 /** The educational theme for this video, and what's been covered already. */
+/** Broad or deep: the big-picture guide, or one specific case worth its own video. */
+function depthText(depth: "broad" | "deep" | undefined, pillar: EduPillar | undefined, routes: string[] = []): string {
+  if (!depth) return "";
+  if (depth === "broad")
+    return (
+      `\n\nDEPTH FOR THIS VIDEO: BROAD. The big-picture guide someone starts with, for a whole region or the whole ` +
+      `topic: e.g. "How to travel to Europe with a dog", "Flying with a dog: cabin or cargo?", "How to get your dog ` +
+      `ready for their first flight". The points are the essentials that hold almost everywhere, in the order you'd ` +
+      `do them.`
+    );
+  const trips = pillar === "destination";
+  return (
+    `\n\nDEPTH FOR THIS VIDEO: DEEP. One specific case, the kind a search for exactly that finds: ` +
+    (trips
+      ? `a route, from one country to another, e.g. "Flying a dog from Canada to Portugal", "What it took to bring ` +
+        `Lex from Mexico to the US". ` +
+        (routes.length
+          ? `Use a route we actually traveled (most recent first): ${routes.join("; ")}. Name both countries in the ` +
+            `hook and set "topic" to the route. `
+          : "") +
+        `The points are what that route needs (papers, timing, the airline side), and only what you're sure is ` +
+        `true for it; if a rule depends on details you don't know, say to check it rather than guess.`
+      : pillar === "airline"
+        ? `one airline or one rule, e.g. "Flying Lufthansa with a dog", "The 8 kg rule: what counts", "How to get ` +
+          `the pet spot on a full flight". Name it, with the specifics you're sure of.`
+        : `one moment of the trip done well, e.g. "Getting a dog through airport security", "Where dogs pee on a ` +
+          `layover", "Carrier training: the first week". Concrete steps with timeframes.`)
+  );
+}
+
 function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: string, search: SearchTopic[] = []): string {
   return (
     (pillar
@@ -1219,7 +1253,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
           ctx.trends.map((t) => `- ${t.pattern.replaceAll("{pet}", ctx.petName)} (fits: ${t.fits})`).join("\n")
         : "") +
       (ctx.collab ? collabText(ctx.collab, ctx.petName) : ctx.format === "tips" ? "" : audienceText(ctx.audience, ctx.petName, ctx.format)) +
-      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq, ctx.eduFormat) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle, ctx.search) + footageText(ctx.broll ?? []) + savedText(ctx.topPosts ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
+      (ctx.format === "tips" ? tipsText(ctx.petName, clip.scene, ctx.faq, ctx.eduFormat) + pillarText(ctx.pillar, ctx.covered ?? [], ctx.angle, ctx.search) + depthText(ctx.depth, ctx.pillar, ctx.routes) + footageText(ctx.broll ?? []) + savedText(ctx.topPosts ?? []) : ctx.format === "inspire" ? inspireText(ctx.petName, ctx.audience) : "") +
       (ctx.story
         ? `\n\nTHE ACCOUNT'S STORY (weave it into the post description, not the on-screen text; connect this clip ` +
           `to the bigger journey and vary which part you bring up from post to post):\n${ctx.story}`
@@ -1370,7 +1404,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     scene: clip.scene,
     ...(ctx.format ? { format: ctx.format } : {}),
     ...(ctx.format === "tips" && ctx.faq ? { faq: ctx.faq.q } : {}),
-    ...(ctx.format === "tips" ? { pillar: ctx.pillar, angle: ctx.angle, eduFormat: ctx.eduFormat, searchTopic: ctx.search?.[0]?.topic, topic: r.topic?.trim() || undefined } : {}),
+    ...(ctx.format === "tips" ? { pillar: ctx.pillar, angle: ctx.angle, depth: ctx.depth, ...(ctx.depth === "deep" && ctx.pillar === "destination" && ctx.routes?.length ? { route: ctx.routes[0] } : {}), eduFormat: ctx.eduFormat, searchTopic: ctx.search?.[0]?.topic, topic: r.topic?.trim() || undefined } : {}),
     ...(ctx.audience && ctx.format !== "tips" && !ctx.collab ? { audience: ctx.audience } : {}),
     ...(r.subjectBottom > r.subjectTop && r.subjectTop >= 0 && r.subjectBottom <= 1 && r.subjectBottom - r.subjectTop < 0.9
       ? { keepClear: { top: r.subjectTop, bottom: r.subjectBottom } }

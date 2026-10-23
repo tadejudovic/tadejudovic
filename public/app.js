@@ -171,7 +171,7 @@ function openSubpage(id) {
 
 // ---- What people search (TikTok search analytics → educational topics) -----------------
 
-const THEME_LABEL = { airline: "Flights & airlines", destination: "Destinations", airport: "At the airport", prep: "Prep & gear" };
+const THEME_LABEL = { airline: "Flights", destination: "Trips", prep: "Tricks", airport: "Tricks", gear: "Tricks" };
 
 async function loadSearchTopics() {
   const { topics, at, googleAt, audience } = await api("/api/search-demand");

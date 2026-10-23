@@ -120,7 +120,7 @@ export function readExport(buf: Buffer, filename = ""): { source: SearchSource; 
   return { source: "tiktok", queries };
 }
 
-const THEMES: EduPillar[] = ["airline", "destination", "airport", "prep"];
+const THEMES: EduPillar[] = ["airline", "destination", "prep"];
 
 /** Groups the queries into topics for the educational themes (off-topic searches are dropped). */
 export async function groupQueries(queries: SearchQuery[], source: SearchSource = "tiktok"): Promise<SearchTopic[]> {
@@ -152,8 +152,9 @@ export async function groupQueries(queries: SearchQuery[], source: SearchSource 
           `"airline approved dog carrier") become topics a creator can answer ("What makes a carrier airline-approved"). ` +
           `Getting around by car or train with a dog (car sickness, trains) counts as prep. For each topic: ` +
           `a short name in the searchers' words, a "key" (the one or two words that identify it in a video's text, e.g. ` +
-          `"easyJet", "weight limit"), the theme (airline: flights & airlines; destination: a country's rules and papers ` +
-          `or dog-friendly places; airport: at the airport; prep: accessories, the bag, flight prep, during the flight), ` +
+          `"easyJet", "weight limit"), the theme (airline = Flights: airlines, cabin vs. cargo, limits, booking, fees; destination = Trips: a ` +
+          `country's rules and papers, quarantine, timelines, dog-friendly places; prep = Tricks: the carrier and ` +
+          `training, the travel day and the airport, calm in flight, settling in after landing), ` +
           `and the numbers of its searches.`,
       },
     ],
@@ -245,16 +246,17 @@ export function searchTopicUsed(t: SearchTopic): boolean {
  * want to know, so they inform the mix without taking it over.
  */
 export function searchTopicsFor(pillar: EduPillar | undefined, n = 3): SearchTopic[] {
-  const p = pillar === "gear" ? "prep" : pillar;
+  const p = pillar === "gear" || pillar === "airport" ? "prep" : pillar;
+  const of = (t: SearchTopic) => (t.pillar === "gear" || t.pillar === "airport" ? "prep" : t.pillar);
   const last = store
     .renders()
-    .filter((r) => r.plan.format === "tips" && r.review !== "rejected" && (r.plan.pillar === "gear" ? "prep" : r.plan.pillar) === p)
+    .filter((r) => r.plan.format === "tips" && r.review !== "rejected" && (r.plan.pillar === "gear" || r.plan.pillar === "airport" ? "prep" : r.plan.pillar) === p)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   if (last?.plan.searchTopic) return [];
   // The sources take turns, each in its own order (their numbers aren't comparable): what the
   // audience asked in the comments first, then what brought people to the account, then Google.
   const { searchTopics, keywordTopics, suggestTopics, audience } = store.settings();
-  const open = (list?: SearchTopic[]) => (list ?? []).filter((t) => t.pillar === p && !searchTopicUsed(t));
+  const open = (list?: SearchTopic[]) => (list ?? []).filter((t) => of(t) === p && !searchTopicUsed(t));
   const lists = [open(audience?.topics), open(searchTopics), open(keywordTopics), open(suggestTopics)];
   const out: SearchTopic[] = [];
   for (let i = 0; out.length < n && lists.some((l) => i < l.length); i++)

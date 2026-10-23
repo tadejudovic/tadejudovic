@@ -708,20 +708,23 @@ export interface DirectContext {
   collab?: { name: string; handle?: string; about: string; mustInclude?: string; note?: string; educational?: boolean };
 }
 
+const TRICKS_TEXT =
+  "TRICKS: getting a dog ready and through the trip: the carrier and training it (weeks before), the travel day " +
+  "and the airport (security, relief areas, the gate, layovers), staying calm in flight, settling in after " +
+  "landing; actionable steps with timeframes, e.g. \"Start carrier training 4 weeks before\", \"How security " +
+  "works with a dog\", \"How Lex stays calm under the seat\"";
 const PILLAR_TEXT: Record<EduPillar, string> = {
   airline:
-    "FLIGHTS & AIRLINES: flying with a specific airline, or how to deal with airlines as a dog owner, e.g. " +
-    "\"Flying LATAM with a dog\", \"How to actually get a pet spot on your flight\"",
+    "FLIGHTS: airlines and flying with a dog: cabin vs. cargo, size, weight and breed limits, booking the pet " +
+    "spot, fees and surprises; name the airline and the limit when you're sure of it, e.g. \"Flying LATAM with a " +
+    "dog\", \"How to actually get a pet spot on your flight\"",
   destination:
-    "DESTINATIONS: what it takes to bring a dog somewhere (the rules and papers), or the places that welcome dogs, " +
-    "e.g. \"What it takes to bring a dog to Japan\", \"The most dog-friendly city we've been to\"",
-  airport:
-    "AT THE AIRPORT: getting through it with a dog, from check-in and security to the gate and layovers, e.g. " +
-    "\"How security works with a dog\", \"Where your dog can pee at the airport\"",
-  prep:
-    "PREP & GEAR: accessories, the bag, getting ready for a flight, and the flight itself, e.g. \"The bag Lex " +
-    "has flown 42,000km in\", \"What I do the morning before we fly\", \"How Lex stays calm under the seat\"",
-  gear: "PREP & GEAR: accessories, the bag, getting ready for a flight, and the flight itself",
+    "TRIPS: what it takes to bring a dog into a country (microchip, rabies, health certificate, titer test, " +
+    "quarantine, how far ahead to start), or the places that welcome dogs, e.g. \"What it takes to bring a dog to " +
+    "Japan\", \"The most dog-friendly city we've been to\"",
+  prep: TRICKS_TEXT,
+  airport: TRICKS_TEXT,
+  gear: TRICKS_TEXT,
 };
 
 /** The educational theme for this video, and what's been covered already. */
@@ -1320,7 +1323,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     const setting =
       ctx.pillar === "airport" ? "at the airport (terminal, check-in, security, relief area, gate)"
       : ctx.pillar === "airline" ? "on the plane or at the airport"
-      : ctx.pillar === "prep" || ctx.pillar === "gear" ? "on a travel day (airport, plane, packing at home)"
+      : ctx.pillar === "prep" || ctx.pillar === "gear" ? "on a travel day (airport, plane, packing at home, arriving somewhere new)"
       : undefined;
     const picks = await pickBroll(points.map((o) => o.text), r.concept, clip, ctx.broll, setting).catch((err) => {
       console.warn("[broll]", (err as Error).message);

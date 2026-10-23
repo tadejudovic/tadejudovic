@@ -377,42 +377,53 @@ export function madeTodayByKind(): Partial<Record<PostFormat, number>> {
   return out;
 }
 
-/** Educational themes in rotation, and which follower questions belong to each. */
-export const PILLARS: EduPillar[] = ["airline", "destination", "airport", "prep"];
+/**
+ * Educational themes in rotation, the same three as the Lex Travel blog: Flights (airline), Trips
+ * (destination) and Tricks (prep, which includes the airport on the travel day). And which follower
+ * questions belong to each. ("airport" and "gear" are older names, both now Tricks.)
+ */
+export const PILLARS: EduPillar[] = ["airline", "destination", "prep"];
+const TRICKS = /bag|carrier|backpack|pack|gear|bring|tracker|accessor|prep|before the flight|during|calm|stress|anxious|nervous|sedat|food|water|sleep|airport|security|check.?in|layover|transit|gate|pee|poo|potty|toilet|relief|arriv|jet ?lag|settl/i;
 const PILLAR_FAQ: Record<EduPillar, RegExp> = {
-  airline: /airline|cabin|pet spot|book/i,
-  destination: /where have you|where to|destination|requirement|countr|travel(ed)? to|get to|fly to|paper|document|passport|vaccin|rabies|import|dog.friendly/i,
-  airport: /airport|security|check.?in|layover|transit|gate|pee|poo|potty|toilet|relief/i,
-  prep: /bag|carrier|backpack|pack|gear|bring|tracker|accessor|prep|before the flight|during|calm|stress|anxious|nervous|sedat|food|water|sleep/i,
-  gear: /bag|carrier|backpack|pack|gear|bring|tracker|accessor/i,
+  airline: /airline|cabin|cargo|hold|pet spot|book|fee|weight|size|breed/i,
+  destination: /where have you|where to|destination|requirement|countr|travel(ed)? to|get to|fly to|paper|document|passport|vaccin|rabies|import|quarantin|titer|dog.friendly/i,
+  prep: TRICKS,
+  airport: TRICKS,
+  gear: TRICKS,
 };
 /** The angles within each theme, taken in turn so a theme doesn't keep coming back the same way. */
 export const PILLAR_ANGLES: Record<EduPillar, string[]> = {
+  // Flights
   airline: [
     "a specific airline: what flying it with a dog is really like (cabin or hold, weight limit, fees, how strict they are)",
     "a how-to with airlines: getting the pet spot, booking and calling to add the dog, checking in with a pet, what they ask for",
+    "cabin vs. cargo: who flies where (size and weight limits, breed restrictions) and what that means for your dog",
+    "the fees and surprises: what flying a dog costs, and the rules people only find out at the airport",
   ],
+  // Trips
   destination: [
     "the rules and papers to bring a dog into a country: microchip, rabies, health certificate, titer test, timelines",
+    "the timeline: how far ahead to start (vet visits, waiting periods, the certificate's validity) for a trip abroad",
+    "quarantine and the strict countries: where a dog can't just land, and how people manage it",
     "the best dog-friendly places: where dogs are welcome (cafés, trains, hotels, beaches) and what made it easy",
   ],
-  airport: [
-    "getting through the airport with a dog: check-in, security (carrier through the scanner, dog in your arms), boarding",
-    "waiting at the airport: relief areas, layovers and transfers, the gate",
-  ],
+  // Tricks
   prep: [
-    "accessories we travel with: the things that make a travel day easier",
-    "the bag: the carrier that fits under the seat, what makes a good one, how to get the dog used to it",
+    "the bag: the carrier that fits under the seat, what makes a good one, how to get the dog used to it (weeks before)",
     "flight prep: the days and hours before a flight (exercise, food and water, the last walk, getting used to the carrier)",
-    "during the flight: keeping the dog calm and comfortable under the seat, what to do if they get restless",
+    "travel day at the airport: check-in, security (carrier through the scanner, dog in your arms), relief areas, the gate, layovers",
+    "during the flight: keeping the dog calm and comfortable under the seat, managing anxiety, what to do if they get restless",
+    "after landing: the first hours and days somewhere new (settling in, routine, jet lag for dogs)",
+    "accessories we travel with: the things that make a travel day easier",
   ],
+  airport: [],
   gear: [],
 };
-const pillarOf = (p?: EduPillar) => (p === "gear" ? "prep" : p);
+const pillarOf = (p?: EduPillar) => (p === "gear" || p === "airport" ? "prep" : p);
 
 /**
  * The theme furthest behind in recent educational videos (not one already used in this round), so
- * over a week each comes up about equally: airline, destination, airport, prep.
+ * over a week each comes up about equally: Flights, Trips, Tricks.
  */
 export function nextPillar(skip = new Set<EduPillar>()): EduPillar {
   const recent = store

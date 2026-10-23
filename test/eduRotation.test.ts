@@ -11,18 +11,18 @@ let n = 0;
 const add = (plan: any, review = "approved") =>
   store.addRender({ id: `r${++n}`, createdAt: new Date(Date.now() + n * 1000).toISOString(), status: "done", progress: 1, review, options: {} as any, plan: { segments: [], hashtags: [], ...plan } } as any);
 
-test("educational themes rotate over the week: airlines, destinations, airport, prep", () => {
+test("educational themes rotate like the blog: Flights, Trips, Tricks", () => {
   add({ format: "tips", pillar: "airline", topic: "LATAM with a dog", hook: "h2" });
   assert.equal(nextPillar(), "destination");
   add({ format: "tips", pillar: "destination", topic: "flying Lex to Brazil", hook: "h1" });
-  assert.equal(nextPillar(), "airport");
-  assert.equal(nextPillar(new Set(["airport"])), "prep");
+  assert.equal(nextPillar(), "prep");
+  assert.equal(nextPillar(new Set(["prep"])), "airline");
   // A rejected video doesn't count: its theme comes again.
-  add({ format: "tips", pillar: "airport", topic: "security", hook: "h4" }, "rejected");
-  assert.equal(nextPillar(), "airport");
-  // Older videos' "gear" counts as prep.
-  add({ format: "tips", pillar: "gear", topic: "the bag", hook: "h5" });
-  assert.equal(nextPillar(), "airport");
+  add({ format: "tips", pillar: "prep", topic: "security", hook: "h4" }, "rejected");
+  assert.equal(nextPillar(), "prep");
+  // Older videos' "airport" and "gear" count as Tricks.
+  add({ format: "tips", pillar: "airport", topic: "the gate", hook: "h5" });
+  assert.equal(nextPillar(), "airline");
 });
 
 test("angles within a theme take turns", () => {
@@ -54,7 +54,8 @@ test("fun and inspirational are mostly for everyone, now and then for dog lovers
 test("the follower question matches the theme", () => {
   assert.match(nextQuestion(undefined, new Set(), "airline")!.q, /airline/i);
   assert.match(nextQuestion(undefined, new Set(), "prep")!.q, /bag|carrier/i);
-  assert.match(nextQuestion(undefined, new Set(), "airport")!.q, /pee/i);
+  // The airport is part of Tricks now: its questions come up there.
+  assert.match(nextQuestion(undefined, new Set(["What bag / carrier do you fly with?", "How do you keep Lex stress-free when flying?"]), "prep")!.q, /pee/i);
   assert.match(nextQuestion(undefined, new Set(), "destination")!.q, /traveled|requirements/i);
 });
 

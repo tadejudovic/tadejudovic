@@ -450,14 +450,19 @@ $("#btn-google").addEventListener("click", async () => {
   if (!s.google.configured) return banner("Google isn't set up on the server yet.");
   if (!s.google.connected) return (location.href = "/auth/google");
   const btn = $("#btn-google");
+  // Phones: the picker opens in a tab of its own (or the Google Photos app) and stays open until you
+  // tap Done; "/autoclose" there could close it as soon as it handed over to the app.
+  const phone = matchMedia("(pointer: coarse)").matches;
   // Open the window synchronously so popup blockers allow it.
-  const win = window.open("", "gphotos-picker", "width=1100,height=800");
+  const win = window.open("", "gphotos-picker", phone ? "" : "width=1100,height=800");
   try {
     btn.disabled = true;
     btn.textContent = "Waiting for your picks…";
     const session = await api("/api/google/picker", { method: "POST" });
-    if (win) win.location.href = `${session.pickerUri}/autoclose`;
-    else window.open(`${session.pickerUri}/autoclose`, "_blank");
+    const url = phone ? session.pickerUri : `${session.pickerUri}/autoclose`;
+    if (win) win.location.href = url;
+    else window.open(url, "_blank");
+    if (phone) banner("Pick your videos in Google Photos, tap Done, then come back to this tab.", "ok");
     const interval = Math.max(2000, parseFloat(session.pollInterval || "3") * 1000);
     const deadline = Date.now() + 20 * 60 * 1000;
     while (Date.now() < deadline) {

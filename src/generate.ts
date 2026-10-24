@@ -130,7 +130,7 @@ export function brollPool(main: Clip, roundClips: Clip[] = []): Clip[] {
     .filter(
       (c) =>
         !skip.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width && !c.disliked &&
-        !c.edited && !c.duplicateOf && c.duration >= 2 && !!c.ai?.summary,
+        !c.edited && !c.duplicateOf && c.duration >= 2 && !!c.ai?.summary && hasLex(c),
     )
     .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || Number(strongFootage(b)) - Number(strongFootage(a)) || filmedWeek(b) - filmedWeek(a));
 }
@@ -188,7 +188,7 @@ function openerCandidates(main: Clip, roundClips: Clip[] = []): Clip[] {
     .filter(
       (c) =>
         !skip.has(c.id) && !recentOpeners.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width &&
-        !c.disliked && !c.edited && !c.duplicateOf && c.duration >= 2 && strongFootage(c) && best(c) >= 0.5,
+        !c.disliked && !c.edited && !c.duplicateOf && c.duration >= 2 && strongFootage(c) && best(c) >= 0.5 && hasLex(c),
     )
     // Footage the AI described as blurry, soft or shaky is the last choice for an opening.
     .sort((a, b) => Number(soft(a)) - Number(soft(b)) || Number(a.uses > 0) - Number(b.uses > 0) || filmedWeek(b) - filmedWeek(a) || best(b) - best(a));
@@ -223,6 +223,14 @@ export async function newOpening(id: string, texts: Record<number, string> = {})
   deleteRender(r.id);
   console.log(`[layout] ${id} opens on ${o.clip.id} at ${o.from}s → ${fresh.id}`);
   return fresh;
+}
+
+/**
+ * Whether Lex is in the clip, from what the AI saw in it. Clips without him (a document, the
+ * window, someone talking) don't go under a point, into a montage or at the end of a video.
+ */
+export function hasLex(c: Clip): boolean {
+  return !/\bno (pet|dog)s?\b[^.]*\b(visible|in (the )?frame|appears?)|\bno (pet|dog) is visible|\bwithout (the |a )?(dog|pet)\b|\b(dog|pet) is not (visible|in)/i.test(c.ai?.summary ?? "");
 }
 
 /** The country a clip was filmed in is switched off in Themes ("place:Portugal"). */
@@ -566,7 +574,7 @@ export async function plan(
 ): Promise<{ plans: VideoPlan[]; warning?: string }> {
   const all = store.clips().filter((c) => c.status === "ready" && isPortrait(c));
   // Footage the creator rejected is only used when they pick it themselves.
-  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => c.uses === 0 && !c.disliked && onTopic(c));
+  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => c.uses === 0 && !c.disliked && onTopic(c) && hasLex(c));
   // Out of airport footage but there's footage from the outside themes: the inspirational video still gets made.
   if (!clips.length && !(req.pickFromPool && outsideClips().length)) throw new Error("No analyzed portrait clips available. Import some vertical footage first.");
   const { petName, handle } = store.settings();
@@ -644,7 +652,7 @@ export async function plan(
     const spare = [
       ...all.filter((c) => !chosen.includes(c) && c.kind === "video" && c.uses === 0 && !c.disliked && onTopic(c) && c.duration >= MIN_CLIP_SECONDS),
       ...outsidePool.filter((c) => !chosen.includes(c)),
-    ];
+    ].filter(hasLex);
     const taken = new Set<string>();
     const best = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
     const extrasFor = (clip: Clip, kind?: PostFormat): Clip[] => {

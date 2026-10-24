@@ -1,7 +1,7 @@
 import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { footageNeeded, importBudget, syncAll } from "./albums.ts";
-import { plan, queueRender, isPortrait, onTopic, outsideClips, noteKindIssue, postsDueForStats, refreshPostStats } from "./generate.ts";
+import { plan, queueRender, isPortrait, onTopic, outsideClips, hasLex, noteKindIssue, postsDueForStats, refreshPostStats } from "./generate.ts";
 import { apifyEnabled } from "./ai/tiktokSearch.ts";
 import { syncProfiles } from "./postMatch.ts";
 import { localDate, MANUAL_EXTRA, videosLeftToday } from "./dailyLimit.ts";
@@ -210,7 +210,7 @@ export async function runDailyBatch({ manual = false }: { force?: boolean; manua
         await waitForIngest(5 * 60_000);
       }
     }
-    const pool = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c) && c.uses === 0);
+    const pool = store.clips().filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && !c.disliked && onTopic(c) && c.uses === 0 && hasLex(c));
     if (!pool.length && !outsideClips().length) {
       const any = store.clips().some((c) => c.status === "ready");
       throw new Error(

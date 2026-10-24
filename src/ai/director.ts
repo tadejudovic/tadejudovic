@@ -489,6 +489,20 @@ export function withOpener(segments: Segment[], opener: Clip, seconds: number, f
   return out;
 }
 
+/** The footage cut to `seconds` (on screen), from the end. */
+export function trimTo(segments: Segment[], seconds: number): Segment[] {
+  const out: Segment[] = [];
+  let left = seconds;
+  for (const s of segments) {
+    if (left <= 0.05) break;
+    const speed = s.speed ?? 1;
+    const shown = (s.end - s.start) / speed;
+    out.push(shown <= left ? s : { ...s, end: s.start + left * speed });
+    left -= Math.min(shown, left);
+  }
+  return out;
+}
+
 /** The longest a shot stays on screen before the video cuts (a slowed-down payoff gets up to 3s). */
 export const MAX_SHOT = 2;
 
@@ -1378,12 +1392,14 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
   }
   // Educational: end on the creator's call to action (their site, link in bio) for the last 3s.
   if (ctx.format === "tips" && ctx.cta?.overlay) {
-    segments = lengthenFootage(fillWithClips(segments, total + 3, ctx.extraClips ?? []), total + 3, (id) => known.get(id)?.duration ?? 0);
+    // Exactly 3s more: an added clip can be longer than that, and a long ending only drags.
+    segments = trimTo(lengthenFootage(fillWithClips(segments, total + 3, ctx.extraClips ?? []), total + 3, (id) => known.get(id)?.duration ?? 0), total + 3);
     const longer = lengthOf(segments);
-    // The call to action gets the last 3s, also when there was no more footage to add.
+    // The call to action gets the last 3s, also when there was no more footage to add. It's the
+    // only text then: the headline (and any point) ends as it comes in.
     const ctaStart = Math.max(0, Math.min(total, longer - 3));
     overlays.forEach((o, i) => {
-      if (i === 0) overlays[i] = { ...o, end: longer + 1 };
+      if (i === 0) overlays[i] = { ...o, end: Math.max(o.start + 1.5, ctaStart) };
       else if (o.end > ctaStart) overlays[i] = { ...o, end: Math.max(o.start + 1.5, ctaStart) };
     });
     overlays.push({ text: ctx.cta.overlay, start: ctaStart, end: longer + 1, y: 0.5, cta: true });

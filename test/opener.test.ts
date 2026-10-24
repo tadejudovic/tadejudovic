@@ -28,3 +28,14 @@ test("an educational video waiting in Review gets the strongest opening, same te
   assert.deepEqual(fresh.plan.overlays, overlays);
   assert.equal((fresh as any).editor?.verdict, "remake");
 });
+
+test("clips without Lex in them are kept out of points, montages and openings", async () => {
+  const { hasLex, trimTo } = { ...(await import("../src/generate.ts")), ...(await import("../src/ai/director.ts")) } as any;
+  const c = (summary: string) => ({ ai: { summary } }) as any;
+  assert.equal(hasLex(c("Handheld footage slowly panning over a printed Copa Airlines form; no pet visible, low payoff.")), false);
+  assert.equal(hasLex(c("Man in a t-shirt by the terminal window. No pet is visible; the clip is static.")), false);
+  assert.equal(hasLex(c("Lex peeks out of a dark soft carrier on the check-in conveyor.")), true);
+  assert.equal(hasLex(c("Lex sits calmly; no barks or big reactions.")), true);
+  const cut = trimTo([{ clipId: "a", start: 0, end: 10, speed: 1 }, { clipId: "b", start: 0, end: 8, speed: 1 }], 13);
+  assert.deepEqual(cut.map((s: any) => [s.clipId, s.start, s.end]), [["a", 0, 10], ["b", 0, 3]]);
+});

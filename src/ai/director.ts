@@ -790,9 +790,12 @@ function pillarText(pillar: EduPillar | undefined, covered: string[], angle?: st
                   `searched as: ${t.queries.map((q) => `"${q}"`).join(", ")}`,
               )
               .join("\n") +
-            `\nMake this video answer the first one (another only if the first clearly can't work with this footage). ` +
-            `Use the searchers' own words in the hook and in the first line of the description, so the video comes up ` +
-            `for that search. You may name the airline, place or product the search is about, and state only facts you ` +
+            `\nMake this video answer the first one the footage can SHOW: a topic about a thing (the carrier, the ` +
+            `relief area, the vet) needs that thing in this clip or in the other footage listed; if it isn't, take ` +
+            `the next one, and if none can be shown, a topic this footage does show. Use the searchers' words in the ` +
+            `hook and in the first line of the description, so the video comes up for that search, but as a natural ` +
+            `sentence: searches are typed as keywords, so put them in normal order ("dog carrier airline approved" → ` +
+            `"Is your dog's carrier airline-approved?"). You may name the airline, place or product the search is about, and state only facts you ` +
             `are sure are current (e.g. whether pets fly in the cabin at all, the weight limit with the carrier); leave ` +
             `out anything you're unsure of, and say in the description that rules change, so check before booking.` +
             ` Set "topic" to the search topic you answered.`

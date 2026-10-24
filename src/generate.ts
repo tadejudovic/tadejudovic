@@ -1483,6 +1483,25 @@ export function openerExisting(): number {
   return n;
 }
 
+/**
+ * Videos made while the headline could move down the frame (versions 6cf9b0f–ff8ea70), waiting in
+ * Review or kept and not posted: drawn again with the same plan, so the headline is back at the top.
+ */
+export function headlineTopExisting(versions = ["6cf9b0f", "c0142df", "ff8ea70"]): number {
+  let n = 0;
+  for (const r of [...store.renders()]) {
+    if (r.status !== "done" || r.posts?.length || !versions.includes(r.madeWith ?? "")) continue;
+    if (r.review !== "pending" && r.review !== "approved") continue;
+    if (!r.plan.segments.every((s) => store.clip(s.clipId)?.status === "ready")) continue;
+    const fresh = queueRender({ ...r.plan, editorPass: EDITOR_ATTEMPTS }, r.options, r.batch, { countUse: false, standby: !!r.standby });
+    store.updateRender(fresh.id, { ...(r.review === "approved" ? { review: "approved", reviewedAt: r.reviewedAt } : {}), ...(r.editor ? { editor: r.editor } : {}) });
+    deleteRender(r.id);
+    n++;
+  }
+  if (n) console.log(`[layout] headline back at the top in ${n} video(s)`);
+  return n;
+}
+
 const REMAKE_BRIEF: Record<string, (text: string, note?: string) => string> = {
   text: (t, n) =>
     `REMAKE: the creator rejected a video of this clip because the TEXT was off. The rejected text was "${t}". ` +

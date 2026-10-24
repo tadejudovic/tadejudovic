@@ -658,13 +658,28 @@ async function finalize(
     // The pinned headline stays at the top, unless that's where Lex or a face is: then just below
     // them, or above them, whichever is inside the safe zone (at the top when neither is).
     if (headers.has(o) && faceBand) {
-      // It's on screen the whole video: the spot that covers Lex and faces least over every moment
-      // seen, with the top winning ties.
-      const cover = (top: number) => onFaces(o, drawnLeft - 12, top - boxPad, drawnWidth + 24, height + 2 * boxPad);
-      const fits = (top: number) => top - boxPad >= H * SAFE.top && top + height + boxPad <= H * SAFE.bottom;
-      const spots = [drawnTop, Math.round(faceBand.bottom * H + boxPad + 10), Math.round(faceBand.top * H - height - boxPad - 10), Math.round(H * 0.66), Math.round(H * 0.74)].filter((t, k) => k === 0 || fits(t));
-      const spot = spots.reduce((a, b) => (cover(b) < cover(a) * 0.5 ? b : a));
-      if (spot !== drawnTop) ({ filters: f, height, top: drawnTop } = drawAt(spot));
+      // The headline is the fixed box at the top of every video: it never moves down the frame. When
+      // Lex or a face reaches the top, it gets a little smaller (still two lines) and sits as high as
+      // the safe zone allows, which is where it covers them least.
+      const cover = (top: number, d = { left: drawnLeft, width: drawnWidth, height }) => onFaces(o, d.left - 12, top - boxPad, d.width + 24, d.height + 2 * boxPad);
+      const highest = Math.round(H * SAFE.top + boxPad);
+      if (cover(drawnTop) > 0) {
+        let best = { top: drawnTop, px, d: { filters: f, height, top: drawnTop, left: drawnLeft, width: drawnWidth }, c: cover(drawnTop) };
+        for (const k of [1, 0.9, 0.82]) {
+          const size = Math.round(textPx(options) * k);
+          const d = textFilters(shown(o), { yFrac: HOOK_Y, yTop: highest, size, maxChars: charsFor(size, 26), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
+          const c = cover(d.top, d);
+          if (c < best.c * 0.8) best = { top: d.top, px: size, d, c };
+          if (c === 0) break;
+        }
+        // Drawn once more with the chosen size (the tries wrote over the same text files), or as it
+        // was when none of them covered less.
+        const changed = best.d.top !== drawnTop || best.px !== px;
+        px = best.px;
+        ({ filters: f, height, top: drawnTop, left: drawnLeft, width: drawnWidth } = changed
+          ? textFilters(shown(o), { yFrac: HOOK_Y, yTop: highest, size: px, maxChars: charsFor(px, 26), style: options.textStyle, font, enable, tmp, key: `ov${i}` })
+          : drawAt(drawnTop));
+      }
     }
     if (!offset && o.at !== "caption" && !headers.has(o) && avoid) {
       const top = Math.round(clearOfSubject(drawnTop, height, boxPad, avoid));

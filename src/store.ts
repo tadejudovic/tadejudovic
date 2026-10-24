@@ -100,6 +100,7 @@ export interface Settings {
   europeOpeningV1?: boolean;
   albumClipsRemovedV1?: boolean;
   allClipsRemovedV1?: boolean;
+  headlineTopV1?: boolean;
   mixV2?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;

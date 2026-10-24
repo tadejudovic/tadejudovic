@@ -63,3 +63,25 @@ test("no text lands on the dog: points move around it, smaller than the headline
     assert.ok(yellow / (raw.length / 3) < 0.003, `text on the dog at ${t}s (${yellow} yellow pixels)`);
   }
 });
+
+test("the headline stays at the top even when Lex fills most of the frame", async () => {
+  const f = path.join(config.mediaDir, "f3.mp4");
+  execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=0x335577:size=1080x1920:rate=30:duration=6", "-f", "lavfi", "-i", "sine=duration=6", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", f]);
+  const clip = store.addClip({ id: "f3", source: "upload", filename: "f3.mp4", file: f, kind: "video", importedAt: "", duration: 6, width: 1080, height: 1920, hasAudio: true, uses: 0, status: "ready" } as any);
+  faceFinder.find = async (_file, windows) => windows.map(() => [{ x0: 0.05, y0: 0.18, x1: 0.95, y1: 0.95 }]);
+  const plan = {
+    template: "auto", title: "t", hook: "h", format: "inspire",
+    segments: [{ clipId: "f3", start: 0, end: 6, speed: 1 }],
+    overlays: [{ text: "Those last steps before boarding / still feel like a beginning", start: 0, end: 7 }],
+    postCaption: "", hashtags: [],
+  } as any;
+  const out = await renderVideo("top", plan, new Map([["f3", clip]]), { keepOriginalAudio: true, textStyle: "yellowbox", textSize: "medium", fontId: "montserrat" } as any, () => {});
+  const yellowIn = (y: number, h: number) => {
+    const raw = execFileSync("ffmpeg", ["-v", "error", "-ss", "2", "-i", out.file, "-frames:v", "1", "-vf", `crop=1080:${Math.round(h * 1920)}:0:${Math.round(y * 1920)},scale=270:-1`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
+    let n = 0;
+    for (let i = 0; i < raw.length; i += 3) if (raw[i] > 200 && raw[i + 1] > 160 && raw[i + 2] < 90) n++;
+    return n;
+  };
+  assert.ok(yellowIn(0.05, 0.3) > 500, "headline in the top part");
+  assert.equal(yellowIn(0.4, 0.5), 0, "nothing in the lower part");
+});

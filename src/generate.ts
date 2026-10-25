@@ -13,6 +13,7 @@ import { basePath, baseKey, renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue, PRIORITY } from "./queue.ts";
 import type { Clip, DailyMix, EduPillar, GenerateRequest, Overlay, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
+import { settingClarity } from "./ai/setting.ts";
 import { detectSubject } from "./ai/subject.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { healPlan, lengthenFootage, spreadPoints } from "./overlayLayout.ts";
@@ -157,21 +158,29 @@ export function strongFootage(c: Clip): boolean {
  * Falls back to the first candidate's best moment when blur can't be measured.
  */
 export async function sharpOpener(main: Clip, roundClips: Clip[] = [], seconds = 2.5): Promise<{ clip: Clip; from: number } | undefined> {
-  const candidates = openerCandidates(main, roundClips).slice(0, 5);
+  const candidates = openerCandidates(main, roundClips).slice(0, 6);
   if (!candidates.length) return undefined;
-  let best: { clip: Clip; from: number; score: number } | undefined;
+  // Every candidate stretch, scored for blur (the first frame counts double; a stronger moment
+  // breaks ties). 0 when blur can't be measured.
+  const windows: { clip: Clip; from: number; score: number }[] = [];
   for (const c of candidates) {
     const len = Math.min(seconds, c.duration);
     const moments = [...(c.ai?.moments ?? c.moments ?? [])].sort((a, b) => b.score - a.score).slice(0, 2);
     const starts = [...new Set([...moments.flatMap((m) => [m.start, m.start + 0.7]), (c.duration - len) / 2].map((t) => Math.max(0, Math.min(t, c.duration - len))).map((t) => Math.round(t * 10) / 10))];
     for (const from of starts) {
       const blur = await blurOf(c.file, from, len);
-      if (!blur) return { clip: candidates[0], from: Math.max(0, Math.min(moments[0]?.start ?? 0, candidates[0].duration - len)) };
-      // The first frame counts double; a stronger moment breaks ties.
-      const score = blur.first * 2 + blur.mean - (moments[0]?.score ?? 0);
-      if (!best || score < best.score) best = { clip: c, from, score };
+      windows.push({ clip: c, from, score: blur ? blur.first * 2 + blur.mean - (moments[0]?.score ?? 0) : -(moments[0]?.score ?? 0) });
     }
   }
+  // The sharpest few (two per clip at most) go to a quick look: is it obvious from the first frame
+  // that this is an airport or a plane, with Lex in it? A carpet that could be anywhere isn't.
+  const perClip = new Map<string, number>();
+  const shortlist = windows
+    .sort((a, b) => a.score - b.score)
+    .filter((w) => (perClip.set(w.clip.id, (perClip.get(w.clip.id) ?? 0) + 1).get(w.clip.id) ?? 0) <= 2)
+    .slice(0, 6);
+  const clear = await settingClarity(shortlist.map((w) => ({ file: w.clip.file, t: w.from + 0.1 }))).catch(() => shortlist.map(() => 0));
+  const best = shortlist.map((w, i) => ({ ...w, score: w.score - (clear[i] ?? 0) * 8 })).sort((a, b) => a.score - b.score)[0];
   return best && { clip: best.clip, from: best.from };
 }
 
@@ -722,7 +731,7 @@ export async function plan(
                   ].filter(Boolean).join(" "),
                 }
               : {}),
-            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((o) => ({ opener: o?.clip, openerFrom: o?.from, broll: brollPool(clip, o ? [...chosen, o.clip] : chosen) }))(strongFootage(clip) ? undefined : await sharpOpener(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, depth: nextDepth(), routes: pillar === "destination" ? travelRoutes() : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
+            ...(kind === "tips" ? { eduFormat: nextEduFormat(), topPosts: store.settings().audience?.topPosts, ...((o) => ({ opener: o?.clip, openerFrom: o?.from, broll: brollPool(clip, o ? [...chosen, o.clip] : chosen) }))(await sharpOpener(clip, chosen)), faq, pillar, angle: pillar ? nextAngle(pillar) : undefined, depth: nextDepth(), routes: pillar === "destination" ? travelRoutes() : undefined, search, covered, cta: store.settings().cta, minSeconds: Math.max(ctx.minSeconds, 12), maxSeconds: Math.max(ctx.maxSeconds, 18) } : {}),
           };
           let p = await directClip(clip, direction);
           // The basics first (headline, points, pacing): a draft that breaks one goes back once with

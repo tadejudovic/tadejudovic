@@ -1731,6 +1731,13 @@ if (!paused && !store.settings().heavyImportV1) {
   setTimeout(() => fullScan(Date.now() - 365 * 86400_000).catch((err) => console.warn("[albums] heavy import:", (err as Error).message)), 60_000);
 }
 
+// Once, asked by the creator: the "Do small dogs fly free on planes?" video opens on footage where
+// the airport is obvious from the first frame (its opening was Lex on a carpet that could be anywhere).
+if (!paused && !store.settings().feesOpeningV1) {
+  store.updateSettings({ feesOpeningV1: true });
+  setTimeout(() => newOpening("91fa7578d7fec787").catch((err) => console.warn("[layout] fees opening:", (err as Error).message)), 40_000);
+}
+
 // Once: videos whose headline could have moved down the frame are drawn again with it at the top.
 if (!paused && !store.settings().headlineTopV1) {
   store.updateSettings({ headlineTopV1: true });

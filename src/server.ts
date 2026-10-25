@@ -1738,6 +1738,16 @@ if (!paused && !store.settings().feesOpeningV1) {
   setTimeout(() => newOpening("91fa7578d7fec787").catch((err) => console.warn("[layout] fees opening:", (err as Error).message)), 40_000);
 }
 
+// Once more with the stricter rule (the airport must be obvious in the first frame): the same video,
+// found by its headline since a new opening gives it a new id.
+if (!paused && !store.settings().feesOpeningV2) {
+  store.updateSettings({ feesOpeningV2: true });
+  setTimeout(() => {
+    const r = store.renders().find((x) => x.status === "done" && !x.posts?.length && /^Do small dogs fly free on planes\?/i.test(x.plan.hook ?? ""));
+    if (r) newOpening(r.id).catch((err) => console.warn("[layout] fees opening:", (err as Error).message));
+  }, 90_000);
+}
+
 // Once: videos whose headline could have moved down the frame are drawn again with it at the top.
 if (!paused && !store.settings().headlineTopV1) {
   store.updateSettings({ headlineTopV1: true });

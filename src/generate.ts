@@ -158,7 +158,24 @@ export function strongFootage(c: Clip): boolean {
  * Falls back to the first candidate's best moment when blur can't be measured.
  */
 export async function sharpOpener(main: Clip, roundClips: Clip[] = [], seconds = 2.5): Promise<{ clip: Clip; from: number } | undefined> {
-  const candidates = openerCandidates(main, roundClips).slice(0, 6);
+  // The strongest footage first (backpack, boarding, the plane); if none of it opens clearly on the
+  // airport, any other airport footage (terminal, check-in, security, gate) gets a look too.
+  const strong = openerCandidates(main, roundClips);
+  const seen = new Set(strong.map((c) => c.id));
+  const airport = openerCandidates(main, roundClips, true).filter((c) => !seen.has(c.id));
+  for (const pool of [strong.slice(0, 6), airport.slice(0, 6)]) {
+    const pick = await clearestOpening(pool, seconds);
+    if (pick && pick.clear >= 2) return pick;
+  }
+  // Nothing opens on an obvious airport: the clearest of the strongest footage, still sharp.
+  return clearestOpening(strong.slice(0, 6), seconds);
+}
+
+/**
+ * Among these clips' best stretches, the sharp one whose first frame most obviously shows the
+ * airport or the plane with Lex in it (score 0–3, see settingClarity).
+ */
+async function clearestOpening(candidates: Clip[], seconds: number): Promise<{ clip: Clip; from: number; clear: number } | undefined> {
   if (!candidates.length) return undefined;
   // Every candidate stretch, scored for blur (the first frame counts double; a stronger moment
   // breaks ties). 0 when blur can't be measured.
@@ -180,15 +197,20 @@ export async function sharpOpener(main: Clip, roundClips: Clip[] = [], seconds =
     .filter((w) => (perClip.set(w.clip.id, (perClip.get(w.clip.id) ?? 0) + 1).get(w.clip.id) ?? 0) <= 2)
     .slice(0, 6);
   const clear = await settingClarity(shortlist.map((w) => ({ file: w.clip.file, t: w.from + 0.1 }))).catch(() => shortlist.map(() => 0));
-  const best = shortlist.map((w, i) => ({ ...w, score: w.score - (clear[i] ?? 0) * 8 })).sort((a, b) => a.score - b.score)[0];
-  return best && { clip: best.clip, from: best.from };
+  // The airport has to be obvious: a clear first frame beats a sharper but ambiguous one.
+  const best = shortlist
+    .map((w, i) => ({ ...w, clear: clear[i] ?? 0, score: w.score - (clear[i] ?? 0) * 40 }))
+    .sort((a, b) => a.score - b.score)[0];
+  return best && { clip: best.clip, from: best.from, clear: best.clear };
 }
 
 export function openerFor(main: Clip, roundClips: Clip[] = []): Clip | undefined {
   return openerCandidates(main, roundClips)[0];
 }
 
-function openerCandidates(main: Clip, roundClips: Clip[] = []): Clip[] {
+const AIRPORT_SCENES = /^(airport terminal|check-in desk|security check|boarding gate|inside the airplane|under the airplane seat)$/;
+
+function openerCandidates(main: Clip, roundClips: Clip[] = [], anyAirport = false): Clip[] {
   const skip = new Set([main.id, ...roundClips.map((c) => c.id)]);
   const recentOpeners = new Set(store.renders().slice(0, 15).map((r) => r.plan.segments[0]?.clipId));
   const best = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
@@ -197,7 +219,7 @@ function openerCandidates(main: Clip, roundClips: Clip[] = []): Clip[] {
     .filter(
       (c) =>
         !skip.has(c.id) && !recentOpeners.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width &&
-        !c.disliked && !c.edited && !c.duplicateOf && c.duration >= 2 && strongFootage(c) && best(c) >= 0.5 && hasLex(c),
+        !c.disliked && !c.edited && !c.duplicateOf && c.duration >= 2 && (anyAirport ? AIRPORT_SCENES.test(c.scene ?? "") : strongFootage(c) && best(c) >= 0.5) && hasLex(c),
     )
     // Footage the AI described as blurry, soft or shaky is the last choice for an opening.
     .sort((a, b) => Number(soft(a)) - Number(soft(b)) || Number(a.uses > 0) - Number(b.uses > 0) || filmedWeek(b) - filmedWeek(a) || best(b) - best(a));

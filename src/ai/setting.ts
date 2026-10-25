@@ -20,9 +20,11 @@ export async function settingClarity(frames: { file: string; t: number }[]): Pro
     type: "text",
     text:
       "Each frame is the first frame of a short video's opening. For each, score 0–3 how instantly a stranger " +
-      "scrolling past knows it's at an airport or on a plane, with the dog clearly in it: 3 = unmistakable (a plane, " +
-      "the cabin, the gate, check-in desks, a jet bridge, departure boards, in the first glance), 2 = clear once you " +
-      "look, 1 = could be an airport, 0 = could be anywhere (a carpet, a wall, a floor) or no dog.",
+      "scrolling past knows it's at an airport or on a plane, with the dog clearly in it. The frame has to SHOW it: " +
+      "check-in desks or a check-in conveyor, the terminal (departure boards, gates, a big window onto planes), the " +
+      "jet bridge, the plane, or the cabin (seats, overhead bins, a window seat). 3 = unmistakable at a glance, " +
+      "2 = clear (one of those is plainly in frame), 1 = could be an airport (a corridor, a carpet, a hand, a bag), " +
+      "0 = could be anywhere, or no dog.",
   });
   const r = await structured<{ scores: { n: number; score: number }[] }>({
     system: "You judge how clearly a video frame shows its setting.",

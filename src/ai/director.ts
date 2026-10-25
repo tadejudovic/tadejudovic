@@ -356,8 +356,8 @@ export async function pickBroll(points: string[], concept: string, main: Clip, p
           `break, the carrier for a point about the carrier, the check-in desk for a check-in point), so the footage ` +
           `changes with the points instead of staying in one place. 0 when no clip clearly shows it (the main clip ` +
           `stays). Never the same clip for two points. Between clips that fit equally, the strongest footage (Lex in ` +
-          `the backpack walking through the airport, at check-in, boarding, on the plane, getting off it), then the ` +
-          `more recently filmed.` +
+          `the backpack walking through the airport, at check-in, boarding, on the plane, getting off it), then ` +
+          `footage with the creator and Lex together in the shot, then the more recently filmed.` +
           (setting
             ? `\nThis video happens ${setting}: a clip clearly filmed there always beats one somewhere else, even ` +
               `if the other shows the action better (a dog peeing at the airport relief area beats a dog on grass in a ` +
@@ -1255,6 +1255,8 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       (clip.note ? `\nThe creator's note about this footage: "${clip.note}"` : "") +
       (clip.ai?.summary ? `\nEarlier read of the clip: ${clip.ai.summary}` : "") +
       (ctx.brief ? `\nCreator's direction for today: ${ctx.brief}` : "") +
+      `\n\nThe creator's audience loves seeing the two of them together: when part of the clip shows the creator ` +
+      `and ${ctx.petName} together in the shot (a selfie, holding him, a cuddle), use that part.` +
       `\n\nStart from the footage: work out what is actually happening, where, and what ${ctx.petName} is feeling or ` +
       `doing that people will recognize. Then write the single on-screen line that makes it land. Formats are tools, ` +
       `not rules: use a trending structure only if it genuinely fits this footage, otherwise write something original.` +

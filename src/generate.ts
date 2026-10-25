@@ -133,7 +133,7 @@ export function brollPool(main: Clip, roundClips: Clip[] = []): Clip[] {
         !skip.has(c.id) && c.status === "ready" && c.kind === "video" && c.height >= c.width && !c.disliked &&
         !c.edited && !c.duplicateOf && c.duration >= 2 && !!c.ai?.summary && hasLex(c),
     )
-    .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || Number(strongFootage(b)) - Number(strongFootage(a)) || filmedWeek(b) - filmedWeek(a));
+    .sort((a, b) => Number(a.uses > 0) - Number(b.uses > 0) || Number(strongFootage(b)) + Number(together(b)) - Number(strongFootage(a)) - Number(together(a)) || filmedWeek(b) - filmedWeek(a));
 }
 
 /**
@@ -259,6 +259,15 @@ export async function newOpening(id: string, texts: Record<number, string> = {})
 }
 
 /**
+ * The creator and Lex together in the shot (a selfie with him, holding him, a cuddle), from what the
+ * AI saw in the clip: the footage the creator wants more of. A hand alone doesn't count.
+ */
+export function together(c: Clip): boolean {
+  const s = c.ai?.summary ?? "";
+  return hasLex(c) && /\b(selfie|man|woman|guy|couple|owner|dad|filmer's face|creator)\b|cuddl|\bhug|in (his|her|my) arms|cheek.to.cheek|face to face/i.test(s);
+}
+
+/**
  * Whether Lex is in the clip, from what the AI saw in it. Clips without him (a document, the
  * window, someone talking) don't go under a point, into a montage or at the end of a video.
  */
@@ -301,7 +310,7 @@ export function rankClips(clips: Clip[]): Clip[] {
   const best = bestMoment;
   // Recent footage first (by the week it was filmed; the strongest kind of footage counts as two weeks
   // newer), and within a week the strongest moment.
-  const week = (c: Clip) => filmedWeek(c) + (strongFootage(c) ? 2 : 0);
+  const week = (c: Clip) => filmedWeek(c) + (strongFootage(c) ? 2 : 0) + (together(c) ? 2 : 0);
   return [...clips].sort((a, b) => a.uses - b.uses || week(b) - week(a) || best(b) - best(a));
 }
 
@@ -695,7 +704,7 @@ export async function plan(
           .filter((c) => !taken.has(c.id) && outside.has(c.id) && c.id !== clip.id)
           .sort((a, b) => filmedWeek(b) - filmedWeek(a) || best(b) - best(a))
           .slice(0, 16)
-          .sort((a, b) => best(b) - best(a))
+          .sort((a, b) => best(b) + (together(b) ? 0.3 : 0) - best(a) - (together(a) ? 0.3 : 0))
           .slice(0, 7);
         for (const c of pick) taken.add(c.id);
         return pick;

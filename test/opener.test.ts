@@ -39,3 +39,12 @@ test("clips without Lex in them are kept out of points, montages and openings", 
   const cut = trimTo([{ clipId: "a", start: 0, end: 10, speed: 1 }, { clipId: "b", start: 0, end: 8, speed: 1 }], 13);
   assert.deepEqual(cut.map((s: any) => [s.clipId, s.start, s.end]), [["a", 0, 10], ["b", 0, 3]]);
 });
+
+test("footage of the creator and Lex together is recognised", async () => {
+  const { together } = await import("../src/generate.ts");
+  const c = (summary: string) => ({ ai: { summary } }) as any;
+  assert.equal(together(c("Selfie-style clip in a terminal with a bearded man in a cap and Lex nuzzling the camera.")), true);
+  assert.equal(together(c("A man in an orange puffer jacket holds and cuddles Lex in a lounge.")), true);
+  assert.equal(together(c("Lex eats jerky treats from a hand at the gate.")), false);
+  assert.equal(together(c("Man in a t-shirt by the window. No pet is visible.")), false);
+});

@@ -241,14 +241,16 @@ export async function newOpening(id: string, texts: Record<number, string> = {})
   const overlays = (r.plan.overlays ?? []).map((o, i) => (texts[i] ? { ...o, text: texts[i] } : o));
   const firstPoint = overlays.find((o, i) => i > 0 && o.y !== undefined)?.start ?? 2.5;
   const seconds = Math.max(1.5, Math.min(3, firstPoint));
-  const o = await sharpOpener(first, used, seconds);
+  // Openings already tried on this video (each new opening is a different one).
+  const tried = (r.plan.triedOpeners ?? []).map((id) => store.clip(id)).filter((c): c is Clip => !!c);
+  const o = await sharpOpener(first, [...used, ...tried], seconds);
   if (!o) return undefined;
   // The old opening shot goes (it's the one being replaced), the rest stays in place.
   const rest = r.plan.segments[0]?.clipId === first.id ? r.plan.segments.slice(1) : r.plan.segments;
   const head = r.plan.segments[0];
   const headLen = head ? (head.end - head.start) / (head.speed ?? 1) : 0;
   const segments = withOpener(headLen >= seconds - 0.05 ? rest : r.plan.segments, o.clip, seconds, o.from);
-  const plan = { ...r.plan, overlays, hook: overlays[0]?.text ?? r.plan.hook, editorPass: EDITOR_ATTEMPTS, segments };
+  const plan = { ...r.plan, overlays, hook: overlays[0]?.text ?? r.plan.hook, editorPass: EDITOR_ATTEMPTS, segments, triedOpeners: [...new Set([...(r.plan.triedOpeners ?? []), first.id])] };
   const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
   store.updateRender(fresh.id, { ...(r.editor ? { editor: r.editor } : {}), ...(r.review === "approved" ? { review: "approved", reviewedAt: r.reviewedAt } : {}) });
   deleteRender(r.id);

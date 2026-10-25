@@ -1166,6 +1166,18 @@ function detailsBody(r) {
         h("span", { class: "d-play" }, "Play ›"),
       ),
     ) : null,
+    r.status === "done" && !r.posts?.length && r.plan.segments?.length
+      ? h("section", { class: "d-sec" },
+          h("div", { class: "d-sec-head" }, h("span", {}, "Opening shot"),
+            h("span", { class: "d-actions" },
+              h("button", { class: "d-link", onclick: (e) =>
+                withBusy(e.currentTarget, "Finding one…", async () => {
+                  await api(`/api/renders/${r.id}/new-opening`, { method: "POST" });
+                  banner("A new opening is being drawn. The video reappears in a minute with the same text.", "ok");
+                  await refreshRenders();
+                }) }, "New opening"))),
+          h("p", { class: "d-hint" }, "Swaps the first seconds for different airport footage (check-in, terminal, gate, plane), the rest stays."))
+      : null,
     soundsSection(r),
     r.editor ? h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Editor's review")),

@@ -103,6 +103,7 @@ export interface Settings {
   headlineTopV1?: boolean;
   feesOpeningV1?: boolean;
   feesOpeningV2?: boolean;
+  feesOpeningV3?: boolean;
   mixV2?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;

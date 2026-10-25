@@ -984,6 +984,16 @@ app.get(
   }),
 );
 
+/** A different opening shot for this video (the sharpest clear airport footage not tried yet). */
+app.post(
+  "/api/renders/:id/new-opening",
+  h(async (req, res) => {
+    const fresh = await newOpening(String(req.params.id));
+    if (!fresh) return void res.status(400).json({ error: "No other footage opens clearly on the airport. Pick more videos in Settings → Google Photos." });
+    res.json(fresh);
+  }),
+);
+
 app.post(
   "/api/renders/:id/redo-editor",
   h(async (req, res) => {
@@ -1746,6 +1756,15 @@ if (!paused && !store.settings().feesOpeningV2) {
     const r = store.renders().find((x) => x.status === "done" && !x.posts?.length && /^Do small dogs fly free on planes\?/i.test(x.plan.hook ?? ""));
     if (r) newOpening(r.id).catch((err) => console.warn("[layout] fees opening:", (err as Error).message));
   }, 90_000);
+}
+
+// Once more, asked by the creator: a different opening again for that video (not one tried before).
+if (!paused && !store.settings().feesOpeningV3) {
+  store.updateSettings({ feesOpeningV3: true });
+  setTimeout(() => {
+    const r = store.renders().find((x) => x.status === "done" && !x.posts?.length && /^Do small dogs fly free on planes\?/i.test(x.plan.hook ?? ""));
+    if (r) newOpening(r.id).catch((err) => console.warn("[layout] fees opening:", (err as Error).message));
+  }, 150_000);
 }
 
 // Once: videos whose headline could have moved down the frame are drawn again with it at the top.

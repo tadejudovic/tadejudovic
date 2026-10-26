@@ -1565,21 +1565,28 @@ const REMAKE_BRIEF: Record<string, (text: string, note?: string) => string> = {
  * and made again with the editor's notes as direction (new text, a new cut, or other footage, the
  * way the review pointed). Goes past the daily limit by a little, like any tap by the creator.
  */
-export async function redoFromEditor(id: string): Promise<Render> {
+export async function redoFromEditor(id: string, creatorNote?: string): Promise<Render> {
   const r = store.render(id);
   if (!r) throw new Error("That video is gone.");
   const e = r.editor;
-  if (!e) throw new Error("This video has no editor's review.");
   if (r.remadeAs === "pending" && Date.now() - Date.parse(r.reviewedAt ?? "") < 15 * 60_000) throw new Error("It's already being made again.");
-  const p = e.parts;
-  const reason: Render["rejectReason"] = e.verdict === "fix_text" ? "text" : p && (p.hook.visual < 7 || p.body.visual < 6) ? "clip" : "edit";
-  const notes = [e.remakeBrief, ...e.issues, ...(p ? Object.values(p).map((x) => x.note) : [])].filter(Boolean).join(" ");
+  // Footage gone (deleted clips): the same lesson or idea on today's footage.
+  const footageGone = r.plan.segments.some((s) => store.clip(s.clipId)?.status !== "ready");
+  const p = e?.parts;
+  const reason: Render["rejectReason"] = footageGone ? "clip" : !e ? "edit" : e.verdict === "fix_text" ? "text" : p && (p.hook.visual < 7 || p.body.visual < 6) ? "clip" : "edit";
+  const notes = [
+    creatorNote?.trim(),
+    footageGone ? "Make the same video (same topic and kind of points) with other footage: this one's clips are no longer in the library." : "",
+    e?.remakeBrief,
+    ...(e?.issues ?? []),
+    ...(p ? Object.values(p).map((x) => x.note) : []),
+  ].filter(Boolean).join(" ");
   const before = { review: r.review, reviewedAt: r.reviewedAt, rejectReason: r.rejectReason, rejectNote: r.rejectNote, rejectedBy: r.rejectedBy, remadeAs: r.remadeAs };
   store.updateRender(id, {
     review: "rejected",
     reviewedAt: new Date().toISOString(),
     rejectReason: reason,
-    rejectNote: `Editor's review: ${notes}`.slice(0, 1200),
+    rejectNote: (e ? `Editor's review: ${notes}` : notes || "Make it again, clearly better.").slice(0, 1200),
     rejectedBy: undefined,
     remadeAs: undefined,
   });

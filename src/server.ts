@@ -997,7 +997,8 @@ app.post(
 app.post(
   "/api/renders/:id/redo-editor",
   h(async (req, res) => {
-    res.json(await redoFromEditor(String(req.params.id)));
+    const note = typeof req.body?.note === "string" ? req.body.note.slice(0, 500) : undefined;
+    res.json(await redoFromEditor(String(req.params.id), note));
   }),
 );
 
@@ -1756,6 +1757,16 @@ if (!paused && !store.settings().feesOpeningV2) {
     const r = store.renders().find((x) => x.status === "done" && !x.posts?.length && /^Do small dogs fly free on planes\?/i.test(x.plan.hook ?? ""));
     if (r) newOpening(r.id).catch((err) => console.warn("[layout] fees opening:", (err as Error).message));
   }, 90_000);
+}
+
+// Once, asked by the creator: "Where do dogs pee when they fly?" made again (its clips were deleted
+// with the old library), same lesson on today's footage.
+if (!paused && !store.settings().peeRedoV1) {
+  store.updateSettings({ peeRedoV1: true });
+  setTimeout(() => {
+    const r = store.renders().find((x) => x.status === "done" && !x.posts?.length && /^Where do dogs pee when they fly\?/i.test(x.plan.hook ?? ""));
+    if (r) redoFromEditor(r.id).catch((err) => console.warn("[redo] pee video:", (err as Error).message));
+  }, 60_000);
 }
 
 // Once more, asked by the creator: a different opening again for that video (not one tried before).

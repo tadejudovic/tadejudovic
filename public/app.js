@@ -1176,7 +1176,16 @@ function detailsBody(r) {
                   banner("A new opening is being drawn. The video reappears in a minute with the same text.", "ok");
                   await refreshRenders();
                 }) }, "New opening"))),
-          h("p", { class: "d-hint" }, "Swaps the first seconds for different airport footage (check-in, terminal, gate, plane), the rest stays."))
+          h("p", { class: "d-hint" }, "Swaps the first seconds for different airport footage (check-in, terminal, gate, plane), the rest stays."),
+          r.editor ? null : h("button", { class: "btn", onclick: (e) => {
+            const note = prompt("Make it again. Anything it should do differently? (optional)", "");
+            if (note === null) return;
+            withBusy(e.currentTarget, "Starting…", async () => {
+              await api(`/api/renders/${r.id}/redo-editor`, { method: "POST", body: { note } });
+              banner("Making it again. The new version appears in Review.", "ok");
+              await refreshRenders();
+            });
+          } }, "Make again"))
       : null,
     soundsSection(r),
     r.editor ? h("section", { class: "d-sec" },
@@ -1189,7 +1198,7 @@ function detailsBody(r) {
       r.editor.outcome !== "passed" && !(r.remadeAs && r.remadeAs !== "pending")
         ? h("button", { class: "btn", onclick: (e) =>
             withBusy(e.currentTarget, "Starting…", async () => {
-              await api(`/api/renders/${r.id}/redo-editor`, { method: "POST" });
+              await api(`/api/renders/${r.id}/redo-editor`, { method: "POST", body: {} });
               banner("Making it again with the editor's notes. The new version appears in Review.", "ok");
               await refreshRenders();
             }) }, "Redo with this feedback")

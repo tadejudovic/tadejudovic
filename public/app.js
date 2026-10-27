@@ -2532,6 +2532,8 @@ function renderProgress() {
   celebrateNew(s);
 }
 function celebrateNew(s) {
+  // Not on top of onboarding: it waits until the app itself is open.
+  if (!document.getElementById("onboarding")?.hidden) return;
   let seen;
   try { seen = JSON.parse(localStorage.getItem("rollcut.milestones") ?? "null"); } catch { seen = []; }
   const reached = MILESTONES.filter(([, ok]) => ok(s));

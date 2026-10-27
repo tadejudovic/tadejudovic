@@ -1188,3 +1188,8 @@ input, select, textarea, .perf-input { background: var(--surface-2) !important; 
 .perf-row .perf-input { flex: 1; min-width: 0; height: 44px; border-radius: 22px; padding: 0 16px; }
 .perf-row .btn { height: 44px; border-radius: 22px; padding: 0 18px; }
 .perf-platform { display: grid; gap: 6px; margin-bottom: 10px; }
+/* the caption is edited in place: a light outline on focus, the shots right under the video */
+.d-caption.editable { cursor: text; outline: none; transition: box-shadow .15s; }
+.d-caption.editable:focus { box-shadow: 0 0 0 2px var(--primary); }
+.d-caption.editable:empty::before { content: attr(data-placeholder); color: var(--faint); }
+.d > .d-sec:first-child { border-top: 0 !important; padding-top: 14px; }

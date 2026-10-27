@@ -1069,38 +1069,33 @@ function detailsBody(r) {
       : [h("p", { class: "muted" }, "Add your brand partners first: Settings → Brand partners.")]),
   );
 
-  // Caption: readable text first; edit only when needed.
-  // Long captions show their first lines; a tap opens the rest.
-  const captionText = h("p", { class: `d-caption${(caption ?? "").length > 180 ? " clamp" : ""}` }, caption || "No caption");
-  const moreCaption = (caption ?? "").length > 180
+  // Caption: edited right where it's shown. Tap it to type (the whole text opens), and it's saved
+  // when you tap away. Long captions show their first lines until then.
+  const long = (caption ?? "").length > 180;
+  const captionText = h("p", { class: `d-caption editable${long ? " clamp" : ""}`, contenteditable: "plaintext-only", spellcheck: "true", "data-placeholder": "Write a caption…" }, caption ?? "");
+  const moreCaption = long
     ? h("button", { class: "d-link d-more", onclick: (e) => { captionText.classList.remove("clamp"); e.currentTarget.remove(); } }, "Show more")
     : null;
-  const captionEdit = h("textarea", { class: "d-caption-edit", rows: 4, hidden: true }, caption);
+  captionText.addEventListener("focus", () => { captionText.classList.remove("clamp"); moreCaption?.remove(); });
   const saveCaption = async () => {
-    plan.postCaption = captionEdit.value.trim();
+    const text = captionText.innerText.trim();
+    if (text === (plan.postCaption ?? "").trim()) return;
+    plan.postCaption = text;
     const updated = await api(`/api/renders/${r.id}`, { method: "PATCH", body: { postCaption: plan.postCaption, hashtags: plan.hashtags } });
-    captionText.textContent = plan.postCaption || "No caption";
+    banner("Caption saved.", "ok");
     // Corrected in Ready: it goes back to Review for a fresh yes or no.
     if (r.review === "approved" && updated.review === "pending") {
       r.review = "pending";
-      banner("Description changed: the video is back in Review for a fresh yes or no.", "ok");
+      banner("Caption changed: the video is back in Review for a fresh yes or no.", "ok");
       refreshRenders();
     }
   };
-  captionEdit.addEventListener("change", saveCaption);
+  captionText.addEventListener("blur", () => saveCaption().catch((e) => banner(e.message)));
   const copyBtn = h("button", { class: "d-link", onclick: async (e) => {
     await navigator.clipboard.writeText(fullCaption());
     e.currentTarget.textContent = "Copied ✓";
     setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
   } }, "Copy");
-  const editCaptionBtn = h("button", { class: "d-link", onclick: () => {
-    const editing = captionEdit.hidden;
-    captionEdit.hidden = !editing;
-    captionText.hidden = editing;
-    editCaptionBtn.textContent = editing ? "Done" : "Edit";
-    if (editing) captionEdit.focus();
-    else saveCaption();
-  } }, "Edit");
 
   // Ask the AI for a new description (the video stays as it is), optionally saying what to change.
   const newCaptionBtn = h("button", { class: "d-link", onclick: async (e) => {
@@ -1110,8 +1105,7 @@ function detailsBody(r) {
       const updated = await api(`/api/renders/${r.id}/caption`, { method: "POST", body: { note } });
       plan.postCaption = updated.plan.postCaption;
       plan.aiNote = undefined;
-      captionText.textContent = plan.postCaption || "No caption";
-      captionEdit.value = plan.postCaption;
+      captionText.textContent = plan.postCaption ?? "";
       refreshRenders().catch(() => {});
     });
   } }, "New caption");
@@ -1163,6 +1157,8 @@ function detailsBody(r) {
   const seg = plan.segments?.[0];
   const clip = seg && state.clips.find((c) => c.id === seg.clipId);
   return h("div", { class: "d" },
+    // The shots timeline right under the video.
+    shotsSection(r),
     h("section", { class: "d-head" },
       headline,
       h("span", { class: "d-actions" },
@@ -1203,15 +1199,14 @@ function detailsBody(r) {
       collabEdit,
     ),
     h("section", { class: "d-sec" },
-      h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, newCaptionBtn, editCaptionBtn, copyBtn)),
+      h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, newCaptionBtn, copyBtn)),
       captionText,
       moreCaption,
-      captionEdit,
       tags.length ? h("div", { class: "d-chips" },
         tags.map((t) => h("span", { class: "chip" }, `#${t}`, posts.has(t) ? h("small", { class: "admin-only" }, ` ${fmtViews(posts.get(t))}`) : null))) : null,
       posts.size ? h("p", { class: "d-hint admin-only" }, "Numbers are how many TikTok posts use each hashtag.") : null,
     ),
-    r.review === "approved" ? perf : null,
+    r.review === "approved" ? h("div", { class: "admin-only" }, perf) : null,
     seg ? h("section", { class: "d-sec admin-only" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Made from")),
       h("button", { class: "d-source", onclick: () => openClip(seg.clipId) },
@@ -1234,7 +1229,6 @@ function detailsBody(r) {
                 }) }, "New opening"))),
           h("p", { class: "d-hint" }, "Swaps the first seconds for different airport footage (check-in, terminal, gate, plane), the rest stays."))
       : null,
-    shotsSection(r),
     soundsSection(r),
     r.editor ? h("section", { class: "d-sec admin-only" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Editor's review")),

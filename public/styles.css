@@ -1213,3 +1213,20 @@ input, select, textarea, .perf-input { background: var(--surface-2) !important; 
 .te-look-plain { -webkit-text-stroke: 0; text-shadow: 0 .06em .12em rgba(0,0,0,.7); }
 .te-look-yellow { color: #ffe41a; -webkit-text-stroke: .06em #1a1400; paint-order: stroke fill; text-shadow: .08em .08em .06em rgba(0,0,0,.55); }
 .te-top .btn:not(.primary) { background: rgba(0,0,0,.55) !important; color: #fff !important; backdrop-filter: blur(8px); }
+
+/* Shots: tap to see it in the video, hold for a small menu, drag down to cut */
+.shots-sec { position: relative; }
+.shots-sec .d-sec-head { align-items: baseline; }
+.shot-hint { font-size: 12px; font-weight: 400; color: var(--muted); }
+.shots .shot { touch-action: pan-x; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform .18s ease, opacity .18s ease, box-shadow .15s; cursor: pointer; }
+.shots .shot img { pointer-events: none; }
+.shots .shot.held { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--primary); transform: scale(1.04); }
+.shots .shot[data-a="remove"], .shots .shot[data-a="never"] { opacity: .35; }
+.shots .shot[data-a="swap"] img { filter: saturate(.3); }
+.shot-menu { position: absolute; top: 34px; z-index: 5; transform: translateX(-50%); width: 220px; display: grid; padding: 6px; border-radius: 18px; background: var(--surface-3); box-shadow: 0 10px 30px rgba(0,0,0,.5); animation: pop-in .18s ease-out; }
+.shot-menu[hidden] { display: none; }
+.shot-menu b { font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 10px 4px; }
+.shot-menu button { text-align: left; padding: 11px 10px; border: 0; border-radius: 12px; background: none; color: var(--ink); font: inherit; font-size: 15px; cursor: pointer; }
+.shot-menu button:hover { background: rgba(255,255,255,.06); }
+.shot-menu button.on { color: var(--primary); font-weight: 600; }
+.shot-menu button.on::after { content: "  ✓"; }

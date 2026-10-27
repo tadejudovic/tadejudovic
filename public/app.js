@@ -1333,17 +1333,16 @@ const soundRow = (x, note) =>
     h("a", { class: "btn small", href: x.url, target: "_blank", rel: "noopener noreferrer" }, "Open in TikTok"));
 
 /** Trending sounds that fit this video, loaded when the details open (TikTok adds the sound when posting). */
-// The video's shots in order, like an editor's timeline: tap a shot to select it, and one bar
-// under the strip swaps it, cuts it, or keeps that clip out for good (the same button again keeps
-// it). Apply draws the video again with the same text.
+// The video's shots in order, like an editor's timeline. Tap a shot and the video above jumps to it;
+// hold it for a small menu (swap, cut, never use, play the original); drag it down to cut it.
+// Changed shots are tagged; Apply draws the video again with the same text.
 const SHOT_LABEL = { swap: "Swap", remove: "Cut", never: "Never use" };
 function shotsSection(r) {
   if (r.status !== "done" || r.posts?.length || !r.plan.segments?.length) return null;
   let shots = [];
-  let sel = 0;
   const picks = [];
   const strip = h("div", { class: "shots", role: "listbox", "aria-label": "Shots" }, h("span", { class: "muted" }, "Loading shots…"));
-  const bar = h("div", { class: "shot-bar" });
+  const menu = h("div", { class: "shot-menu", hidden: true, role: "menu" });
   const apply = h("button", { class: "btn primary shot-apply", hidden: true, onclick: (e) => {
     if (picks.every((a) => a === "remove")) return banner("Keep at least one shot.", "error");
     withBusy(e.currentTarget, "Starting…", async () => {
@@ -1352,64 +1351,97 @@ function shotsSection(r) {
       await refreshRenders();
     });
   } });
-  const icon = (d) => {
-    const ns = "http://www.w3.org/2000/svg";
-    const svg = document.createElementNS(ns, "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("aria-hidden", "true");
-    for (const x of d) svg.appendChild(document.createElementNS(ns, "path")).setAttribute("d", x);
-    return svg;
-  };
-  const ICONS = {
-    play: ["M8 5v14l11-7z"],
-    swap: ["M7 7h11l-3-3M17 17H6l3 3"],
-    remove: ["M6 6l12 12M18 6L6 18"],
-    never: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18M5.6 5.6l12.8 12.8"],
-  };
+  const section = h("section", { class: "d-sec shots-sec" },
+    h("div", { class: "d-sec-head" }, h("span", {}, "Shots"), h("span", { class: "shot-hint" }, "Hold for options · drag down to cut")),
+    strip, menu, apply);
   const draw = () => {
     for (const [i, card] of [...strip.children].entries()) {
-      card.classList.toggle("sel", i === sel);
-      card.setAttribute("aria-selected", String(i === sel));
       card.dataset.a = picks[i];
       const tag = card.querySelector(".shot-tag");
       tag.textContent = SHOT_LABEL[picks[i]] ?? "";
       tag.hidden = !SHOT_LABEL[picks[i]];
     }
-    const s = shots[sel];
-    const a = picks[sel];
-    const act = (key, label, next) =>
-      h("button", { class: `shot-btn${a === key ? " on" : ""}${key === "never" ? " danger" : ""}`, onclick: () => { picks[sel] = a === key ? "keep" : next; draw(); } }, icon(ICONS[key]), h("span", {}, label));
-    bar.replaceChildren(
-      h("div", { class: "shot-info" },
-        h("b", {}, `Shot ${sel + 1} · ${s.from.toFixed(1)}–${s.to.toFixed(1)}s`),
-        h("span", { class: "muted" }, s.summary || s.scene || "")),
-      h("div", { class: "shot-btns" },
-        h("button", { class: "shot-btn", onclick: () => openClip(s.clipId) }, icon(ICONS.play), h("span", {}, "Play")),
-        act("swap", "Swap", "swap"),
-        act("remove", "Cut", "remove"),
-        act("never", "Never use", "never")));
     const n = picks.filter((x) => x !== "keep").length;
     apply.hidden = !n;
     apply.textContent = `Apply ${n} change${n > 1 ? "s" : ""}`;
   };
+  const closeMenu = () => { menu.hidden = true; strip.querySelector(".held")?.classList.remove("held"); };
+  const openMenu = (i, card) => {
+    const s = shots[i];
+    const item = (label, action) => h("button", { role: "menuitem", class: picks[i] === action ? "on" : "", onclick: () => { picks[i] = action; closeMenu(); draw(); } }, label);
+    menu.replaceChildren(...[
+      h("b", {}, `Shot ${i + 1} · ${s.from.toFixed(1)}–${s.to.toFixed(1)}s`),
+      item("Swap for other footage", "swap"),
+      item("Cut it", "remove"),
+      item("Never use this clip", "never"),
+      picks[i] !== "keep" ? item("Keep it", "keep") : null,
+      h("button", { role: "menuitem", onclick: () => { closeMenu(); openClip(s.clipId); } }, "Play the original"),
+    ].filter(Boolean));
+    card.classList.add("held");
+    // Above the shot it belongs to, kept inside the card.
+    const left = card.offsetLeft - strip.scrollLeft + card.offsetWidth / 2;
+    menu.style.left = `${Math.max(110, Math.min(section.clientWidth - 110, left))}px`;
+    // Just under the strip, so the held shot stays in view.
+    menu.style.top = `${strip.offsetTop + strip.offsetHeight + 6}px`;
+    menu.hidden = false;
+  };
+  // Tap: the video above jumps to this shot and plays from there.
+  const seek = (s) => {
+    const video = section.closest(".sheet-card, .stack-card")?.querySelector("video");
+    if (!video) return openClip(s.clipId);
+    try { video.currentTime = s.from + 0.05; video.play(); } catch {}
+  };
+  const gestures = (card, s) => {
+    let x0 = 0, y0 = 0, timer = 0, held = false, dragging = false, id = null;
+    card.addEventListener("pointerdown", (e) => {
+      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; held = false; dragging = false;
+      timer = setTimeout(() => { held = true; navigator.vibrate?.(10); openMenu(s.index, card); }, 450);
+    });
+    card.addEventListener("pointermove", (e) => {
+      if (e.pointerId !== id) return;
+      const dx = e.clientX - x0, dy = e.clientY - y0;
+      if (!dragging && Math.abs(dx) > 8) clearTimeout(timer);
+      if (!dragging && dy > 10 && dy > Math.abs(dx)) { dragging = true; clearTimeout(timer); card.setPointerCapture(id); }
+      if (dragging) {
+        const d = Math.max(0, dy);
+        card.style.transform = `translateY(${d}px) rotate(${Math.min(8, d / 10)}deg)`;
+        card.style.opacity = String(Math.max(0.25, 1 - d / 140));
+      }
+    });
+    const end = (e) => {
+      if (e.pointerId !== id) return;
+      clearTimeout(timer);
+      id = null;
+      if (dragging) {
+        const cut = e.clientY - y0 > 60;
+        card.style.transform = card.style.opacity = "";
+        if (cut) { picks[s.index] = picks[s.index] === "remove" ? "keep" : "remove"; navigator.vibrate?.(15); draw(); }
+      } else if (!held && e.type === "pointerup") seek(s);
+      dragging = false;
+    };
+    card.addEventListener("pointerup", end);
+    card.addEventListener("pointercancel", end);
+    card.addEventListener("contextmenu", (e) => e.preventDefault());
+  };
+  section.addEventListener("pointerdown", (e) => { if (!menu.hidden && !menu.contains(e.target) && !e.target.closest(".shot")) closeMenu(); });
   api(`/api/renders/${r.id}/timeline`)
     .then((list) => {
       shots = list;
       list.forEach((s) => (picks[s.index] = "keep"));
       strip.replaceChildren(
-        ...list.map((s) =>
-          h("button", { class: "shot", role: "option", style: { flexBasis: `${Math.max(56, Math.min(120, (s.to - s.from) * 34))}px` }, onclick: () => { sel = s.index; draw(); } },
-            h("img", { src: s.frame, alt: `Shot ${s.index + 1}`, loading: "lazy" }),
+        ...list.map((s) => {
+          const card = h("div", { class: "shot", role: "option", tabindex: "0", "aria-label": `Shot ${s.index + 1}, ${s.from.toFixed(1)} to ${s.to.toFixed(1)} seconds. Hold for options.`, style: { flexBasis: `${Math.max(56, Math.min(120, (s.to - s.from) * 34))}px` } },
+            h("img", { src: s.frame, alt: "", loading: "lazy", draggable: "false" }),
             h("span", { class: "shot-time" }, `${(s.to - s.from).toFixed(1)}s`),
-            h("span", { class: "shot-tag", hidden: true }))));
+            h("span", { class: "shot-tag", hidden: true }));
+          gestures(card, s);
+          card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMenu(s.index, card); } });
+          return card;
+        }));
       draw();
     })
     .catch(() => strip.replaceChildren(h("span", { class: "muted" }, "Couldn't load the shots.")));
-  return h("section", { class: "d-sec" },
-    h("div", { class: "d-sec-head" }, h("span", {}, "Shots")),
-    strip,
-    bar,
-    apply);
+  return section;
 }
 
 function soundsSection(r) {

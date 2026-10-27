@@ -1146,7 +1146,8 @@ function detailsBody(r) {
       h("div", { class: "d-sec-head" }, h("span", {}, "Performance")),
       platformRow("tiktok", "TikTok", "Posted? Paste the TikTok link"),
       platformRow("instagram", "Instagram", "Posted? Paste the Instagram Reel link"),
-      h("p", { class: "d-hint" },
+      h("p", { class: "d-hint" }, "Once you post it, the views show up here by themselves within a few hours."),
+      h("p", { class: "d-hint admin-only" },
         "Found automatically on your profiles a few hours after you post (paste the description Rollcut wrote; small edits are fine), " +
         "or paste the link. Refreshed daily for 2 weeks; the AI learns from what performs. Instagram only shows plays, likes and comments publicly."),
     );
@@ -1160,7 +1161,7 @@ function detailsBody(r) {
       headline,
       h("span", { class: "d-actions" },
         h("button", { class: "d-link", onclick: () => { editText.hidden = !editText.hidden; if (!editText.hidden) textInput.focus(); } }, "Edit text"),
-        h("button", { class: "d-link", onclick: (e) => withBusy(e.currentTarget, "Reading…", async () => {
+        h("button", { class: "d-link admin-only", onclick: (e) => withBusy(e.currentTarget, "Reading…", async () => {
           const res = await api(`/api/renders/${r.id}/proofread`, { method: "POST" });
           if (!res.changed) return banner("The text reads fine as it is.", "ok");
           closeSheet();
@@ -1178,10 +1179,19 @@ function detailsBody(r) {
           }
         }) }, "Copy diagnostics"),
         h("button", { class: "d-link", onclick: () => (styleEdit.hidden = !styleEdit.hidden) }, "Text style"),
+        r.status === "done" && !r.posts?.length && !r.editor ? h("button", { class: "d-link", onclick: (e) => {
+          const note = prompt("Make it again. Anything it should do differently? (optional)", "");
+          if (note === null) return;
+          withBusy(e.currentTarget, "Starting…", async () => {
+            await api(`/api/renders/${r.id}/redo-editor`, { method: "POST", body: { note } });
+            banner("Making it again. The new version appears in Review.", "ok");
+            await refreshRenders();
+          });
+        } }, "Make again") : null,
         featureOn("collab") ? h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version") : null,
       ),
       plan.collab ? h("span", { class: "collab-badge" }, `Collab · ${plan.collab.name}`) : null,
-      !plan.collab && KIND_LABEL[plan.format] ? h("span", { class: "collab-badge" }, KIND_LABEL[plan.format]) : null,
+      !plan.collab && KIND_LABEL[plan.format] ? h("span", { class: "collab-badge admin-only" }, KIND_LABEL[plan.format]) : null,
       editText,
       styleEdit,
       collabEdit,
@@ -1191,11 +1201,11 @@ function detailsBody(r) {
       captionText,
       captionEdit,
       tags.length ? h("div", { class: "d-chips" },
-        tags.map((t) => h("span", { class: "chip" }, `#${t}`, posts.has(t) ? h("small", {}, ` ${fmtViews(posts.get(t))}`) : null))) : null,
-      posts.size ? h("p", { class: "d-hint" }, "Numbers are how many TikTok posts use each hashtag.") : null,
+        tags.map((t) => h("span", { class: "chip" }, `#${t}`, posts.has(t) ? h("small", { class: "admin-only" }, ` ${fmtViews(posts.get(t))}`) : null))) : null,
+      posts.size ? h("p", { class: "d-hint admin-only" }, "Numbers are how many TikTok posts use each hashtag.") : null,
     ),
     r.review === "approved" ? perf : null,
-    seg ? h("section", { class: "d-sec" },
+    seg ? h("section", { class: "d-sec admin-only" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Made from")),
       h("button", { class: "d-source", onclick: () => openClip(seg.clipId) },
         h("img", { src: `/media/thumb/${seg.clipId}`, alt: "", loading: "lazy" }),
@@ -1206,7 +1216,7 @@ function detailsBody(r) {
       ),
     ) : null,
     r.status === "done" && !r.posts?.length && r.plan.segments?.length
-      ? h("section", { class: "d-sec" },
+      ? h("section", { class: "d-sec admin-only" },
           h("div", { class: "d-sec-head" }, h("span", {}, "Opening shot"),
             h("span", { class: "d-actions" },
               h("button", { class: "d-link", onclick: (e) =>
@@ -1215,20 +1225,11 @@ function detailsBody(r) {
                   banner("A new opening is being drawn. The video reappears in a minute with the same text.", "ok");
                   await refreshRenders();
                 }) }, "New opening"))),
-          h("p", { class: "d-hint" }, "Swaps the first seconds for different airport footage (check-in, terminal, gate, plane), the rest stays."),
-          r.editor ? null : h("button", { class: "btn", onclick: (e) => {
-            const note = prompt("Make it again. Anything it should do differently? (optional)", "");
-            if (note === null) return;
-            withBusy(e.currentTarget, "Starting…", async () => {
-              await api(`/api/renders/${r.id}/redo-editor`, { method: "POST", body: { note } });
-              banner("Making it again. The new version appears in Review.", "ok");
-              await refreshRenders();
-            });
-          } }, "Make again"))
+          h("p", { class: "d-hint" }, "Swaps the first seconds for different airport footage (check-in, terminal, gate, plane), the rest stays."))
       : null,
     shotsSection(r),
     soundsSection(r),
-    r.editor ? h("section", { class: "d-sec" },
+    r.editor ? h("section", { class: "d-sec admin-only" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Editor's review")),
       h("div", { class: "muted" },
         `${{ passed: "Passed", text_fixed: "Text fixed, then checked again", remade: "Made again", let_through: "Let through with notes" }[r.editor.outcome] ?? ""} · ` +
@@ -1244,7 +1245,7 @@ function detailsBody(r) {
             }) }, "Redo with this feedback")
         : null,
     ) : null,
-    b ? h("section", { class: "d-sec" },
+    b ? h("section", { class: "d-sec admin-only" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Inspired by")),
       h("div", { class: "d-proof" },
         h("span", { class: "d-proof-icon" }, svgIcon("M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 2 1.3 3 2.5 3.5C11.5 9 11 6 12 3z")),

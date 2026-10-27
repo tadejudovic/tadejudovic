@@ -48,6 +48,9 @@ export interface Settings {
    * the dog as the punchline) or "mix" (alternating, so the account reaches beyond dog lovers).
    */
   captionAudience: CaptionAudience;
+  /** What holds the creator back from posting (asked at onboarding), and their first video. */
+  postingBlocks?: string[];
+  firstVideoId?: string;
   /** When onboarding was finished (unset: the app opens on onboarding). */
   onboardedAt?: string;
   /** The topics the creator chose at onboarding (suggested from their footage), steering every video. */

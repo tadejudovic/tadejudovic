@@ -36,7 +36,7 @@ import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, listenHost, lockedOut, loginPage, logout, requireAuth, signedInAs, isAdmin } from "./auth.ts";
 import { aiOutOfCredit, monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import { TEXT_STYLES } from "./types.ts";
-import { onboardingState, saveTopics, startTrial, suggestTopics } from "./onboarding.ts";
+import { makeFirstVideo, onboardingState, saveBlocks, saveTopics, startTrial, suggestTopics } from "./onboarding.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, StoryDraft, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -1035,11 +1035,22 @@ app.post("/api/onboarding/topics/suggest", h(async (_req, res) => res.json(await
 app.put("/api/onboarding", (req, res) => {
   const b = req.body ?? {};
   if (Array.isArray(b.topics)) saveTopics(b.topics);
+  if (Array.isArray(b.blocks)) saveBlocks(b.blocks);
   if (TEXT_STYLES.includes(b.textStyle)) store.updateSettings({ textStyle: b.textStyle });
   if (b.done === true) store.updateSettings({ onboardedAt: new Date().toISOString() });
   if (b.done === false && isAdmin(req)) store.updateSettings({ onboardedAt: undefined });
   res.json(onboardingState());
 });
+app.post(
+  "/api/onboarding/first-video",
+  h(async (_req, res) => {
+    try {
+      res.json({ id: await makeFirstVideo() });
+    } catch (e) {
+      res.status(400).json({ error: (e as Error).message });
+    }
+  }),
+);
 app.post("/api/onboarding/trial", (req, res) => {
   try {
     res.json(startTrial(req.body ?? {}));

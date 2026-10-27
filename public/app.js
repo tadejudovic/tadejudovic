@@ -2976,22 +2976,35 @@ if (params.get("google_error")) banner(`Google sign-in failed: ${params.get("goo
 if (params.size) history.replaceState(null, "", `/${location.hash}`);
 
 // ---- Onboarding ----------------------------------------------------------------------------
-// New creators: how it works, connect Google Photos, topics suggested from their footage, the
-// default look (changeable on every video), then the free trial (test mode: nothing is charged).
+// New creators, story-style: full-screen, image first, using their own footage as soon as it's in.
+// It tells the story (the camera roll nobody sees, why people don't post), asks one question
+// (what holds you back), then explains how Rollcut works WHILE it does it: watching their clips,
+// suggesting topics, making their first video. The free trial comes after that first video
+// (test mode: nothing is charged).
 
-const ONB_STEPS = ["how", "photos", "topics", "look", "trial", "ready"];
-const onb = { step: "how", topics: [], picked: new Set(), suggesting: false, timer: 0 };
+const ONB_STEPS = ["roll", "why", "answer", "photos", "watch", "topics", "look", "making", "trial", "ready"];
+const onb = { step: "roll", topics: [], picked: new Set(), blocks: new Set(), timer: 0, waited: 0 };
 const onbEl = () => document.getElementById("onboarding");
+const BLOCKS = [
+  ["words", "I don't know what to say", "It writes the words, from openings that already got views on TikTok."],
+  ["editing", "Editing takes forever", "It edits for you: the best seconds of each clip, a new shot every 2 seconds."],
+  ["shy", "I'm shy about posting", "Nothing goes out without your ✓. You pick what's worth sharing."],
+  ["what-works", "I don't know what works", "It learns from what gets views, on your posts and across TikTok."],
+  ["time", "I don't have time", "New videos every morning. Two minutes to pick, save and post."],
+];
+const fmtBig = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
 
 function openOnboarding() {
-  try { onb.step = ONB_STEPS.includes(localStorage.getItem("rollcut.onbStep")) ? localStorage.getItem("rollcut.onbStep") : "how"; } catch {}
+  try { const saved = localStorage.getItem("rollcut.onbStep"); if (ONB_STEPS.includes(saved)) onb.step = saved; } catch {}
   onbEl().hidden = false;
   document.body.classList.add("no-scroll");
   onbGo(onb.step);
 }
 function closeOnboarding() {
   clearInterval(onb.timer);
+  clearTimeout(onb.timer);
   onbEl().hidden = true;
+  onbEl().replaceChildren();
   document.body.classList.remove("no-scroll");
   try { localStorage.removeItem("rollcut.onbStep"); } catch {}
 }
@@ -2999,119 +3012,253 @@ async function onbGo(step) {
   onb.step = step;
   try { localStorage.setItem("rollcut.onbStep", step); } catch {}
   clearInterval(onb.timer);
+  clearTimeout(onb.timer);
   const st = await api("/api/onboarding").catch(() => null);
   onbRender(st);
 }
+const onbNext = () => onbGo(ONB_STEPS[ONB_STEPS.indexOf(onb.step) + 1]);
 
-function onbFrame(title, sub, body, actions) {
+/** One screen: the visual on top (most of the screen), the words and the action below. */
+function onbScreen({ visual, kicker, title, sub, body, cta, skip, dark = true }) {
   const i = ONB_STEPS.indexOf(onb.step);
-  const back = i > 0 && onb.step !== "ready" ? h("button", { class: "onb-back", "aria-label": "Back", onclick: () => onbGo(ONB_STEPS[i - 1]) }, "‹ Back") : h("span");
-  return h("div", { class: "onb-card" },
-    h("div", { class: "onb-top" }, back,
-      h("div", { class: "onb-dots" }, ONB_STEPS.slice(0, -1).map((s, j) => h("i", { class: j <= i ? "on" : "" })))),
-    h("h1", {}, title),
-    sub ? h("p", { class: "onb-sub" }, sub) : null,
-    body,
-    h("div", { class: "onb-actions" }, actions));
+  return h("div", { class: `onb-screen${dark ? " dark" : ""}` },
+    h("div", { class: "onb-bars" }, ONB_STEPS.slice(0, -1).map((_, j) => h("i", { class: j < i ? "done" : j === i ? "on" : "" }))),
+    i > 0 && onb.step !== "ready" ? h("button", { class: "onb-back", "aria-label": "Back", onclick: () => onbGo(ONB_STEPS[i - 1]) }, "‹") : null,
+    h("div", { class: "onb-visual" }, visual),
+    h("div", { class: "onb-text" },
+      kicker ? h("p", { class: "onb-kicker" }, kicker) : null,
+      h("h1", {}, title),
+      sub ? h("p", { class: "onb-sub" }, sub) : null,
+      body ?? null,
+      h("div", { class: "onb-actions" }, cta ?? null, skip ? h("button", { class: "onb-skip", onclick: skip[1] }, skip[0]) : null)));
+}
+const onbBtn = (label, onclick, disabled = false) => h("button", { class: "onb-cta", disabled, onclick }, label);
+
+/** A phone with something on its screen (a video, a frame, a mock). */
+const phone = (...screen) => h("div", { class: "onb-phone" }, h("div", { class: "onb-phone-screen" }, ...screen));
+const thumb = (id) => h("img", { src: `/media/thumb/${id}`, alt: "", loading: "lazy" });
+
+/** Placeholder tiles for a camera roll before any footage is in: the kinds of moments people film. */
+const ROLL_TILES = ["✈️", "🐶", "🍜", "🏔️", "🎂", "🏖️", "🛠️", "🎸", "👶", "🌆", "🐈", "🚐", "🎨", "⚽", "🌮", "🎄", "🏃", "🌅"];
+function cameraRoll(ids = []) {
+  const tiles = ids.length ? ids : ROLL_TILES;
+  const col = (k) => h("div", { class: "onb-roll-col", style: { animationDelay: `${-k * 4}s` } },
+    [...tiles, ...tiles].filter((_, j) => j % 3 === k).map((t, j) =>
+      ids.length ? h("div", { class: "onb-tile" }, thumb(t)) : h("div", { class: `onb-tile g${(j + k) % 6}` }, h("span", {}, t))));
+  return h("div", { class: "onb-roll" }, col(0), col(1), col(2));
 }
 
 function onbRender(st) {
   const el = onbEl();
-  const next = (label, onclick, opts = {}) => h("button", { class: "btn primary onb-next", disabled: !!opts.disabled, onclick }, label);
-  if (onb.step === "how") {
-    const step = (n, t, d) => h("li", {}, h("b", { class: "onb-n" }, n), h("span", {}, h("b", {}, t), h("span", { class: "muted" }, d)));
-    return el.replaceChildren(onbFrame("Your camera roll, ready to post", "Rollcut turns the videos you already have into posts, so you can become a creator without editing.",
-      h("ol", { class: "onb-how" },
-        step("1", "Pick your footage", "Choose videos from Google Photos. Rollcut finds the best moments in each."),
-        step("2", "Wake up to new videos", "Every morning a few are ready, with text on screen, a caption and a trending sound."),
-        step("3", "✓ to keep, ✗ to skip", "Keep the ones you like. Swap a shot or change the text in a tap."),
-        step("4", "Save and post", "Download to your phone and post to TikTok or Reels.")),
-      next("Get started", () => onbGo("photos"))));
+  const ids = (st?.footage ?? []).filter((f) => f.thumb).map((f) => f.id);
+  const show = st?.showcase;
+
+  if (onb.step === "roll") {
+    return el.replaceChildren(onbScreen({
+      visual: h("div", { class: "onb-roll-wrap" }, cameraRoll(ids), h("div", { class: "onb-roll-count" }, h("b", {}, "2,000+"), h("span", {}, "photos and videos on the average phone"))),
+      kicker: "Rollcut",
+      title: "Your camera roll is full of stories.",
+      sub: "A trip, a pet, a skill, a funny moment. Real things people would love to see. Most of it never leaves your phone.",
+      cta: onbBtn("Why is that?", onbNext),
+    }));
   }
+
+  if (onb.step === "why") {
+    const chips = h("div", { class: "onb-chips" });
+    const cta = onbBtn("That's me", async () => {
+      await api("/api/onboarding", { method: "PUT", body: { blocks: [...onb.blocks] } });
+      onbNext();
+    }, true);
+    const draw = () => {
+      chips.replaceChildren(...BLOCKS.map(([k, label]) =>
+        h("button", { class: `onb-chip${onb.blocks.has(k) ? " on" : ""}`, onclick: () => { onb.blocks.has(k) ? onb.blocks.delete(k) : onb.blocks.add(k); draw(); } }, label)));
+      cta.disabled = !onb.blocks.size;
+    };
+    for (const b of st?.blocks ?? []) onb.blocks.add(b);
+    draw();
+    return el.replaceChildren(onbScreen({
+      visual: phone(h("div", { class: "onb-blank" },
+        h("div", { class: "onb-blank-text" }, "What do I even say", h("i", { class: "onb-caret" })),
+        h("div", { class: "onb-blank-bar" }, h("span", {}, "Post"), h("span", { class: "muted" }, "Drafts (37)")))),
+      kicker: "It's not the footage",
+      title: "So why don't we post?",
+      sub: "Psychologists even have a name for it: posting anxiety, the fear of how others will see what we share. Pick what sounds like you.",
+      body: chips,
+      cta,
+      skip: ["Skip", onbNext],
+    }));
+  }
+
+  if (onb.step === "answer") {
+    const picked = BLOCKS.filter(([k]) => onb.blocks.has(k) || (st?.blocks ?? []).includes(k));
+    const list = (picked.length ? picked : BLOCKS.slice(0, 3)).map(([, label, answer]) => h("li", {}, h("s", {}, label), h("span", {}, answer)));
+    const visual = show
+      ? h("div", { class: "onb-proof" },
+          phone(h("video", { src: `/media/render/${show.id}.mp4`, poster: `/media/render/${show.id}.jpg`, autoplay: true, muted: true, loop: true, playsinline: true })),
+          show.views ? h("div", { class: "onb-badge" }, `▶ ${fmtBig(show.views)} views`) : null,
+          h("p", { class: "onb-proof-note" }, "Made with Rollcut from a clip in a camera roll"))
+      : phone(cameraRoll(ids));
+    return el.replaceChildren(onbScreen({
+      visual,
+      kicker: "That's the part Rollcut does",
+      title: "You film. It does the rest.",
+      body: h("ul", { class: "onb-answers" }, list),
+      cta: onbBtn("Show me, with my videos", onbNext),
+    }));
+  }
+
   if (onb.step === "photos") {
-    const c = st?.clips ?? { total: 0, ready: 0 };
     const connected = st?.google?.connected;
-    const count = h("p", { class: "onb-count" }, c.total ? `${c.total} video${c.total === 1 ? "" : "s"} added · ${c.ready} ready` : "No videos yet");
+    const total = st?.clips?.total ?? 0;
+    const count = h("p", { class: "onb-live" }, total ? `${total} video${total === 1 ? "" : "s"} picked` : "");
+    // Their picks arrive in the background: move on by itself once the first ones are in.
     onb.timer = setInterval(async () => {
       const s2 = await api("/api/onboarding").catch(() => null);
-      if (!s2) return;
-      count.textContent = s2.clips.total ? `${s2.clips.total} video${s2.clips.total === 1 ? "" : "s"} added · ${s2.clips.ready} ready` : "No videos yet";
-      nextBtn.disabled = !s2.clips.total;
+      if (s2?.clips.total && !total) onbGo("watch");
     }, 4000);
-    const nextBtn = next("Continue", () => onbGo("topics"), { disabled: !c.total });
-    return el.replaceChildren(onbFrame("Connect Google Photos", "Pick the videos Rollcut can use: trips, pets, food, your work, anything you've filmed. 20 or more works best. You can add more any time.",
-      h("div", { class: "onb-photos" },
-        h("div", { class: "onb-gp" }, "📷"),
-        connected
-          ? h("button", { class: "btn", onclick: () => $("#btn-google").click() }, c.total ? "Pick more videos" : "Pick videos")
-          : h("button", { class: "btn", onclick: () => (location.href = "/auth/google") }, "Connect Google Photos"),
-        count),
-      [nextBtn, h("button", { class: "onb-skip", onclick: () => onbGo("topics") }, "Skip for now")]));
+    return el.replaceChildren(onbScreen({
+      visual: h("div", { class: "onb-connect" },
+        h("div", { class: "onb-gphotos" }, h("i", { class: "p1" }), h("i", { class: "p2" }), h("i", { class: "p3" }), h("i", { class: "p4" })),
+        h("div", { class: "onb-arrow" }, "→"),
+        phone(cameraRoll(ids))),
+      kicker: "Step 1 of 3 · Your footage",
+      title: "Pick 20 videos you love.",
+      sub: "Trips, your pet, your work, your cooking: anything you'd show a friend. Rollcut only sees the videos you pick, never the rest of your library.",
+      body: count,
+      cta: connected
+        ? onbBtn(total ? "Pick more videos" : "Pick from Google Photos", () => $("#btn-google").click())
+        : onbBtn("Connect Google Photos", () => (location.href = "/auth/google")),
+      skip: total ? ["Continue", () => onbGo("watch")] : ["Skip for now", () => onbGo("topics")],
+    }));
   }
+
+  if (onb.step === "watch") {
+    const f = st?.footage ?? [];
+    const looked = f.filter((x) => x.looked).length;
+    const SCIENCE = [
+      ["Motion and sound", "Every clip gets an energy curve, second by second. The jumps, the laughs, the zoomies stand out."],
+      ["AI watches every second", "It names what's happening in each shot, so it can tell a story with them."],
+      ["The first second decides", "Most viewers choose in a moment whether to keep watching. The clearest, strongest shot goes first."],
+    ];
+    const card = SCIENCE[Math.floor(Date.now() / 5000) % SCIENCE.length];
+    onb.timer = setTimeout(() => onbGo("watch"), 3500);
+    return el.replaceChildren(onbScreen({
+      visual: h("div", { class: "onb-scan" },
+        ...(f.length ? f.slice(0, 9) : Array.from({ length: 9 }, () => null)).map((x) =>
+          h("div", { class: `onb-scan-tile${x?.looked ? " seen" : ""}` },
+            x?.thumb ? thumb(x.id) : null,
+            x?.looked ? h("span", { class: "onb-tag" }, x.scene || "✓") : h("i", { class: "onb-scanline" })))),
+      kicker: "Step 2 of 3 · Getting to know your footage",
+      title: f.length ? `Watching your videos… ${looked} of ${f.length}` : "Waiting for your videos…",
+      body: h("div", { class: "onb-science" }, h("b", {}, card[0]), h("span", {}, card[1])),
+      cta: onbBtn("Continue", () => onbGo("topics"), f.length > 0 && looked < Math.min(3, f.length) && (onb.waited = (onb.waited ?? 0) + 1) < 25),
+    }));
+  }
+
   if (onb.step === "topics") {
-    const list = h("div", { class: "onb-topics" });
-    const nextBtn = next("Continue", async () => {
-      const chosen = onb.topics.filter((t) => onb.picked.has(t.title));
-      await api("/api/onboarding", { method: "PUT", body: { topics: chosen } });
-      onbGo("look");
-    }, { disabled: true });
+    const list = h("div", { class: "onb-topic-grid" }, h("p", { class: "onb-sub" }, "Reading your footage…"));
+    const cta = onbBtn("These are mine", async () => {
+      await api("/api/onboarding", { method: "PUT", body: { topics: onb.topics.filter((t) => onb.picked.has(t.title)) } });
+      onbNext();
+    }, true);
     const draw = () => {
       list.replaceChildren(...onb.topics.map((t) =>
-        h("button", { class: `onb-topic${onb.picked.has(t.title) ? " on" : ""}`, onclick: () => {
+        h("button", { class: `onb-topic-card${onb.picked.has(t.title) ? " on" : ""}`, onclick: () => {
           if (onb.picked.has(t.title)) onb.picked.delete(t.title);
           else if (onb.picked.size < 3) onb.picked.add(t.title);
           draw();
         } },
-          h("b", {}, t.title), t.why ? h("span", { class: "muted" }, t.why) : null,
-          h("small", {}, t.audience === "everyone" ? "For everyone" : "For your niche"))));
-      nextBtn.disabled = !onb.picked.size;
+          t.clipId ? thumb(t.clipId) : h("div", { class: "onb-topic-ph" }),
+          h("span", { class: "onb-topic-label" }, h("b", {}, t.title), t.why ? h("small", {}, t.why) : null),
+          h("i", { class: "onb-check" }, "✓"))));
+      cta.disabled = !onb.picked.size;
     };
-    const own = h("input", { type: "text", maxlength: "40", placeholder: "Add your own, e.g. Home cooking" });
+    const own = h("input", { type: "text", maxlength: "40", placeholder: "Or type your own: Home cooking, Van life…" });
     const add = h("form", { class: "onb-own", onsubmit: (e) => {
       e.preventDefault();
       const t = own.value.trim();
       if (!t || onb.topics.some((x) => x.title.toLowerCase() === t.toLowerCase())) return;
-      onb.topics.push({ title: t, why: "", audience: "niche" });
+      onb.topics.push({ title: t, why: "", audience: "niche", clipId: ids[onb.topics.length % Math.max(1, ids.length)] });
       if (onb.picked.size < 3) onb.picked.add(t);
       own.value = "";
       draw();
-    } }, own, h("button", { class: "btn small" }, "Add"));
-    const load = async () => {
-      list.replaceChildren(h("p", { class: "muted onb-wait" }, "Looking at your footage…"));
-      const s2 = await api("/api/onboarding").catch(() => null);
-      // Wait a little for the first clips to be looked at, then suggest (broad topics if none yet).
-      if (s2 && s2.clips.total && s2.clips.looked < Math.min(3, s2.clips.total) && (onb.waited = (onb.waited ?? 0) + 1) < 20) return void (onb.timer = setTimeout(load, 4000));
-      onb.topics = await api("/api/onboarding/topics/suggest", { method: "POST" }).catch(() => []);
-      for (const t of st?.topics ?? []) if (!onb.topics.some((x) => x.title === t.title)) onb.topics.push({ ...t, why: "" });
-      onb.picked = new Set((st?.topics ?? []).map((t) => t.title));
-      if (!onb.picked.size && onb.topics[0]) onb.picked.add(onb.topics[0].title);
-      draw();
-    };
-    el.replaceChildren(onbFrame("What are your videos about?", "Suggested from your footage. Pick up to 3; every video is written for them.", h("div", {}, list, add), nextBtn));
-    return void (onb.topics.length ? draw() : load());
+    } }, own, h("button", {}, "Add"));
+    if (!onb.topics.length)
+      api("/api/onboarding/topics/suggest", { method: "POST" }).then((topics) => {
+        onb.topics = topics;
+        for (const t of st?.topics ?? []) if (!onb.topics.some((x) => x.title === t.title)) onb.topics.push({ ...t, why: "" });
+        onb.picked = new Set((st?.topics ?? []).map((t) => t.title));
+        if (!onb.picked.size && onb.topics[0]) onb.picked.add(onb.topics[0].title);
+        draw();
+      }).catch(() => list.replaceChildren(h("p", { class: "onb-sub" }, "Couldn't read your footage: type your topics below.")));
+    else draw();
+    return el.replaceChildren(onbScreen({
+      dark: false,
+      visual: list,
+      kicker: "Step 3 of 3 · What you can teach or show",
+      title: "Here's what your footage is about.",
+      sub: "Pick up to 3. Every video is written for them: the opening line, the text, the caption.",
+      body: add,
+      cta,
+    }));
   }
+
   if (onb.step === "look") {
     let style = st?.textStyle ?? "yellowbox";
     const topic = ((st?.topics ?? [])[0]?.title ?? "travel").toLowerCase();
-    const preview = h("div", { class: `look-preview onb-preview ${style}` }, h("span", {}, "Nobody tells you this about ", h("b", { class: "kw" }, topic)));
-    return el.replaceChildren(onbFrame("Pick your text look", "Your videos start in this look. You can change it on any video before you post.",
-      h("div", { class: "onb-look" }, preview,
-        h("div", { class: "style-grid" }, styleTiles("onb-style", style, (v) => { style = v; preview.className = `look-preview onb-preview ${v}`; }))),
-      next("Continue", async () => {
+    const bg = ids[0] ? thumb(ids[0]) : null;
+    const text = h("div", { class: `onb-overlay look-preview ${style}` }, h("span", {}, "Nobody tells you this about ", h("b", { class: "kw" }, topic)));
+    return el.replaceChildren(onbScreen({
+      visual: h("div", { class: "onb-look-phone" }, phone(bg, text)),
+      kicker: "Your look",
+      title: "How should your text look?",
+      sub: "Your videos start in this style. You can change it on any video before you post.",
+      body: h("div", { class: "style-grid onb-styles" }, styleTiles("onb-style", style, (v) => { style = v; text.className = `onb-overlay look-preview ${v}`; })),
+      cta: onbBtn("Make my first video", async () => {
         await api("/api/onboarding", { method: "PUT", body: { textStyle: style } });
         state.status.settings.textStyle = style;
-        onbGo("trial");
-      })));
+        if ((st?.clips?.ready ?? 0) > 0) await api("/api/onboarding/first-video", { method: "POST" }).catch(() => {});
+        onbNext();
+      }),
+    }));
   }
+
+  if (onb.step === "making") {
+    const v = st?.firstVideo;
+    if (!v) return onbGo("trial");
+    const p = v.status === "done" ? 1 : v.status === "rendering" ? 0.35 + 0.6 * (v.progress ?? 0) : v.hook ? 0.3 : 0.12;
+    const STAGES = [
+      [0.1, "Picking your strongest clips", "The ones with the most energy and the clearest moment."],
+      [0.3, "Writing the opening line", v.hook ? `“${v.hook}”` : "From openings that already got views on TikTok, in your topic."],
+      [0.5, "Cutting for attention", "A new shot every 2 seconds, so nobody scrolls away."],
+      [0.7, "Placing the text", "Where it reads at a glance and never covers a face."],
+      [0.9, "Finishing in full HD", "1080 × 1920, ready for TikTok and Reels."],
+    ];
+    if (v.status !== "done") onb.timer = setTimeout(() => onbGo("making"), 3000);
+    const done = v.status === "done";
+    return el.replaceChildren(onbScreen({
+      visual: h("div", { class: "onb-making" },
+        phone(done
+          ? h("video", { src: `/media/render/${v.id}.mp4`, poster: `/media/render/${v.id}.jpg`, autoplay: true, muted: true, loop: true, playsinline: true })
+          : [ids[0] ? thumb(ids[0]) : null, h("div", { class: "onb-progress" }, h("i", { style: { width: `${Math.round(p * 100)}%` } }))])),
+      kicker: "Behind the scenes",
+      title: done ? "Your first video is ready." : "Making your first video…",
+      body: h("ol", { class: "onb-stages" }, STAGES.map(([at, t, d]) =>
+        h("li", { class: p >= at + 0.1 || done ? "done" : p >= at ? "now" : "" }, h("b", {}, t), h("span", {}, d)))),
+      cta: onbBtn(done ? "Keep it" : "Continue: it finishes in the background", onbNext),
+    }));
+  }
+
   if (onb.step === "trial") {
     if (st?.billing) return onbGo("ready");
+    const v = st?.firstVideo;
     const err = h("p", { class: "onb-err", hidden: true });
     const f = (name, label, attrs) => h("label", { class: "onb-field" }, h("span", {}, label), h("input", { name, required: true, ...attrs }));
     const form = h("form", { class: "onb-pay", onsubmit: async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(e.currentTarget));
       err.hidden = true;
-      const btn = e.currentTarget.querySelector("button");
+      const btn = e.currentTarget.querySelector(".onb-cta");
       btn.disabled = true;
       try {
         await api("/api/onboarding/trial", { method: "POST", body: d });
@@ -3122,43 +3269,52 @@ function onbRender(st) {
         btn.disabled = false;
       }
     } },
-      h("div", { class: "onb-plan" },
-        h("b", {}, "7 days free"),
-        h("span", {}, "then $19 a month · cancel any time before the trial ends and you won't be charged")),
-      h("p", { class: "onb-test" }, "Test mode: no card is charged and the number isn't stored. Use 4242 4242 4242 4242, any future date and any 3 digits."),
+      h("p", { class: "onb-test" }, "Test mode: nothing is charged and the number isn't stored. Use 4242 4242 4242 4242, any future date, any 3 digits."),
       f("number", "Card number", { inputmode: "numeric", autocomplete: "off", placeholder: "4242 4242 4242 4242", maxlength: "23" }),
       h("div", { class: "onb-row" },
         f("exp", "Expiry", { inputmode: "numeric", autocomplete: "off", placeholder: "MM/YY", maxlength: "5" }),
         f("cvc", "CVC", { inputmode: "numeric", autocomplete: "off", placeholder: "123", maxlength: "4" })),
       err,
-      h("button", { class: "btn primary onb-next" }, "Start free trial"));
-    return el.replaceChildren(onbFrame("Start your free trial", "Videos every day for 7 days, free.", form, null));
+      h("button", { class: "onb-cta" }, "Start my free week"));
+    return el.replaceChildren(onbScreen({
+      dark: false,
+      visual: h("div", { class: "onb-plan" },
+        v ? h("img", { src: `/media/render/${v.id}.jpg`, alt: "", onerror: (e) => e.currentTarget.remove() }) : null,
+        h("div", { class: "onb-plan-text" },
+          h("b", {}, "7 days free"),
+          h("span", {}, "New videos every morning, made from your footage."),
+          h("ul", {}, h("li", {}, "Today: your first videos"), h("li", {}, "Every morning: new ones to pick from"), h("li", {}, "After 7 days: $19 a month, or cancel before")))),
+      kicker: "Keep them coming",
+      title: "A week of videos, on us.",
+      body: form,
+    }));
   }
+
   if (onb.step === "ready") {
-    const b = st?.billing;
     const n = st?.clips?.total ?? 0;
-    return el.replaceChildren(onbFrame("You're all set",
-      n ? "Your first videos are being made now. They'll be in Review in a few minutes." : "Add videos in Settings → Google Photos, and your first ones will be ready the next morning.",
-      h("ul", { class: "onb-done" },
-        h("li", {}, n ? `✓ ${n} video${n === 1 ? "" : "s"} from Google Photos` : "○ No videos yet"),
-        h("li", {}, `✓ Topics: ${(st?.topics ?? []).map((t) => t.title).join(", ") || "broad"}`),
-        h("li", {}, `✓ Look: ${Object.fromEntries(TEXT_STYLES)[st?.textStyle] ?? ""}`),
-        b ? h("li", {}, `✓ Free trial until ${new Date(b.trialEndsAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })} (${b.card.brand} •••• ${b.card.last4}, test)`) : null),
-      next("Go to Review", async (e) => {
+    return el.replaceChildren(onbScreen({
+      visual: h("div", { class: "onb-ready" }, phone(cameraRoll(ids)), h("div", { class: "onb-ready-check" }, "✓")),
+      kicker: "You're a creator now",
+      title: "See you in the morning.",
+      sub: n
+        ? "Your first videos are in Review. Every morning there are new ones: ✓ the ones you love, save them, post them."
+        : "Pick videos in Settings → Google Photos, and the first ones will be ready the next morning.",
+      cta: onbBtn("Go to my videos", async (e) => {
         e.currentTarget.disabled = true;
         await api("/api/onboarding", { method: "PUT", body: { done: true } });
         if (st?.clips?.ready) api("/api/batch/run", { method: "POST" }).catch(() => {});
         closeOnboarding();
         await loadStatus();
         await refreshRenders();
-      })));
+      }),
+    }));
   }
 }
 
 document.getElementById("btn-onboarding")?.addEventListener("click", async () => {
   await api("/api/onboarding", { method: "PUT", body: { done: false } });
   try { localStorage.removeItem("rollcut.onbStep"); } catch {}
-  onb.topics = [];
+  Object.assign(onb, { step: "roll", topics: [], picked: new Set(), blocks: new Set(), waited: 0 });
   openOnboarding();
 });
 

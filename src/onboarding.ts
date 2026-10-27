@@ -3,16 +3,24 @@ import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { structured } from "./ai/director.ts";
 import { aiAvailable } from "./ai/budget.ts";
-import type { Clip } from "./types.ts";
+import type { Clip, GenerateRequest } from "./types.ts";
+import { plan, queueRender } from "./generate.ts";
 
-export type Topic = { title: string; why: string; audience: "niche" | "everyone" };
+export type Topic = { title: string; why: string; audience: "niche" | "everyone"; clipId?: string };
 
 /** What onboarding needs to show: where the creator is, and what's been set up so far. */
 export function onboardingState() {
   const s = store.settings();
   const clips = store.clips().filter((c) => c.kind === "video");
+  const first = s.firstVideoId ? store.render(s.firstVideoId) : undefined;
+  // The creator's own footage, newest first, so every screen shows their videos, not stock images.
+  const recent = [...clips].sort((a, b) => b.importedAt.localeCompare(a.importedAt)).slice(0, 12);
   return {
     done: !!s.onboardedAt,
+    showcase: showcase(),
+    footage: recent.map((c) => ({ id: c.id, status: c.status, scene: c.scene, looked: looked(c), thumb: Boolean(c.thumb) })),
+    firstVideo: first ? { id: first.id, status: first.status, progress: first.progress, hook: first.plan.hook } : null,
+    blocks: s.postingBlocks ?? [],
     google: { connected: Boolean(store.google()) },
     clips: { total: clips.length, ready: clips.filter((c) => c.status === "ready").length, looked: clips.filter(looked).length },
     topics: s.topics ?? [],
@@ -42,7 +50,7 @@ export async function suggestTopics(): Promise<Topic[]> {
     .filter(looked)
     .sort((a, b) => (b.capturedAt ?? b.importedAt).localeCompare(a.capturedAt ?? a.importedAt))
     .slice(0, 24);
-  if (!clips.length || !config.claude.enabled || !aiAvailable()) return FALLBACK;
+  if (!clips.length || !config.claude.enabled || !aiAvailable()) return FALLBACK.map((t, i) => ({ ...t, clipId: clips[i % Math.max(1, clips.length)]?.id }));
   const content: Parameters<typeof structured>[0]["content"] = [];
   for (const c of clips.slice(0, 6)) {
     const jpg = c.thumb && fs.existsSync(c.thumb) ? fs.readFileSync(c.thumb) : null;
@@ -56,10 +64,10 @@ export async function suggestTopics(): Promise<Topic[]> {
       "\n\nSuggest 5 topics for short TikTok / Reels videos this footage can actually SHOW, most promising first. " +
       "Each: a 1–4 word title (\"Flying with a dog\", \"Home cooking\", \"Van life\"), one short line on why it fits " +
       "this footage, and who it speaks to: \"niche\" (people already into this, e.g. dog lovers) or \"everyone\" " +
-      "(a moment anyone recognizes).",
+      "(a moment anyone recognizes). Also give the number of the video above that shows it best.",
   });
   try {
-    const r = await structured<{ topics: Topic[] }>({
+    const r = await structured<{ topics: (Topic & { clip?: number })[] }>({
       system: "You help new creators find what their videos should be about, from the footage they already have.",
       content,
       model: config.claude.fastModel,
@@ -74,15 +82,17 @@ export async function suggestTopics(): Promise<Topic[]> {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["title", "why", "audience"],
-              properties: { title: { type: "string" }, why: { type: "string" }, audience: { type: "string", enum: ["niche", "everyone"] } },
+              required: ["title", "why", "audience", "clip"],
+              properties: { title: { type: "string" }, why: { type: "string" }, audience: { type: "string", enum: ["niche", "everyone"] }, clip: { type: "integer" } },
             },
           },
         },
       },
     });
     const topics = r.topics.filter((t) => t.title?.trim()).slice(0, 6);
-    return topics.length ? topics.map((t) => ({ ...t, title: t.title.trim().slice(0, 40), why: t.why.trim().slice(0, 140) })) : FALLBACK;
+    return topics.length
+      ? topics.map(({ clip, ...t }, i) => ({ ...t, title: t.title.trim().slice(0, 40), why: t.why.trim().slice(0, 140), clipId: clips[(clip ?? i + 1) - 1]?.id ?? clips[i % clips.length].id }))
+      : FALLBACK;
   } catch (e) {
     console.warn("[onboarding] topic suggestions failed:", (e as Error).message);
     return FALLBACK;
@@ -139,4 +149,45 @@ export function startTrial(card: { number?: unknown; exp?: unknown; cvc?: unknow
   };
   store.updateSettings({ billing });
   return billing;
+}
+
+/**
+ * The video shown at the start: the best-performing one made with Rollcut (most views where it was
+ * posted), as proof that footage from a camera roll can do this.
+ */
+export function showcase(): { id: string; views: number; hook?: string } | null {
+  let best: { id: string; views: number; hook?: string } | null = null;
+  for (const r of store.renders()) {
+    if (r.status !== "done" || !r.file || !fs.existsSync(r.file)) continue;
+    const views = Math.max(0, ...(r.posts ?? []).map((p) => p.stats?.views ?? 0));
+    if (views > (best?.views ?? 0)) best = { id: r.id, views, hook: r.plan.hook };
+  }
+  return best;
+}
+
+/** The first video, made while onboarding explains how it's made (one video, from the best clips). */
+export async function makeFirstVideo(): Promise<string> {
+  const s = store.settings();
+  const existing = s.firstVideoId ? store.render(s.firstVideoId) : undefined;
+  if (existing && existing.status !== "error") return existing.id;
+  const req: GenerateRequest = {
+    template: "auto",
+    targetSeconds: 15,
+    count: 1,
+    useAi: true,
+    pickFromPool: true,
+    options: { keepOriginalAudio: true, textStyle: s.textStyle, textSize: s.textSize, fontId: s.fontId },
+  };
+  const { plans } = await plan(req);
+  if (!plans.length) throw new Error("No clips are ready yet.");
+  const r = queueRender(plans[0], req.options);
+  store.updateSettings({ firstVideoId: r.id });
+  return r.id;
+}
+
+/** What holds the creator back (they can pick several): it shapes how onboarding talks to them. */
+export const BLOCKS = ["words", "editing", "shy", "what-works", "time"] as const;
+export function saveBlocks(blocks: unknown) {
+  const ok = Array.isArray(blocks) ? blocks.filter((b): b is (typeof BLOCKS)[number] => BLOCKS.includes(b)) : [];
+  store.updateSettings({ postingBlocks: ok });
 }

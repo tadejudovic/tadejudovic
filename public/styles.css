@@ -861,45 +861,145 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 body:not(.admin) .admin-only { display: none !important; }
 .group.real-admin[hidden] { display: none; }
 
-/* Onboarding: one card per step over the app */
-.onb { position: fixed; inset: 0; z-index: 60; overflow-y: auto; background: var(--bg); padding: 16px; }
+/* Onboarding: full-screen story screens, the visual on top, words and one action below */
+.onb { position: fixed; inset: 0; z-index: 60; overflow-y: auto; background: #0b0b10; }
 .onb[hidden] { display: none; }
-.onb-card { max-width: 460px; margin: 0 auto; display: grid; gap: 14px; padding-bottom: 32px; }
-.onb-top { display: flex; justify-content: space-between; align-items: center; min-height: 32px; }
-.onb-back { border: 0; background: none; font: inherit; font-weight: 600; color: var(--muted); cursor: pointer; padding: 4px 0; }
-.onb-dots { display: flex; gap: 6px; }
-.onb-dots i { width: 22px; height: 4px; border-radius: 4px; background: var(--line); }
-.onb-dots i.on { background: var(--accent); }
-.onb h1 { font-size: 28px; line-height: 1.15; margin: 8px 0 0; letter-spacing: -.02em; }
-.onb-sub { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
-.onb-actions { display: grid; gap: 8px; margin-top: 8px; }
-.onb-next { width: 100%; min-height: 50px; font-size: 16px; }
-.onb-skip { border: 0; background: none; font: inherit; color: var(--muted); cursor: pointer; padding: 8px; }
-.onb-how { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 12px; }
-.onb-how li { display: flex; gap: 12px; align-items: flex-start; background: var(--panel); border-radius: 16px; padding: 14px; box-shadow: var(--shadow-soft, var(--shadow)); }
-.onb-how li > span { display: grid; gap: 2px; font-size: 14px; line-height: 1.4; }
-.onb-n { flex: none; width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: 14px; }
-.onb-photos { display: grid; justify-items: center; gap: 14px; background: var(--panel); border-radius: 20px; padding: 28px 16px; box-shadow: var(--shadow-soft, var(--shadow)); }
-.onb-gp { font-size: 44px; }
-.onb-count { margin: 0; color: var(--muted); font-size: 14px; }
-.onb-topics { display: grid; gap: 8px; }
-.onb-topic { display: grid; gap: 2px; text-align: left; padding: 12px 14px; border: 2px solid var(--line); border-radius: 14px; background: var(--panel); font: inherit; color: var(--ink); cursor: pointer; }
-.onb-topic .muted { font-size: 13px; }
-.onb-topic small { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-.onb-topic.on { border-color: var(--accent); }
-.onb-wait { text-align: center; padding: 24px 0; }
-.onb-own { display: flex; gap: 8px; margin-top: 10px; }
-.onb-own input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; background: var(--panel); color: var(--ink); }
-.onb-look { display: grid; gap: 16px; }
-.onb .look-preview.onb-preview { position: static; width: 170px; margin: 0 auto; padding: 22% 10px 0; }
-.onb .look-preview.onb-preview span { font-size: 16px; }
-.onb-pay { display: grid; gap: 12px; }
-.onb-plan { display: grid; gap: 4px; padding: 16px; border-radius: 16px; background: var(--panel); border: 2px solid var(--accent); }
-.onb-plan b { font-size: 20px; }
-.onb-plan span { color: var(--muted); font-size: 14px; }
+.onb-screen { position: relative; min-height: 100%; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); }
+.onb-screen.dark { background: radial-gradient(120% 70% at 50% 0%, #2a1630 0%, #0b0b10 60%); color: #fff; }
+.onb-bars { position: absolute; top: 10px; left: 16px; right: 16px; z-index: 3; display: flex; gap: 4px; }
+.onb-bars i { flex: 1; height: 3px; border-radius: 3px; background: rgba(127,127,140,.3); }
+.onb-bars i.done { background: currentColor; opacity: .9; }
+.onb-bars i.on { background: var(--accent); }
+.onb-back { position: absolute; top: 20px; left: 10px; z-index: 3; width: 36px; height: 36px; border: 0; border-radius: 999px; background: rgba(127,127,140,.18); color: inherit; font-size: 24px; line-height: 1; cursor: pointer; }
+.onb-visual { flex: 1 1 auto; min-height: 40vh; display: grid; place-items: center; padding: 64px 16px 8px; overflow: hidden; }
+.onb-text { padding: 8px 20px 28px; display: grid; gap: 10px; }
+.onb-kicker { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.onb h1 { margin: 0; font-size: 30px; line-height: 1.1; letter-spacing: -.025em; }
+.onb-sub { margin: 0; font-size: 15px; line-height: 1.45; opacity: .72; }
+.onb-actions { display: grid; gap: 6px; margin-top: 6px; }
+.onb-cta { width: 100%; min-height: 54px; border: 0; border-radius: 16px; background: var(--accent); color: #fff; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 30px rgba(254,44,85,.35); }
+.onb-cta:disabled { opacity: .4; box-shadow: none; cursor: default; }
+.onb-skip { border: 0; background: none; color: inherit; opacity: .6; font: inherit; padding: 8px; cursor: pointer; }
+.onb-live { margin: 0; font-weight: 700; color: var(--accent); }
+
+/* A phone with something on its screen */
+.onb-phone { height: min(42vh, 420px); width: auto; aspect-ratio: 9 / 18.5; border-radius: 34px; padding: 8px; background: #111; box-shadow: 0 0 0 1.5px #3a3a44, 0 30px 80px rgba(0,0,0,.55); }
+.onb-phone-screen { position: relative; width: 100%; height: 100%; border-radius: 27px; overflow: hidden; background: #1c1c22; }
+.onb-phone-screen > img, .onb-phone-screen > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.onb-phone .onb-roll { position: absolute; inset: 0; padding: 4px; gap: 3px; }
+
+/* The camera roll: three columns of tiles drifting up */
+.onb-roll-wrap { position: relative; width: 100%; height: 100%; min-height: 44vh; }
+.onb-roll { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; overflow: hidden; mask-image: linear-gradient(to bottom, transparent, #000 15%, #000 70%, transparent); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 15%, #000 70%, transparent); }
+.onb-roll-col { display: grid; gap: 6px; align-content: start; animation: onb-drift 24s linear infinite; }
+.onb-roll-col:nth-child(2) { animation-duration: 30s; margin-top: -40px; }
+@keyframes onb-drift { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+.onb-tile { aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden; display: grid; place-items: center; font-size: 30px; }
+.onb-tile img { width: 100%; height: 100%; object-fit: cover; }
+.onb-tile.g0 { background: linear-gradient(140deg, #ff9a8b, #ff6a88); } .onb-tile.g1 { background: linear-gradient(140deg, #a18cd1, #fbc2eb); }
+.onb-tile.g2 { background: linear-gradient(140deg, #84fab0, #8fd3f4); } .onb-tile.g3 { background: linear-gradient(140deg, #fccb90, #d57eeb); }
+.onb-tile.g4 { background: linear-gradient(140deg, #4facfe, #00f2fe); } .onb-tile.g5 { background: linear-gradient(140deg, #f6d365, #fda085); }
+.onb-roll-count { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); display: grid; justify-items: center; padding: 12px 18px; border-radius: 18px; background: rgba(11,11,16,.72); backdrop-filter: blur(10px); white-space: nowrap; }
+.onb-roll-count b { font-size: 34px; letter-spacing: -.02em; }
+.onb-roll-count span { font-size: 12px; opacity: .75; }
+
+/* "What do I even say": an empty post */
+.onb-blank { position: absolute; inset: 0; display: grid; align-content: space-between; padding: 40% 14px 14px; background: linear-gradient(170deg, #3a3f4b, #16171c); }
+.onb-blank-text { font-size: 17px; font-weight: 700; color: rgba(255,255,255,.85); text-align: center; }
+.onb-caret { display: inline-block; width: 2px; height: 1.1em; margin-left: 2px; vertical-align: -3px; background: var(--accent); animation: onb-blink 1s steps(1) infinite; }
+@keyframes onb-blink { 50% { opacity: 0; } }
+.onb-blank-bar { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; }
+.onb-blank-bar span:first-child { padding: 6px 14px; border-radius: 8px; background: var(--accent); }
+.onb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.onb-chip { padding: 10px 14px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.onb-chip.on { background: #fff; color: #111; border-color: #fff; }
+
+/* Proof: a real video that did well */
+.onb-proof { position: relative; display: grid; justify-items: center; gap: 10px; }
+.onb-badge { position: absolute; top: 18px; right: -8px; padding: 6px 10px; border-radius: 10px; background: #fff; color: #111; font-weight: 800; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.4); transform: rotate(4deg); }
+.onb-proof-note { margin: 0; font-size: 12px; opacity: .6; }
+.onb-answers { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.onb-answers li { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.07); }
+.onb-answers s { font-size: 12px; opacity: .55; }
+.onb-answers span { font-size: 15px; font-weight: 600; line-height: 1.35; }
+
+/* Connect: Google Photos into the phone */
+.onb-connect { display: flex; align-items: center; gap: 14px; }
+.onb-gphotos { position: relative; width: 64px; height: 64px; flex: none; animation: onb-spin 9s linear infinite; }
+.onb-gphotos i { position: absolute; width: 32px; height: 32px; border-radius: 32px 32px 0 32px; }
+.onb-gphotos .p1 { left: 0; top: 0; background: #ea4335; } .onb-gphotos .p2 { right: 0; top: 0; background: #fbbc04; transform: rotate(90deg); }
+.onb-gphotos .p3 { right: 0; bottom: 0; background: #34a853; transform: rotate(180deg); } .onb-gphotos .p4 { left: 0; bottom: 0; background: #4285f4; transform: rotate(270deg); }
+@keyframes onb-spin { to { transform: rotate(360deg); } }
+.onb-arrow { font-size: 28px; opacity: .6; animation: onb-nudge 1.4s ease-in-out infinite; }
+@keyframes onb-nudge { 50% { transform: translateX(6px); } }
+.onb-connect .onb-phone { height: min(34vh, 320px); }
+
+/* Watching the footage: their thumbnails, scanned one by one */
+.onb-scan { width: 100%; max-width: 340px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.onb-scan-tile { position: relative; aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden; background: rgba(255,255,255,.08); }
+.onb-scan-tile img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.4) brightness(.7); transition: filter .6s; }
+.onb-scan-tile.seen img { filter: none; }
+.onb-scanline { position: absolute; left: 0; right: 0; height: 30%; background: linear-gradient(to bottom, transparent, rgba(254,44,85,.55), transparent); animation: onb-scan 1.8s ease-in-out infinite; }
+@keyframes onb-scan { from { top: -30%; } to { top: 100%; } }
+.onb-tag { position: absolute; left: 6px; bottom: 6px; right: 6px; padding: 3px 6px; border-radius: 6px; background: rgba(0,0,0,.65); color: #fff; font-size: 10px; font-weight: 700; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: onb-pop .4s ease-out; }
+@keyframes onb-pop { from { transform: scale(.6); opacity: 0; } }
+.onb-science { display: grid; gap: 4px; padding: 14px; border-radius: 16px; background: rgba(255,255,255,.07); border-left: 3px solid var(--accent); animation: onb-pop .5s ease-out; }
+.onb-science b { font-size: 15px; }
+.onb-science span { font-size: 14px; line-height: 1.4; opacity: .8; }
+
+/* Topics: a card per topic, with the clip from their footage that shows it */
+.onb-topic-grid { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-self: start; }
+.onb-topic-card { position: relative; aspect-ratio: 1; padding: 0; border: 0; border-radius: 18px; overflow: hidden; background: #222; color: #fff; cursor: pointer; text-align: left; box-shadow: 0 0 0 3px transparent; transition: box-shadow .15s, transform .15s; }
+.onb-topic-card img, .onb-topic-ph { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: linear-gradient(140deg, #a18cd1, #fbc2eb); }
+.onb-topic-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.8), transparent 60%); }
+.onb-topic-label { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 1; display: grid; gap: 2px; }
+.onb-topic-label b { font-size: 16px; line-height: 1.15; }
+.onb-topic-label small { font-size: 11px; line-height: 1.3; opacity: .8; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.onb-check { position: absolute; top: 8px; right: 8px; z-index: 1; width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-style: normal; font-weight: 800; background: rgba(255,255,255,.3); color: transparent; }
+.onb-topic-card.on { box-shadow: 0 0 0 3px var(--accent); transform: scale(.98); }
+.onb-topic-card.on .onb-check { background: var(--accent); color: #fff; }
+.onb-own { display: flex; gap: 8px; }
+.onb-own input { flex: 1; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; font: inherit; background: var(--panel); color: var(--ink); }
+.onb-own button { padding: 0 16px; border: 0; border-radius: 14px; background: var(--ink); color: var(--panel); font: inherit; font-weight: 700; cursor: pointer; }
+
+/* Look: the text on their own footage */
+.onb-overlay.look-preview { position: absolute; inset: 0; z-index: 1; aspect-ratio: auto; border-radius: 0; padding: 22% 10px 0; background: none; display: flex; justify-content: center; align-items: flex-start; }
+.onb-overlay.look-preview span { font-size: 15px; text-align: center; }
+.onb-styles { grid-template-columns: repeat(4, 1fr); }
+.onb-screen.dark .style-tile small { color: rgba(255,255,255,.6); }
+.onb-screen.dark .style-tile:has(input:checked) small { color: #fff; }
+
+/* Making the first video */
+.onb-making { display: grid; justify-items: center; }
+.onb-progress { position: absolute; left: 12px; right: 12px; bottom: 14px; z-index: 1; height: 5px; border-radius: 5px; background: rgba(255,255,255,.25); overflow: hidden; }
+.onb-progress i { display: block; height: 100%; background: var(--accent); transition: width .8s ease; }
+.onb-making .onb-phone-screen > img { filter: brightness(.75); }
+.onb-stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; counter-reset: s; }
+.onb-stages li { position: relative; display: grid; gap: 1px; padding-left: 30px; opacity: .4; transition: opacity .4s; }
+.onb-stages li::before { content: ""; position: absolute; left: 0; top: 2px; width: 18px; height: 18px; border-radius: 999px; border: 2px solid currentColor; }
+.onb-stages li.now { opacity: 1; }
+.onb-stages li.now::before { border-color: var(--accent); border-top-color: transparent; animation: onb-spin 0.9s linear infinite; }
+.onb-stages li.done { opacity: .9; }
+.onb-stages li.done::before { content: "✓"; display: grid; place-items: center; font-size: 11px; font-weight: 900; background: var(--accent); border-color: var(--accent); color: #fff; }
+.onb-stages b { font-size: 14px; }
+.onb-stages span { font-size: 12px; opacity: .75; }
+
+/* The trial, after the first video */
+.onb-plan { width: 100%; display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 20px; background: var(--panel); box-shadow: var(--shadow-soft, var(--shadow)); align-self: end; }
+.onb-plan img { width: 84px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 12px; flex: none; }
+.onb-plan-text { display: grid; gap: 4px; }
+.onb-plan-text b { font-size: 22px; }
+.onb-plan-text span { font-size: 14px; color: var(--muted); }
+.onb-plan-text ul { margin: 4px 0 0; padding-left: 16px; font-size: 13px; display: grid; gap: 2px; }
+.onb-pay { display: grid; gap: 10px; }
 .onb-test { margin: 0; padding: 10px 12px; border-radius: 12px; background: #fff7d6; color: #6b5300; font-size: 13px; line-height: 1.4; }
 .onb-field { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
-.onb-field input { padding: 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 16px; color: var(--ink); background: var(--panel); }
-.onb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.onb-field input { padding: 13px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 16px; color: var(--ink); background: var(--panel); }
+.onb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .onb-err { margin: 0; color: #dc2626; font-size: 14px; }
-.onb-done { list-style: none; margin: 0; padding: 16px; display: grid; gap: 8px; background: var(--panel); border-radius: 16px; font-size: 15px; }
+
+/* Ready */
+.onb-ready { position: relative; }
+.onb-ready-check { position: absolute; right: -14px; bottom: 18%; width: 64px; height: 64px; border-radius: 999px; display: grid; place-items: center; background: #16a34a; color: #fff; font-size: 32px; font-weight: 900; box-shadow: 0 12px 30px rgba(22,163,74,.5); animation: onb-pop .5s ease-out; }
+@media (prefers-reduced-motion: reduce) { .onb *, .onb *::before { animation: none !important; } }
+.onb-look-phone .onb-phone, .onb-making .onb-phone { height: min(36vh, 360px); }

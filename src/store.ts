@@ -48,6 +48,15 @@ export interface Settings {
    * the dog as the punchline) or "mix" (alternating, so the account reaches beyond dog lovers).
    */
   captionAudience: CaptionAudience;
+  /** When onboarding was finished (unset: the app opens on onboarding). */
+  onboardedAt?: string;
+  /** The topics the creator chose at onboarding (suggested from their footage), steering every video. */
+  topics?: { title: string; audience: "niche" | "everyone" }[];
+  /**
+   * The plan. Test mode only for now: no payment provider, nothing is charged, and only the card's
+   * brand and last four digits are kept.
+   */
+  billing?: { plan: "trial"; startedAt: string; trialEndsAt: string; card: { brand: string; last4: string }; test: true };
   /** The creator's cloned voice (ElevenLabs), for voiceovers they don't record themselves. */
   voice?: { id: string; createdAt: string; sampleSeconds: number };
   /** Themes beyond the airport (outside footage), and themes and situations switched off for videos. */

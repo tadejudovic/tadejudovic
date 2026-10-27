@@ -36,6 +36,7 @@ import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, listenHost, lockedOut, loginPage, logout, requireAuth, signedInAs, isAdmin } from "./auth.ts";
 import { aiOutOfCredit, monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import { TEXT_STYLES } from "./types.ts";
+import { onboardingState, saveTopics, startTrial, suggestTopics } from "./onboarding.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, StoryDraft, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -186,6 +187,7 @@ app.get("/api/status", (req, res) => {
     gate: gateEnabled,
     user: signedInAs(req),
     admin: isAdmin(req),
+    onboarded: !!store.settings().onboardedAt,
     paused,
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     memoryMb,
@@ -1026,6 +1028,26 @@ app.post(
   }),
 );
 
+// ---- Onboarding: how it works, Google Photos, topics from the footage, the look, the free trial ----
+
+app.get("/api/onboarding", (_req, res) => res.json(onboardingState()));
+app.post("/api/onboarding/topics/suggest", h(async (_req, res) => res.json(await suggestTopics())));
+app.put("/api/onboarding", (req, res) => {
+  const b = req.body ?? {};
+  if (Array.isArray(b.topics)) saveTopics(b.topics);
+  if (TEXT_STYLES.includes(b.textStyle)) store.updateSettings({ textStyle: b.textStyle });
+  if (b.done === true) store.updateSettings({ onboardedAt: new Date().toISOString() });
+  if (b.done === false && isAdmin(req)) store.updateSettings({ onboardedAt: undefined });
+  res.json(onboardingState());
+});
+app.post("/api/onboarding/trial", (req, res) => {
+  try {
+    res.json(startTrial(req.body ?? {}));
+  } catch (e) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
 // The video's shots in order, for the timeline: which clip, which part of it, when it plays.
 app.get("/api/renders/:id/timeline", (req, res) => {
   const r = store.render(String(req.params.id));
@@ -1822,6 +1844,9 @@ if (!paused && !store.settings().feesOpeningV2) {
 
 // Once, asked by the creator: "Where do dogs pee when they fly?" made again (its clips were deleted
 // with the old library), same lesson on today's footage.
+// An app already in use (Lex's) counts as onboarded: onboarding is for new creators.
+if (!store.settings().onboardedAt && (store.clips().length || store.renders().length)) store.updateSettings({ onboardedAt: new Date().toISOString() });
+
 // The text is written for dog lovers (the "who the text is for" choice is gone from Settings).
 if (!store.settings().dogLoversV1) store.updateSettings({ dogLoversV1: true, captionAudience: "pets" });
 

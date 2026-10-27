@@ -149,6 +149,8 @@
       <p class="group-label">Account</p>
       <div class="group">
         <button class="srow" data-open="sp-profile"><span class="row-title">Profile</span><span class="row-value" id="sum-profile"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <div class="srow" id="plan-row" hidden><span class="row-title">Plan</span><span class="row-value" id="sum-plan"></span></div>
+        <button class="srow admin-only" id="btn-onboarding"><span class="row-title">Show onboarding</span><span class="row-value">as a new creator sees it</span></button>
         <button class="srow admin-only" data-open="sp-spend"><span class="row-title">Spending</span><span class="row-value" id="sum-spend"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow admin-only" data-open="sp-manual"><span class="row-title">Make videos by hand</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow admin-only" id="btn-diag"><span class="row-title">Copy diagnostics</span><span class="row-value">for support</span></button>
@@ -506,6 +508,9 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
   <div id="sheet" class="sheet" hidden></div>
 
   <!-- Bottom navigation: three pages. -->
+  <!-- Onboarding for new creators: how it works, Google Photos, topics, the look, the free trial. -->
+  <div id="onboarding" class="onb" hidden></div>
+
   <nav class="bottom-nav" id="tabs">
     <button data-tab="review" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M3 6v12M21 6v12"/></svg><span>Review</span></button>
     <button data-tab="ready"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5l5 5 5-5M5 20h14"/></svg><span>Ready</span><i id="ready-count" class="tab-count" hidden></i></button>

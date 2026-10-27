@@ -651,7 +651,8 @@ export async function plan(
       recentOverlays,
       proven: [],
       feedback: reviewFeedback(),
-      story: store.settings().story,
+      // The topics chosen at onboarding steer the videos along with the account's story.
+      story: [store.settings().story, store.settings().topics?.length ? `The account's topics: ${store.settings().topics!.map((t) => t.title).join(", ")}.` : ""].filter(Boolean).join("\n") || undefined,
     };
     const overlays: { example: string }[] = [];
     const failures: string[] = [];

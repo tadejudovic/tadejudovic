@@ -4,7 +4,7 @@ import { store } from "./store.ts";
 import { structured } from "./ai/director.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import type { Clip, GenerateRequest, TextStyle } from "./types.ts";
-import { plan, queueRender } from "./generate.ts";
+import { bestMoment, hasLex, plan, queueRender, strongFootage, together } from "./generate.ts";
 
 export type Topic = { title: string; why: string; audience: "niche" | "everyone"; clipId?: string };
 
@@ -12,15 +12,15 @@ export type Topic = { title: string; why: string; audience: "niche" | "everyone"
 export function onboardingState() {
   const s = store.settings();
   const clips = store.clips().filter((c) => c.kind === "video");
-  const first = s.firstVideoId ? store.render(s.firstVideoId) : undefined;
+  const first = latestVersion(s.firstVideoId);
   // The creator's own footage, newest first, so every screen shows their videos, not stock images.
   const recent = [...clips].sort((a, b) => b.importedAt.localeCompare(a.importedAt)).slice(0, 12);
   return {
     done: !!s.onboardedAt,
-    showcase: showcase(),
     footage: recent.map((c) => ({ id: c.id, status: c.status, scene: c.scene, looked: looked(c), thumb: Boolean(c.thumb) })),
-    firstVideo: first ? { id: first.id, status: first.status, progress: first.progress, hook: first.plan.hook } : null,
-    blocks: s.postingBlocks ?? [],
+    firstVideo: first
+      ? { id: first.id, status: first.status, progress: first.progress, hook: first.plan.hook, review: first.review, remaking: first.remadeAs === "pending" }
+      : null,
     google: { connected: Boolean(store.google()) },
     clips: { total: clips.length, ready: clips.filter((c) => c.status === "ready").length, looked: clips.filter(looked).length },
     topics: s.topics ?? [],
@@ -152,30 +152,44 @@ export function startTrial(card: { number?: unknown; exp?: unknown; cvc?: unknow
 }
 
 /**
- * The video shown at the start: the best-performing one made with Rollcut (most views where it was
- * posted), as proof that footage from a camera roll can do this.
+ * The newest version of a video: the editor's check or the creator's ✗ can make it again, and the
+ * first video on screen follows along to the remade one.
  */
-export function showcase(): { id: string; views: number; hook?: string } | null {
-  let best: { id: string; views: number; hook?: string } | null = null;
-  for (const r of store.renders()) {
-    if (r.status !== "done" || !r.file || !fs.existsSync(r.file)) continue;
-    const views = Math.max(0, ...(r.posts ?? []).map((p) => p.stats?.views ?? 0));
-    if (views > (best?.views ?? 0)) best = { id: r.id, views, hook: r.plan.hook };
+function latestVersion(id?: string) {
+  let r = id ? store.render(id) : undefined;
+  for (let i = 0; i < 10 && r?.remadeAs && r.remadeAs !== "pending"; i++) {
+    const next = store.render(r.remadeAs);
+    if (!next) break;
+    r = next;
   }
-  return best;
+  return r;
+}
+
+/** Finishing without topics: the ones the footage suggests most strongly steer the videos. */
+export async function topicsIfNone() {
+  if (store.settings().topics?.length) return;
+  const topics = await suggestTopics();
+  if (!store.settings().topics?.length) saveTopics(topics.slice(0, 3));
 }
 
 /** The first video, made while onboarding explains how it's made (one video, from the best clips). */
 export async function makeFirstVideo(look: { textStyle?: TextStyle } = {}): Promise<string> {
   const s = store.settings();
-  const existing = s.firstVideoId ? store.render(s.firstVideoId) : undefined;
+  const existing = latestVersion(s.firstVideoId);
   if (existing && existing.status !== "error") return existing.id;
+  // Built around the single best clip they picked (the strongest footage and moment, not the next
+  // one in the daily rotation); the rest of their picks can fill in around it.
+  const best = store
+    .clips()
+    .filter((c) => c.status === "ready" && c.kind === "video" && c.height >= c.width && c.ai?.summary && hasLex(c) && !c.disliked)
+    .sort((a, b) => Number(strongFootage(b)) + Number(together(b)) - Number(strongFootage(a)) - Number(together(a)) || bestMoment(b) - bestMoment(a))[0];
   const req: GenerateRequest = {
     template: "auto",
     targetSeconds: 15,
     count: 1,
     useAi: true,
     pickFromPool: true,
+    clipIds: best ? [best.id] : undefined,
     options: { keepOriginalAudio: true, textStyle: look.textStyle ?? s.textStyle, textSize: s.textSize, fontId: s.fontId },
   };
   const { plans } = await plan(req);
@@ -183,11 +197,4 @@ export async function makeFirstVideo(look: { textStyle?: TextStyle } = {}): Prom
   const r = queueRender(plans[0], req.options);
   store.updateSettings({ firstVideoId: r.id });
   return r.id;
-}
-
-/** What holds the creator back (they can pick several): it shapes how onboarding talks to them. */
-export const BLOCKS = ["words", "editing", "shy", "what-works", "time"] as const;
-export function saveBlocks(blocks: unknown) {
-  const ok = Array.isArray(blocks) ? blocks.filter((b): b is (typeof BLOCKS)[number] => BLOCKS.includes(b)) : [];
-  store.updateSettings({ postingBlocks: ok });
 }

@@ -889,7 +889,6 @@ body:not(.admin) .admin-only { display: none !important; }
 .onb-phone .onb-roll { position: absolute; inset: 0; padding: 4px; gap: 3px; }
 
 /* The camera roll: three columns of tiles drifting up */
-.onb-roll-wrap { position: relative; width: 100%; height: 100%; min-height: 44vh; }
 .onb-roll { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; overflow: hidden; mask-image: linear-gradient(to bottom, transparent, #000 15%, #000 70%, transparent); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 15%, #000 70%, transparent); }
 .onb-roll-col { display: grid; gap: 6px; align-content: start; animation: onb-drift 24s linear infinite; }
 .onb-roll-col:nth-child(2) { animation-duration: 30s; margin-top: -40px; }
@@ -899,30 +898,6 @@ body:not(.admin) .admin-only { display: none !important; }
 .onb-tile.g0 { background: linear-gradient(140deg, #ff9a8b, #ff6a88); } .onb-tile.g1 { background: linear-gradient(140deg, #a18cd1, #fbc2eb); }
 .onb-tile.g2 { background: linear-gradient(140deg, #84fab0, #8fd3f4); } .onb-tile.g3 { background: linear-gradient(140deg, #fccb90, #d57eeb); }
 .onb-tile.g4 { background: linear-gradient(140deg, #4facfe, #00f2fe); } .onb-tile.g5 { background: linear-gradient(140deg, #f6d365, #fda085); }
-.onb-roll-count { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); display: grid; justify-items: center; padding: 12px 18px; border-radius: 18px; background: rgba(11,11,16,.72); backdrop-filter: blur(10px); white-space: nowrap; }
-.onb-roll-count b { font-size: 34px; letter-spacing: -.02em; }
-.onb-roll-count span { font-size: 12px; opacity: .75; }
-
-/* "What do I even say": an empty post */
-.onb-blank { position: absolute; inset: 0; display: grid; align-content: space-between; padding: 40% 14px 14px; background: linear-gradient(170deg, #3a3f4b, #16171c); }
-.onb-blank-text { font-size: 17px; font-weight: 700; color: rgba(255,255,255,.85); text-align: center; }
-.onb-caret { display: inline-block; width: 2px; height: 1.1em; margin-left: 2px; vertical-align: -3px; background: var(--accent); animation: onb-blink 1s steps(1) infinite; }
-@keyframes onb-blink { 50% { opacity: 0; } }
-.onb-blank-bar { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; }
-.onb-blank-bar span:first-child { padding: 6px 14px; border-radius: 8px; background: var(--accent); }
-.onb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.onb-chip { padding: 10px 14px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
-.onb-chip.on { background: #fff; color: #111; border-color: #fff; }
-
-/* Proof: a real video that did well */
-.onb-proof { position: relative; display: grid; justify-items: center; gap: 10px; }
-.onb-badge { position: absolute; top: 18px; right: -8px; padding: 6px 10px; border-radius: 10px; background: #fff; color: #111; font-weight: 800; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.4); transform: rotate(4deg); }
-.onb-proof-note { margin: 0; font-size: 12px; opacity: .6; }
-.onb-answers { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.onb-answers li { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.07); }
-.onb-answers s { font-size: 12px; opacity: .55; }
-.onb-answers span { font-size: 15px; font-weight: 600; line-height: 1.35; }
-
 /* Connect: Google Photos into the phone */
 .onb-connect { display: flex; align-items: center; gap: 14px; }
 .onb-gphotos { position: relative; width: 64px; height: 64px; flex: none; animation: onb-spin 9s linear infinite; }
@@ -943,32 +918,6 @@ body:not(.admin) .admin-only { display: none !important; }
 @keyframes onb-scan { from { top: -30%; } to { top: 100%; } }
 .onb-tag { position: absolute; left: 6px; bottom: 6px; right: 6px; padding: 3px 6px; border-radius: 6px; background: rgba(0,0,0,.65); color: #fff; font-size: 10px; font-weight: 700; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: onb-pop .4s ease-out; }
 @keyframes onb-pop { from { transform: scale(.6); opacity: 0; } }
-.onb-science { display: grid; gap: 4px; padding: 14px; border-radius: 16px; background: rgba(255,255,255,.07); border-left: 3px solid var(--accent); animation: onb-pop .5s ease-out; }
-.onb-science b { font-size: 15px; }
-.onb-science span { font-size: 14px; line-height: 1.4; opacity: .8; }
-
-/* Topics: a card per topic, with the clip from their footage that shows it */
-.onb-topic-grid { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-self: start; }
-.onb-topic-card { position: relative; aspect-ratio: 1; padding: 0; border: 0; border-radius: 18px; overflow: hidden; background: #222; color: #fff; cursor: pointer; text-align: left; box-shadow: 0 0 0 3px transparent; transition: box-shadow .15s, transform .15s; }
-.onb-topic-card img, .onb-topic-ph { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: linear-gradient(140deg, #a18cd1, #fbc2eb); }
-.onb-topic-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.8), transparent 60%); }
-.onb-topic-label { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 1; display: grid; gap: 2px; }
-.onb-topic-label b { font-size: 16px; line-height: 1.15; }
-.onb-topic-label small { font-size: 11px; line-height: 1.3; opacity: .8; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.onb-check { position: absolute; top: 8px; right: 8px; z-index: 1; width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-style: normal; font-weight: 800; background: rgba(255,255,255,.3); color: transparent; }
-.onb-topic-card.on { box-shadow: 0 0 0 3px var(--accent); transform: scale(.98); }
-.onb-topic-card.on .onb-check { background: var(--accent); color: #fff; }
-.onb-own { display: flex; gap: 8px; }
-.onb-own input { flex: 1; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; font: inherit; background: var(--panel); color: var(--ink); }
-.onb-own button { padding: 0 16px; border: 0; border-radius: 14px; background: var(--ink); color: var(--panel); font: inherit; font-weight: 700; cursor: pointer; }
-
-/* Look: the text on their own footage */
-.onb-overlay.look-preview { position: absolute; inset: 0; z-index: 1; aspect-ratio: auto; border-radius: 0; padding: 22% 10px 0; background: none; display: flex; justify-content: center; align-items: flex-start; }
-.onb-overlay.look-preview span { font-size: 15px; text-align: center; }
-.onb-styles { grid-template-columns: repeat(4, 1fr); }
-.onb-screen.dark .style-tile small { color: rgba(255,255,255,.6); }
-.onb-screen.dark .style-tile:has(input:checked) small { color: #fff; }
-
 /* Making the first video */
 .onb-making { display: grid; justify-items: center; }
 .onb-progress { position: absolute; left: 12px; right: 12px; bottom: 14px; z-index: 1; height: 5px; border-radius: 5px; background: rgba(255,255,255,.25); overflow: hidden; }
@@ -998,9 +947,13 @@ body:not(.admin) .admin-only { display: none !important; }
 .onb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .onb-err { margin: 0; color: #dc2626; font-size: 14px; }
 
-/* Ready */
-.onb-ready { position: relative; }
-.onb-ready-check { position: absolute; right: -14px; bottom: 18%; width: 64px; height: 64px; border-radius: 999px; display: grid; place-items: center; background: #16a34a; color: #fff; font-size: 32px; font-weight: 900; box-shadow: 0 12px 30px rgba(22,163,74,.5); animation: onb-pop .5s ease-out; }
 @media (prefers-reduced-motion: reduce) { .onb *, .onb *::before { animation: none !important; } }
-.onb-look-phone .onb-phone, .onb-making .onb-phone { height: min(36vh, 360px); }
+.onb-making .onb-phone { height: min(46vh, 460px); }
 .onb-preview-pill { position: absolute; top: 22px; right: 12px; z-index: 4; padding: 7px 12px; border: 0; border-radius: 999px; background: rgba(250,204,21,.95); color: #3b2f00; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+/* The first video: ✓ / ✗ like the feed, and what was wrong */
+.onb-vote { gap: 56px; margin: 6px 0 26px; }
+.onb-why { display: grid; gap: 8px; justify-items: center; }
+.onb-why[hidden] { display: none; }
+.onb-why .why-options { margin-top: 2px; }
+.onb-why button { border: 1.5px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff; border-radius: 12px; padding: 12px; font: inherit; font-weight: 600; cursor: pointer; }
+.onb-why button:hover { border-color: #fff; }

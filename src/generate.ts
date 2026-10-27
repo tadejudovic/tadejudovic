@@ -304,7 +304,7 @@ export const isPortrait = (c: Clip) => c.height >= c.width;
  * clips with the strongest moments.
  */
 /** The strongest moment the AI found in a clip (0 when none). */
-const bestMoment = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
+export const bestMoment = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
 
 export function rankClips(clips: Clip[]): Clip[] {
   const best = bestMoment;

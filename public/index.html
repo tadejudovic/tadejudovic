@@ -46,7 +46,7 @@
 
       <!-- Swipe review, dating-app style: right = keep, left = reject. Tap the video for details. -->
       <div id="stack" class="stack" hidden>
-        <div id="today-bar" class="today-bar" hidden></div>
+        <div id="today-bar" class="today-bar admin-only" hidden></div>
         <div class="stack-top">
           <button id="stack-undo" class="btn small" hidden><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg> Undo</button>
         </div>
@@ -96,7 +96,8 @@
 
     <!-- READY: kept videos, to save and post ------------------------------------ -->
     <section data-tab="ready" hidden>
-      <div id="ready-filter" class="ready-filter" role="tablist"></div>
+      <div id="progress" class="progress-strip" hidden></div>
+      <div id="ready-filter" class="ready-filter admin-only" role="tablist"></div>
       <div id="batch" class="tiles"></div>
       <p id="ready-empty" class="muted" hidden>Nothing here yet. Videos you post (swipe right in Review) land here.</p>
 
@@ -510,6 +511,8 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
   <!-- Bottom navigation: three pages. -->
   <!-- Onboarding for new creators: how it works, Google Photos, topics, the look, the free trial. -->
   <div id="onboarding" class="onb" hidden></div>
+  <!-- A milestone reached (first post, 10K views, a week's streak): a sticker to celebrate. -->
+  <div id="celebrate" class="celebrate" hidden></div>
 
   <nav class="bottom-nav" id="tabs">
     <button data-tab="review" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M3 6v12M21 6v12"/></svg><span>Review</span></button>

@@ -945,7 +945,7 @@ function stackCard(r) {
       h("span", { class: "stamp nope" }, "NOPE"),
       h("span", { class: "stack-tap" }, "Tap for details"),
       r.plan.collab || KIND_LABEL[r.plan.format]
-        ? h("span", { class: "collab-badge on-video" }, r.plan.collab ? `Collab · ${r.plan.collab.name}` : KIND_LABEL[r.plan.format])
+        ? h("span", { class: `collab-badge on-video${r.plan.collab ? "" : " admin-only"}` }, r.plan.collab ? `Collab · ${r.plan.collab.name}` : KIND_LABEL[r.plan.format])
         : null,
     ),
   );
@@ -2339,7 +2339,66 @@ try {
 } catch {}
 const kindOfRender = (r) => (["tips", "fun", "inspire"].includes(r.plan.format) ? r.plan.format : "other");
 
+// ---- Progress and milestones ----------------------------------------------------------------
+// The creator's progress toward the mission (posted videos, views, a posting streak) on top of Ready,
+// and a sticker that pops up the first time a milestone is reached on this device.
+
+const dayKey = (d) => new Date(d).toLocaleDateString("en-CA");
+function progressStats() {
+  const posted = state.renders.filter((r) => r.posts?.length);
+  const viewsOf = (r) => (r.posts ?? []).reduce((n, p) => n + (p.stats?.views ?? 0), 0);
+  const views = posted.reduce((n, r) => n + viewsOf(r), 0);
+  const best = Math.max(0, ...posted.map(viewsOf));
+  // Streak: days in a row with a post, up to today (or yesterday, if today's isn't out yet).
+  const days = new Set(posted.flatMap((r) => r.posts.map((p) => dayKey(p.postedAt ?? p.addedAt))));
+  let streak = 0;
+  const d = new Date();
+  if (!days.has(dayKey(d))) d.setDate(d.getDate() - 1);
+  while (days.has(dayKey(d))) { streak++; d.setDate(d.getDate() - 1); }
+  return { posted: posted.length, views, best, streak };
+}
+const MILESTONES = [
+  ["post-1", (s) => s.posted >= 1, "First post!", "You're a creator now. The first one is the hardest."],
+  ["post-10", (s) => s.posted >= 10, "10 posts", "Ten videos out in the world. Most people never post one."],
+  ["post-50", (s) => s.posted >= 50, "50 posts", "Fifty. That's a body of work."],
+  ["views-1k", (s) => s.views >= 1000, "1K views", "A thousand people watched what was sitting in your camera roll."],
+  ["views-10k", (s) => s.views >= 10000, "10K views", "Ten thousand views. People like what you see."],
+  ["views-100k", (s) => s.views >= 100000, "100K views", "A hundred thousand. You've built an audience."],
+  ["views-1m", (s) => s.views >= 1000000, "1M views", "A million views. From your camera roll."],
+  ["best-10k", (s) => s.best >= 10000, "A 10K video", "One video passed ten thousand views on its own."],
+  ["streak-7", (s) => s.streak >= 7, "7-day streak", "A post every day for a week. That's how accounts grow."],
+];
+function renderProgress() {
+  const el = document.getElementById("progress");
+  const s = progressStats();
+  el.hidden = !s.posted;
+  el.replaceChildren(
+    h("div", {}, h("b", {}, String(s.posted)), h("span", {}, "posted")),
+    h("div", { class: "hot" }, h("b", {}, fmtViews(s.views)), h("span", {}, "views")),
+    h("div", {}, h("b", {}, String(s.streak)), h("span", {}, "day streak")));
+  celebrateNew(s);
+}
+function celebrateNew(s) {
+  let seen;
+  try { seen = JSON.parse(localStorage.getItem("rollcut.milestones") ?? "null"); } catch { seen = []; }
+  const reached = MILESTONES.filter(([, ok]) => ok(s));
+  // First time on this device: what was reached before isn't celebrated again.
+  if (seen === null) seen = reached.map(([k]) => k);
+  const fresh = reached.filter(([k]) => !seen.includes(k));
+  try { localStorage.setItem("rollcut.milestones", JSON.stringify([...new Set([...seen, ...fresh.map(([k]) => k)])])); } catch {}
+  const top = fresh.at(-1);
+  if (!top) return;
+  const box = document.getElementById("celebrate");
+  box.replaceChildren(h("div", { class: "celebrate-card" },
+    h("span", { class: "celebrate-tag" }, "Milestone"),
+    h("b", {}, top[2]),
+    h("p", {}, top[3]),
+    h("button", { class: "btn primary", onclick: () => (box.hidden = true) }, "Keep going")));
+  box.hidden = false;
+}
+
 function renderBatch() {
+  renderProgress();
   // Ready tab: every kept video, newest first, filtered by kind.
   const allKept = state.renders.filter((r) => r.status === "done" && r.review === "approved").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const counts = Object.fromEntries(READY_KINDS.map(([k]) => [k, k === "all" ? allKept.length : allKept.filter((r) => kindOfRender(r) === k).length]));

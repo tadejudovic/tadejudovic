@@ -1132,3 +1132,43 @@ main:has(section[data-tab="review"]:not([hidden]) #stack:not([hidden])) { paddin
 /* the bar shows words only, like the stickers mockup */
 .bottom-nav button svg { display: none; }
 .d-caption { padding: 10px 12px; }
+
+/* ---- "Stickers lite": calm on the screens people work in, loud only where it motivates ---- */
+:root { --hard: 3px 3px 0 #111; --hard-sm: 2px 2px 0 #111; }
+/* working screens: thinner outlines, small shadows, plain values */
+.group, .sp-body .grid-form, .sp-body .look, .d-source, .sheet-card, .empty-card, .voice-card, .scene, .example, .plan { border-width: 2px !important; box-shadow: var(--hard-sm); }
+.srow { border-bottom-width: 1.5px !important; }
+.row-value { background: none; border: 0; padding: 0; color: var(--muted); font-weight: 500; font-size: 13px; }
+.seg, .shot-bar { box-shadow: none; border-width: 2px !important; }
+.btn { border-width: 2px !important; box-shadow: var(--hard-sm); }
+.btn:not(.primary) { box-shadow: none; }
+.pill, .chip, .badge, .collab-badge { border-width: 1.5px; }
+.d-sec { border-top-width: 1.5px !important; }
+.banner { border-width: 2px !important; }
+/* the videos are the hero: a slim frame, straight tiles */
+.stack-card { border-width: 2px; box-shadow: 4px 4px 0 #111; }
+.tile { border-width: 2px !important; box-shadow: var(--hard-sm); padding: 4px; }
+.tile:nth-child(odd), .tile:nth-child(even) { transform: none; }
+.tile-media { border: 0; }
+/* payment and plan: calm and trustworthy */
+.onb-plan, .onb-learn { box-shadow: var(--hard-sm); border-width: 2px; }
+
+/* progress on top of Ready: the part of the mission that's about growing */
+.progress-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 4px 0 16px; }
+.progress-strip[hidden] { display: none; }
+.progress-strip div { display: grid; gap: 1px; padding: 12px; background: #fff; border: 2px solid #111; border-radius: 16px; box-shadow: var(--hard-sm); }
+.progress-strip b { font-family: var(--head); font-weight: 400; font-size: 24px; line-height: 1.05; }
+.progress-strip span { font-size: 12px; color: var(--muted); font-weight: 600; }
+.progress-strip .hot { background: var(--pink); color: #fff; }
+.progress-strip .hot span { color: rgba(255,255,255,.85); }
+
+/* a milestone: the one place the stickers go all out */
+.celebrate { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; background: rgba(244,241,234,.92); backdrop-filter: blur(4px); }
+.celebrate[hidden] { display: none; }
+.celebrate-card { position: relative; width: min(100%, 340px); display: grid; gap: 10px; justify-items: center; text-align: center; padding: 34px 22px 22px; background: var(--neon); border: 3px solid #111; border-radius: 28px; box-shadow: 8px 8px 0 #111; transform: rotate(-2deg); animation: pop-in .45s cubic-bezier(.2,1.6,.4,1); }
+.celebrate-card b { font-family: var(--head); font-weight: 400; font-size: 40px; line-height: 1; letter-spacing: -.02em; }
+.celebrate-card p { margin: 0; font-size: 15px; line-height: 1.4; }
+.celebrate-card .btn { margin-top: 6px; background: #111 !important; color: var(--neon) !important; }
+.celebrate-tag { position: absolute; top: -16px; padding: 6px 14px; background: var(--pink); color: #fff; border: 2.5px solid #111; border-radius: 12px; box-shadow: 3px 3px 0 #111; font-family: "Permanent Marker", var(--head); font-size: 16px; transform: rotate(4deg); }
+@keyframes pop-in { from { transform: rotate(-2deg) scale(.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .celebrate-card { animation: none; } }

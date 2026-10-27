@@ -31,14 +31,5 @@ const path = require('path');
   execSync(`ffmpeg -y ${src} -c:v prores_ks -profile:v 4444 -pix_fmt yuva444p10le "${out}/lex-vitals-transparent.mov"`, { stdio: 'inherit' });
   // green screen MP4 (CapCut mobile: Overlay > Chroma key)
   execSync(`ffmpeg -y -f lavfi -i color=c=0x00ff00:s=1080x1920:r=${FPS} ${src} -filter_complex "[0][1]overlay=shortest=1,format=yuv420p" -c:v libx264 -crf 16 "${out}/lex-vitals-greenscreen.mp4"`, { stdio: 'inherit' });
-  // one short clip per stage
-  const stages = await (async () => JSON.parse(fs.readFileSync(path.join(dir, 'overlay.html'), 'utf8')
-    .match(/const STAGES = (\[[\s\S]*?\]);/)[1].replace(/(\w+):/g, '"$1":').replace(/'/g, '"').replace(/,\s*\]/, ']')))();
-  let start = 0;
-  for (const s of stages) {
-    const name = s.name.toLowerCase();
-    execSync(`ffmpeg -y -ss ${start} -t ${s.seconds} -i "${out}/lex-vitals-transparent.mov" -c:v prores_ks -profile:v 4444 -pix_fmt yuva444p10le "${out}/stage-${name}.mov"`, { stdio: 'inherit' });
-    start += s.seconds;
-  }
-  execSync(`ffmpeg -y -ss 12 -i "${out}/lex-vitals-greenscreen.mp4" -frames:v 1 "${out}/preview-takeoff.png"`, { stdio: 'inherit' });
+  execSync(`ffmpeg -y -ss 10 -i "${out}/lex-vitals-greenscreen.mp4" -frames:v 1 "${out}/preview-takeoff.png"`, { stdio: 'inherit' });
 })();

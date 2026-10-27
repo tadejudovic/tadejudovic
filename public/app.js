@@ -1562,6 +1562,10 @@ function tile(r) {
   return h("div", { class: `tile ${r.status === "done" ? "openable" : ""}`, onclick: () => r.status === "done" && openSheet(r) },
     h("div", { class: "tile-media" },
       r.status === "done" ? h("img", { src: `/media/render/${r.id}.jpg`, alt: "", loading: "lazy" }) : h("div", { class: "tile-ph" }),
+      // The length in the corner with a play mark, like a video in Google Photos.
+      r.status === "done" && r.plan.segments?.length
+        ? h("span", { class: "tile-dur" }, mmss(r.plan.segments.reduce((n, x) => n + (x.end - x.start) / (x.speed ?? 1), 0)), svgIcon("M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM10 8.5v7l5.5-3.5z"))
+        : null,
       badge,
     ),
     h("div", { class: "tile-text" }, label),

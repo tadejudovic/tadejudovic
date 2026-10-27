@@ -1003,3 +1003,4 @@ body:not(.admin) .admin-only { display: none !important; }
 .onb-ready-check { position: absolute; right: -14px; bottom: 18%; width: 64px; height: 64px; border-radius: 999px; display: grid; place-items: center; background: #16a34a; color: #fff; font-size: 32px; font-weight: 900; box-shadow: 0 12px 30px rgba(22,163,74,.5); animation: onb-pop .5s ease-out; }
 @media (prefers-reduced-motion: reduce) { .onb *, .onb *::before { animation: none !important; } }
 .onb-look-phone .onb-phone, .onb-making .onb-phone { height: min(36vh, 360px); }
+.onb-preview-pill { position: absolute; top: 22px; right: 12px; z-index: 4; padding: 7px 12px; border: 0; border-radius: 999px; background: rgba(250,204,21,.95); color: #3b2f00; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }

@@ -2983,7 +2983,7 @@ if (params.size) history.replaceState(null, "", `/${location.hash}`);
 // (test mode: nothing is charged).
 
 const ONB_STEPS = ["roll", "why", "answer", "photos", "watch", "topics", "look", "making", "trial", "ready"];
-const onb = { step: "roll", topics: [], picked: new Set(), blocks: new Set(), timer: 0, waited: 0 };
+const onb = { step: "roll", topics: [], picked: new Set(), blocks: new Set(), timer: 0, waited: 0, preview: false, local: {} };
 const onbEl = () => document.getElementById("onboarding");
 const BLOCKS = [
   ["words", "I don't know what to say", "It writes the words, from openings that already got views on TikTok."],
@@ -2994,8 +2994,15 @@ const BLOCKS = [
 ];
 const fmtBig = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
 
-function openOnboarding() {
-  try { const saved = localStorage.getItem("rollcut.onbStep"); if (ONB_STEPS.includes(saved)) onb.step = saved; } catch {}
+/**
+ * `preview`: an admin going through it on an account already set up. Every screen works on the real
+ * footage (and the first video is really made), but nothing chosen is saved: topics, look and the
+ * trial stay on screen, and closing leaves the app as it was.
+ */
+function openOnboarding({ preview = false } = {}) {
+  onb.preview = preview;
+  if (preview) Object.assign(onb, { step: "roll", topics: [], picked: new Set(), blocks: new Set(), waited: 0, local: {} });
+  else try { const saved = localStorage.getItem("rollcut.onbStep"); if (ONB_STEPS.includes(saved)) onb.step = saved; } catch {}
   onbEl().hidden = false;
   document.body.classList.add("no-scroll");
   onbGo(onb.step);
@@ -3006,15 +3013,23 @@ function closeOnboarding() {
   onbEl().hidden = true;
   onbEl().replaceChildren();
   document.body.classList.remove("no-scroll");
-  try { localStorage.removeItem("rollcut.onbStep"); } catch {}
+  if (!onb.preview) try { localStorage.removeItem("rollcut.onbStep"); } catch {}
+}
+/** Saves a choice, or in a preview only remembers it for the next screens. */
+async function onbSave(body) {
+  if (!onb.preview) return api("/api/onboarding", { method: "PUT", body });
+  if (body.topics) onb.local.topics = body.topics;
+  if (body.blocks) onb.local.blocks = body.blocks;
+  if (body.textStyle) onb.local.textStyle = body.textStyle;
 }
 async function onbGo(step) {
   onb.step = step;
-  try { localStorage.setItem("rollcut.onbStep", step); } catch {}
+  if (!onb.preview) try { localStorage.setItem("rollcut.onbStep", step); } catch {}
   clearInterval(onb.timer);
   clearTimeout(onb.timer);
   const st = await api("/api/onboarding").catch(() => null);
-  onbRender(st);
+  // A preview shows what was picked on screen, and starts with no topics, look or trial of its own.
+  onbRender(st && onb.preview ? { ...st, topics: [], blocks: [], billing: null, ...onb.local } : st);
 }
 const onbNext = () => onbGo(ONB_STEPS[ONB_STEPS.indexOf(onb.step) + 1]);
 
@@ -3024,6 +3039,7 @@ function onbScreen({ visual, kicker, title, sub, body, cta, skip, dark = true })
   return h("div", { class: `onb-screen${dark ? " dark" : ""}` },
     h("div", { class: "onb-bars" }, ONB_STEPS.slice(0, -1).map((_, j) => h("i", { class: j < i ? "done" : j === i ? "on" : "" }))),
     i > 0 && onb.step !== "ready" ? h("button", { class: "onb-back", "aria-label": "Back", onclick: () => onbGo(ONB_STEPS[i - 1]) }, "‹") : null,
+    onb.preview ? h("button", { class: "onb-preview-pill", title: "Your topics, look and plan stay as they are. Only the first video is really made.", onclick: closeOnboarding }, "Preview · settings unchanged  ×") : null,
     h("div", { class: "onb-visual" }, visual),
     h("div", { class: "onb-text" },
       kicker ? h("p", { class: "onb-kicker" }, kicker) : null,
@@ -3036,7 +3052,8 @@ const onbBtn = (label, onclick, disabled = false) => h("button", { class: "onb-c
 
 /** A phone with something on its screen (a video, a frame, a mock). */
 const phone = (...screen) => h("div", { class: "onb-phone" }, h("div", { class: "onb-phone-screen" }, ...screen));
-const thumb = (id) => h("img", { src: `/media/thumb/${id}`, alt: "", loading: "lazy" });
+// A clip whose frame can't load leaves its coloured tile showing instead of a broken image.
+const thumb = (id) => h("img", { src: `/media/thumb/${id}`, alt: "", loading: "lazy", onerror: (e) => (e.currentTarget.style.visibility = "hidden") });
 
 /** Placeholder tiles for a camera roll before any footage is in: the kinds of moments people film. */
 const ROLL_TILES = ["✈️", "🐶", "🍜", "🏔️", "🎂", "🏖️", "🛠️", "🎸", "👶", "🌆", "🐈", "🚐", "🎨", "⚽", "🌮", "🎄", "🏃", "🌅"];
@@ -3044,7 +3061,7 @@ function cameraRoll(ids = []) {
   const tiles = ids.length ? ids : ROLL_TILES;
   const col = (k) => h("div", { class: "onb-roll-col", style: { animationDelay: `${-k * 4}s` } },
     [...tiles, ...tiles].filter((_, j) => j % 3 === k).map((t, j) =>
-      ids.length ? h("div", { class: "onb-tile" }, thumb(t)) : h("div", { class: `onb-tile g${(j + k) % 6}` }, h("span", {}, t))));
+      ids.length ? h("div", { class: `onb-tile g${(j + k) % 6}` }, thumb(t)) : h("div", { class: `onb-tile g${(j + k) % 6}` }, h("span", {}, t))));
   return h("div", { class: "onb-roll" }, col(0), col(1), col(2));
 }
 
@@ -3066,7 +3083,7 @@ function onbRender(st) {
   if (onb.step === "why") {
     const chips = h("div", { class: "onb-chips" });
     const cta = onbBtn("That's me", async () => {
-      await api("/api/onboarding", { method: "PUT", body: { blocks: [...onb.blocks] } });
+      await onbSave({ blocks: [...onb.blocks] });
       onbNext();
     }, true);
     const draw = () => {
@@ -3158,7 +3175,7 @@ function onbRender(st) {
   if (onb.step === "topics") {
     const list = h("div", { class: "onb-topic-grid" }, h("p", { class: "onb-sub" }, "Reading your footage…"));
     const cta = onbBtn("These are mine", async () => {
-      await api("/api/onboarding", { method: "PUT", body: { topics: onb.topics.filter((t) => onb.picked.has(t.title)) } });
+      await onbSave({ topics: onb.topics.filter((t) => onb.picked.has(t.title)) });
       onbNext();
     }, true);
     const draw = () => {
@@ -3215,9 +3232,9 @@ function onbRender(st) {
       sub: "Your videos start in this style. You can change it on any video before you post.",
       body: h("div", { class: "style-grid onb-styles" }, styleTiles("onb-style", style, (v) => { style = v; text.className = `onb-overlay look-preview ${v}`; })),
       cta: onbBtn("Make my first video", async () => {
-        await api("/api/onboarding", { method: "PUT", body: { textStyle: style } });
-        state.status.settings.textStyle = style;
-        if ((st?.clips?.ready ?? 0) > 0) await api("/api/onboarding/first-video", { method: "POST" }).catch(() => {});
+        await onbSave({ textStyle: style });
+        if (!onb.preview) state.status.settings.textStyle = style;
+        if ((st?.clips?.ready ?? 0) > 0) await api("/api/onboarding/first-video", { method: "POST", body: { textStyle: style } }).catch(() => {});
         onbNext();
       }),
     }));
@@ -3261,7 +3278,8 @@ function onbRender(st) {
       const btn = e.currentTarget.querySelector(".onb-cta");
       btn.disabled = true;
       try {
-        await api("/api/onboarding/trial", { method: "POST", body: d });
+        const billing = await api("/api/onboarding/trial", { method: "POST", body: { ...d, preview: onb.preview } });
+        if (onb.preview) onb.local.billing = billing;
         onbGo("ready");
       } catch (x) {
         err.textContent = x.message;
@@ -3301,6 +3319,7 @@ function onbRender(st) {
         : "Pick videos in Settings → Google Photos, and the first ones will be ready the next morning.",
       cta: onbBtn("Go to my videos", async (e) => {
         e.currentTarget.disabled = true;
+        if (onb.preview) return closeOnboarding();
         await api("/api/onboarding", { method: "PUT", body: { done: true } });
         if (st?.clips?.ready) api("/api/batch/run", { method: "POST" }).catch(() => {});
         closeOnboarding();
@@ -3311,15 +3330,12 @@ function onbRender(st) {
   }
 }
 
-document.getElementById("btn-onboarding")?.addEventListener("click", async () => {
-  await api("/api/onboarding", { method: "PUT", body: { done: false } });
-  try { localStorage.removeItem("rollcut.onbStep"); } catch {}
-  Object.assign(onb, { step: "roll", topics: [], picked: new Set(), blocks: new Set(), waited: 0 });
-  openOnboarding();
-});
+// Admins: go through onboarding on the real footage without changing anything (also /?onboarding).
+document.getElementById("btn-onboarding")?.addEventListener("click", () => openOnboarding({ preview: true }));
 
 await loadStatus();
 if (state.status.onboarded === false) openOnboarding();
+else if (state.status.admin !== false && params.has("onboarding")) openOnboarding({ preview: true });
 await Promise.all([refreshClips(), refreshRenders(), refreshAlbums(), loadAuto(), loadFonts(), refreshExamples(), refreshScenes(), refreshPartners()]);
 await refreshSuggestions();
 renderHomeState();

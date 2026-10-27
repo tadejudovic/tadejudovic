@@ -3,7 +3,7 @@ import { config } from "./config.ts";
 import { store } from "./store.ts";
 import { structured } from "./ai/director.ts";
 import { aiAvailable } from "./ai/budget.ts";
-import type { Clip, GenerateRequest } from "./types.ts";
+import type { Clip, GenerateRequest, TextStyle } from "./types.ts";
 import { plan, queueRender } from "./generate.ts";
 
 export type Topic = { title: string; why: string; audience: "niche" | "everyone"; clipId?: string };
@@ -130,7 +130,7 @@ const TRIAL_DAYS = 7;
  * Starts the free trial. TEST MODE: there's no payment provider yet, nothing is charged and the card
  * number is never stored; only its brand and last four digits are kept, to show on the plan.
  */
-export function startTrial(card: { number?: unknown; exp?: unknown; cvc?: unknown }) {
+export function startTrial(card: { number?: unknown; exp?: unknown; cvc?: unknown }, save = true) {
   const digits = String(card.number ?? "").replace(/\D/g, "");
   if (!luhn(digits)) throw new Error("That card number doesn't look right. In test mode, use 4242 4242 4242 4242.");
   const m = /^(\d{2})\s*\/\s*(\d{2})$/.exec(String(card.exp ?? "").trim());
@@ -147,7 +147,7 @@ export function startTrial(card: { number?: unknown; exp?: unknown; cvc?: unknow
     card: { brand, last4: digits.slice(-4) },
     test: true as const,
   };
-  store.updateSettings({ billing });
+  if (save) store.updateSettings({ billing });
   return billing;
 }
 
@@ -166,7 +166,7 @@ export function showcase(): { id: string; views: number; hook?: string } | null 
 }
 
 /** The first video, made while onboarding explains how it's made (one video, from the best clips). */
-export async function makeFirstVideo(): Promise<string> {
+export async function makeFirstVideo(look: { textStyle?: TextStyle } = {}): Promise<string> {
   const s = store.settings();
   const existing = s.firstVideoId ? store.render(s.firstVideoId) : undefined;
   if (existing && existing.status !== "error") return existing.id;
@@ -176,7 +176,7 @@ export async function makeFirstVideo(): Promise<string> {
     count: 1,
     useAi: true,
     pickFromPool: true,
-    options: { keepOriginalAudio: true, textStyle: s.textStyle, textSize: s.textSize, fontId: s.fontId },
+    options: { keepOriginalAudio: true, textStyle: look.textStyle ?? s.textStyle, textSize: s.textSize, fontId: s.fontId },
   };
   const { plans } = await plan(req);
   if (!plans.length) throw new Error("No clips are ready yet.");

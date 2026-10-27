@@ -1043,9 +1043,11 @@ app.put("/api/onboarding", (req, res) => {
 });
 app.post(
   "/api/onboarding/first-video",
-  h(async (_req, res) => {
+  h(async (req, res) => {
     try {
-      res.json({ id: await makeFirstVideo() });
+      // A preview passes the look picked on screen (it isn't saved as the account's look).
+      const textStyle = TEXT_STYLES.includes(req.body?.textStyle) ? req.body.textStyle : undefined;
+      res.json({ id: await makeFirstVideo({ textStyle }) });
     } catch (e) {
       res.status(400).json({ error: (e as Error).message });
     }
@@ -1053,7 +1055,8 @@ app.post(
 );
 app.post("/api/onboarding/trial", (req, res) => {
   try {
-    res.json(startTrial(req.body ?? {}));
+    // A preview checks the card the same way but keeps nothing.
+    res.json(startTrial(req.body ?? {}, req.body?.preview !== true));
   } catch (e) {
     res.status(400).json({ error: (e as Error).message });
   }

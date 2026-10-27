@@ -1226,56 +1226,84 @@ const soundRow = (x, note) =>
     h("a", { class: "btn small", href: x.url, target: "_blank", rel: "noopener noreferrer" }, "Open in TikTok"));
 
 /** Trending sounds that fit this video, loaded when the details open (TikTok adds the sound when posting). */
-// The video's shots in order, each with a choice: keep it, swap it for other footage, cut it, or
-// never use that clip again. Apply draws the video again with the same text.
-const SHOT_ACTIONS = [["keep", "Keep"], ["swap", "Swap"], ["remove", "Cut"], ["never", "Never use"]];
+// The video's shots in order, like an editor's timeline: tap a shot to select it, and one bar
+// under the strip swaps it, cuts it, or keeps that clip out for good. Apply draws the video again
+// with the same text.
+const SHOT_LABEL = { swap: "Swap", remove: "Cut", never: "Never use" };
 function shotsSection(r) {
   if (r.status !== "done" || r.posts?.length || !r.plan.segments?.length) return null;
+  let shots = [];
+  let sel = 0;
   const picks = [];
-  const strip = h("div", { class: "shots" }, h("span", { class: "muted" }, "Loading shots…"));
-  const apply = h("button", { class: "btn", disabled: true, onclick: (e) => {
+  const strip = h("div", { class: "shots", role: "listbox", "aria-label": "Shots" }, h("span", { class: "muted" }, "Loading shots…"));
+  const bar = h("div", { class: "shot-bar" });
+  const apply = h("button", { class: "btn primary shot-apply", hidden: true, onclick: (e) => {
     if (picks.every((a) => a === "remove")) return banner("Keep at least one shot.", "error");
     withBusy(e.currentTarget, "Starting…", async () => {
       await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: picks } });
-      banner(`Drawing it again with your ${picks.filter((a) => a !== "keep").length} change(s). It reappears in a minute with the same text.`, "ok");
+      banner("Drawing it again with your changes. It reappears in a minute with the same text.", "ok");
       await refreshRenders();
     });
-  } }, "Apply changes");
-  const count = h("span", { class: "muted" });
-  const changed = () => {
-    const n = picks.filter((a) => a !== "keep").length;
-    apply.disabled = !n;
-    count.textContent = n ? `${n} change${n > 1 ? "s" : ""}` : "";
+  } });
+  const icon = (d) => {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    for (const x of d) svg.appendChild(document.createElementNS(ns, "path")).setAttribute("d", x);
+    return svg;
+  };
+  const ICONS = {
+    play: ["M8 5v14l11-7z"],
+    swap: ["M7 7h11l-3-3M17 17H6l3 3"],
+    remove: ["M6 6l12 12M18 6L6 18"],
+    never: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18M5.6 5.6l12.8 12.8"],
+    undo: ["M9 14L4 9l5-5", "M4 9h10a6 6 0 0 1 0 12h-3"],
+  };
+  const draw = () => {
+    for (const [i, card] of [...strip.children].entries()) {
+      card.classList.toggle("sel", i === sel);
+      card.setAttribute("aria-selected", String(i === sel));
+      card.dataset.a = picks[i];
+      const tag = card.querySelector(".shot-tag");
+      tag.textContent = SHOT_LABEL[picks[i]] ?? "";
+      tag.hidden = !SHOT_LABEL[picks[i]];
+    }
+    const s = shots[sel];
+    const a = picks[sel];
+    const act = (key, label, next) =>
+      h("button", { class: `shot-btn${a === key ? " on" : ""}${key === "never" ? " danger" : ""}`, onclick: () => { picks[sel] = a === key ? "keep" : next; draw(); } }, icon(ICONS[key]), h("span", {}, label));
+    bar.replaceChildren(
+      h("div", { class: "shot-info" },
+        h("b", {}, `Shot ${sel + 1} · ${s.from.toFixed(1)}–${s.to.toFixed(1)}s`),
+        h("span", { class: "muted" }, s.summary || s.scene || "")),
+      h("div", { class: "shot-btns" },
+        h("button", { class: "shot-btn", onclick: () => openClip(s.clipId) }, icon(ICONS.play), h("span", {}, "Play")),
+        act("swap", "Swap", "swap"),
+        act("remove", "Cut", "remove"),
+        act("never", "Never use", "never"),
+        a !== "keep" ? h("button", { class: "shot-btn", onclick: () => { picks[sel] = "keep"; draw(); } }, icon(ICONS.undo), h("span", {}, "Undo")) : null));
+    const n = picks.filter((x) => x !== "keep").length;
+    apply.hidden = !n;
+    apply.textContent = `Apply ${n} change${n > 1 ? "s" : ""}`;
   };
   api(`/api/renders/${r.id}/timeline`)
-    .then((shots) =>
+    .then((list) => {
+      shots = list;
+      list.forEach((s) => (picks[s.index] = "keep"));
       strip.replaceChildren(
-        ...shots.map((s) => {
-          picks[s.index] = "keep";
-          const card = h("div", { class: "shot" });
-          const buttons = SHOT_ACTIONS.map(([a, label]) =>
-            h("button", { class: `shot-act${a === "keep" ? " on" : ""}`, "data-a": a, onclick: () => {
-              picks[s.index] = a;
-              card.dataset.a = a;
-              for (const b of buttons) b.classList.toggle("on", b.dataset.a === a);
-              changed();
-            } }, label));
-          card.append(
-            h("button", { class: "shot-img", title: s.summary || "", onclick: () => openClip(s.clipId) },
-              h("img", { src: s.frame, alt: "", loading: "lazy" }),
-              h("span", { class: "shot-n" }, String(s.index + 1))),
-            h("div", { class: "shot-time" }, `${s.from.toFixed(1)}–${s.to.toFixed(1)}s`),
-            s.scene ? h("div", { class: "shot-scene" }, s.scene) : null,
-            h("div", { class: "shot-acts" }, ...buttons));
-          return card;
-        }),
-      ),
-    )
+        ...list.map((s) =>
+          h("button", { class: "shot", role: "option", style: { flexBasis: `${Math.max(56, Math.min(120, (s.to - s.from) * 34))}px` }, onclick: () => { sel = s.index; draw(); } },
+            h("img", { src: s.frame, alt: `Shot ${s.index + 1}`, loading: "lazy" }),
+            h("span", { class: "shot-time" }, `${(s.to - s.from).toFixed(1)}s`),
+            h("span", { class: "shot-tag", hidden: true }))));
+      draw();
+    })
     .catch(() => strip.replaceChildren(h("span", { class: "muted" }, "Couldn't load the shots.")));
   return h("section", { class: "d-sec" },
-    h("div", { class: "d-sec-head" }, h("span", {}, "Shots"), count),
-    h("p", { class: "d-hint" }, "Every clip in the video, in order. Swap puts other footage of the same kind in its place, Cut removes it (the shots around it fill the time), Never use swaps it and keeps that clip out of all future videos."),
+    h("div", { class: "d-sec-head" }, h("span", {}, "Shots")),
     strip,
+    bar,
     apply);
 }
 

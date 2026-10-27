@@ -2992,7 +2992,7 @@ const onbEl = () => document.getElementById("onboarding");
  */
 function openOnboarding({ preview = false } = {}) {
   onb.preview = preview;
-  Object.assign(onb, { started: false, firstAt: 0, local: {} });
+  Object.assign(onb, { started: false, firstAt: 0, local: {}, cardStart: undefined, cardShift: 0, cardIdx: undefined });
   onb.step = "photos";
   if (!preview) try { const saved = localStorage.getItem("rollcut.onbStep"); if (ONB_STEPS.includes(saved)) onb.step = saved; } catch {}
   onbEl().hidden = false;
@@ -3057,6 +3057,34 @@ const svgIcon = (d) => {
   return el;
 };
 
+/**
+ * What to know while the first video is made, a card at a time: the problem, how it works, why it
+ * works, that the clips are safe, what happens next. They turn by themselves (tap for the next one).
+ */
+const ONB_CARDS = [
+  ["💡", "Great footage, never posted", "Editing takes hours and finding the words is the hardest part. Rollcut does both, from what you already filmed."],
+  ["🎞️", "It watches every second", "Each clip gets a motion and sound curve, and the AI sees what's happening in every shot, to find the moment worth posting."],
+  ["📈", "Built on what gets views", "Openings that already worked on TikTok, a new shot every 2 seconds, and text that never covers a face."],
+  ["🔒", "Your clips stay yours", "Only the videos you pick, behind your Google sign-in. Nothing is posted without your ✓, you can delete any clip, and they're never used to train AI."],
+  ["☀️", "Every morning, new videos", "✓ the ones you'd post, ✗ the rest and say why. Every answer makes the next ones more like you."],
+];
+function onbCard() {
+  onb.cardShift ??= 0;
+  onb.cardStart ??= Date.now();
+  const i = (Math.floor((Date.now() - onb.cardStart) / 7000) + onb.cardShift) % ONB_CARDS.length;
+  // Re-drawn every few seconds with the progress: the card only animates when it changes.
+  const fresh = i !== onb.cardIdx;
+  onb.cardIdx = i;
+  const [icon, title, text] = ONB_CARDS[i];
+  return h("button", { class: `onb-learn${fresh ? " fresh" : ""}`, onclick: (e) => {
+    onb.cardShift++;
+    e.currentTarget.replaceWith(onbCard());
+  } },
+    h("span", { class: "onb-learn-icon" }, icon),
+    h("span", { class: "onb-learn-text" }, h("b", {}, title), h("span", {}, text)),
+    h("span", { class: "onb-learn-dots" }, ONB_CARDS.map((_, j) => h("i", { class: j === i ? "on" : "" }))));
+}
+
 function onbRender(st) {
   const el = onbEl();
   const footage = st?.footage ?? [];
@@ -3110,9 +3138,13 @@ function onbRender(st) {
         [0.5, "Cutting for attention", "A new shot every 2 seconds, so nobody scrolls away."],
         [0.8, "Finishing in full HD", "Text placed off faces, ready for TikTok and Reels."],
       ];
+      const stage = STAGES.filter(([at]) => p >= at).pop() ?? STAGES[0];
       return el.replaceChildren(onbScreen({
         visual: making
-          ? h("div", { class: "onb-making" }, phone(ids[0] ? thumb(ids[0]) : null, h("div", { class: "onb-progress" }, h("i", { style: { width: `${Math.round(p * 100)}%` } }))))
+          ? h("div", { class: "onb-making" },
+              phone(ids[0] ? thumb(ids[0]) : null,
+                h("div", { class: "onb-now" }, h("b", {}, stage[1]), h("span", {}, stage[2])),
+                h("div", { class: "onb-progress" }, h("i", { style: { width: `${Math.round(p * 100)}%` } }))))
           : h("div", { class: "onb-scan" },
               ...(footage.length ? footage.slice(0, 9) : Array.from({ length: 9 }, () => null)).map((x) =>
                 h("div", { class: `onb-scan-tile${x?.looked ? " seen" : ""}` },
@@ -3120,9 +3152,7 @@ function onbRender(st) {
                   x?.looked ? h("span", { class: "onb-tag" }, x.scene || "✓") : h("i", { class: "onb-scanline" })))),
         kicker: v?.remaking ? "Got it" : "Your first video",
         title: v?.remaking ? "Making a better one…" : making ? "Making it now…" : total ? `Watching your videos… ${looked} of ${total}` : "Waiting for your videos…",
-        body: making
-          ? h("ol", { class: "onb-stages" }, STAGES.map(([at, t, d]) => h("li", { class: p >= at + 0.15 ? "done" : p >= at ? "now" : "" }, h("b", {}, t), h("span", {}, d))))
-          : h("p", { class: "onb-sub" }, "Every clip gets a motion and sound curve, and the AI watches every second to find the moment worth posting."),
+        body: onbCard(),
         skip: ["Skip: I'll see it in the app", () => onbGo("trial")],
       }));
     }

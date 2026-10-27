@@ -923,16 +923,6 @@ body:not(.admin) .admin-only { display: none !important; }
 .onb-progress { position: absolute; left: 12px; right: 12px; bottom: 14px; z-index: 1; height: 5px; border-radius: 5px; background: rgba(255,255,255,.25); overflow: hidden; }
 .onb-progress i { display: block; height: 100%; background: var(--accent); transition: width .8s ease; }
 .onb-making .onb-phone-screen > img { filter: brightness(.75); }
-.onb-stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; counter-reset: s; }
-.onb-stages li { position: relative; display: grid; gap: 1px; padding-left: 30px; opacity: .4; transition: opacity .4s; }
-.onb-stages li::before { content: ""; position: absolute; left: 0; top: 2px; width: 18px; height: 18px; border-radius: 999px; border: 2px solid currentColor; }
-.onb-stages li.now { opacity: 1; }
-.onb-stages li.now::before { border-color: var(--accent); border-top-color: transparent; animation: onb-spin 0.9s linear infinite; }
-.onb-stages li.done { opacity: .9; }
-.onb-stages li.done::before { content: "✓"; display: grid; place-items: center; font-size: 11px; font-weight: 900; background: var(--accent); border-color: var(--accent); color: #fff; }
-.onb-stages b { font-size: 14px; }
-.onb-stages span { font-size: 12px; opacity: .75; }
-
 /* The trial, after the first video */
 .onb-plan { width: 100%; display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 20px; background: var(--panel); box-shadow: var(--shadow-soft, var(--shadow)); align-self: end; }
 .onb-plan img { width: 84px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 12px; flex: none; }
@@ -957,3 +947,16 @@ body:not(.admin) .admin-only { display: none !important; }
 .onb-why .why-options { margin-top: 2px; }
 .onb-why button { border: 1.5px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff; border-radius: 12px; padding: 12px; font: inherit; font-weight: 600; cursor: pointer; }
 .onb-why button:hover { border-color: #fff; }
+/* While it works: what's happening now on the phone, and a card of what to know below */
+.onb-now { position: absolute; left: 10px; right: 10px; bottom: 28px; z-index: 1; display: grid; gap: 2px; padding: 10px 12px; border-radius: 14px; background: rgba(0,0,0,.62); backdrop-filter: blur(8px); color: #fff; }
+.onb-now b { font-size: 13px; }
+.onb-now span { font-size: 11px; opacity: .8; line-height: 1.35; }
+.onb-learn { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: start; width: 100%; padding: 14px; border: 0; border-radius: 18px; background: rgba(255,255,255,.08); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.onb-learn.fresh { animation: onb-pop .5s ease-out; }
+.onb-learn-icon { font-size: 26px; line-height: 1; }
+.onb-learn-text { display: grid; gap: 3px; }
+.onb-learn-text b { font-size: 16px; }
+.onb-learn-text span { font-size: 14px; line-height: 1.4; opacity: .8; }
+.onb-learn-dots { grid-column: 1 / -1; display: flex; gap: 5px; justify-content: center; margin-top: 4px; }
+.onb-learn-dots i { width: 6px; height: 6px; border-radius: 6px; background: rgba(255,255,255,.3); transition: width .3s; }
+.onb-learn-dots i.on { width: 18px; background: var(--accent); }

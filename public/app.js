@@ -1007,7 +1007,8 @@ function detailsBody(r) {
   // state), and " / " is a line break.
   const texts = plan.overlays?.length ? plan.overlays.map((o) => o.text) : [plan.hook || plan.title];
   const screens = texts.filter((t, i) => !(texts[i + 1] && texts[i + 1].startsWith(t)));
-  const headline = h("h2", { class: "d-title" },
+  // The video's text, line by line: the creator sees it on the video (and opens it with Edit text).
+  const headline = h("h2", { class: "d-title admin-only" },
     ...screens.map((t) => h("div", { class: "d-screen" }, ...t.split(" / ").flatMap((line, i) => (i ? [h("br"), line] : [line])))));
   const editText = h("div", { class: "d-edit", hidden: true });
   const textInput = h("textarea", { rows: 2 }, overlay);
@@ -1069,7 +1070,11 @@ function detailsBody(r) {
   );
 
   // Caption: readable text first; edit only when needed.
-  const captionText = h("p", { class: "d-caption" }, caption || "No caption");
+  // Long captions show their first lines; a tap opens the rest.
+  const captionText = h("p", { class: `d-caption${(caption ?? "").length > 180 ? " clamp" : ""}` }, caption || "No caption");
+  const moreCaption = (caption ?? "").length > 180
+    ? h("button", { class: "d-link d-more", onclick: (e) => { captionText.classList.remove("clamp"); e.currentTarget.remove(); } }, "Show more")
+    : null;
   const captionEdit = h("textarea", { class: "d-caption-edit", rows: 4, hidden: true }, caption);
   const saveCaption = async () => {
     plan.postCaption = captionEdit.value.trim();
@@ -1117,35 +1122,36 @@ function detailsBody(r) {
     const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
     return m < 60 ? `${Math.max(1, m)} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
   };
-  const platformRow = (platform, label, placeholder) => {
-    const p = (r.posts ?? []).find((x) => x.platform === platform);
-    const s = p?.stats;
-    const input = h("input", { class: "perf-input", value: p?.url ?? "", placeholder, inputmode: "url" });
+  // Stats per app once it's posted there; one box for the link, whichever app it's from.
+  const platformStats = (p) => {
+    const s = p.stats;
+    const stats = s
+      ? [["views", p.platform === "instagram" ? "plays" : "views"], ["likes", "likes"], ["comments", "comments"], ["shares", "shares"], ["saves", "saves"]].filter(([k]) => s[k] !== undefined)
+      : [];
+    return h("div", { class: "perf-platform" },
+      h("span", { class: "d-label" }, p.platform === "instagram" ? "Instagram" : "TikTok"),
+      stats.length ? h("div", { class: "perf-stats", style: { gridTemplateColumns: `repeat(${stats.length}, 1fr)` } },
+        ...stats.map(([k, name]) => h("span", { class: "perf-stat" }, h("b", {}, fmtViews(s[k])), h("small", {}, name)))) : null,
+      s && p.fetchedAt ? h("p", { class: "d-hint" }, `Updated ${ago(p.fetchedAt)}`) : null,
+      p.error && !s ? h("p", { class: "d-hint" }, p.error) : null);
+  };
+  const linkRow = () => {
+    const input = h("input", { class: "perf-input", placeholder: r.posts?.length ? "Posted somewhere else too? Paste the link" : "Posted? Paste the TikTok or Instagram link", inputmode: "url" });
     const go = h("button", { class: "btn small primary", onclick: (e) => withBusy(e.currentTarget, "Reading…", async () => {
-      const updated = await api(`/api/renders/${r.id}/posted`, { method: "POST", body: { url: input.value, platform } });
+      if (!input.value.trim()) return banner("Paste the link to your TikTok or Instagram post.");
+      const updated = await api(`/api/renders/${r.id}/posted`, { method: "POST", body: { url: input.value } });
       r.posts = updated.posts;
       if (updated.warning) banner(updated.warning);
       renderPerf();
       refreshRenders().catch(() => {});
-    }) }, s ? "Refresh" : "Get stats");
-    const stats = s
-      ? [["views", platform === "instagram" ? "plays" : "views"], ["likes", "likes"], ["comments", "comments"], ["shares", "shares"], ["saves", "saves"]]
-          .filter(([k]) => s[k] !== undefined)
-      : [];
-    return h("div", { class: "perf-platform" },
-      h("span", { class: "d-label" }, label),
-      stats.length ? h("div", { class: "perf-stats", style: { gridTemplateColumns: `repeat(${stats.length}, 1fr)` } },
-        ...stats.map(([k, name]) => h("span", { class: "perf-stat" }, h("b", {}, fmtViews(s[k])), h("small", {}, name)))) : null,
-      s && p.fetchedAt ? h("p", { class: "d-hint" }, `Updated ${ago(p.fetchedAt)}`) : null,
-      p?.error && !s ? h("p", { class: "d-hint" }, p.error) : null,
-      h("div", { class: "perf-row" }, input, go),
-    );
+    }) }, "Get stats");
+    return h("div", { class: "perf-row" }, input, go);
   };
   const renderPerf = () =>
     perf.replaceChildren(
       h("div", { class: "d-sec-head" }, h("span", {}, "Performance")),
-      platformRow("tiktok", "TikTok", "Posted? Paste the TikTok link"),
-      platformRow("instagram", "Instagram", "Posted? Paste the Instagram Reel link"),
+      ...(r.posts ?? []).map(platformStats),
+      linkRow(),
       h("p", { class: "d-hint" }, "Once you post it, the views show up here by themselves within a few hours."),
       h("p", { class: "d-hint admin-only" },
         "Found automatically on your profiles a few hours after you post (paste the description Rollcut wrote; small edits are fine), " +
@@ -1188,7 +1194,7 @@ function detailsBody(r) {
             await refreshRenders();
           });
         } }, "Make again") : null,
-        featureOn("collab") ? h("button", { class: "d-link", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version") : null,
+        featureOn("collab") ? h("button", { class: "d-link admin-only", onclick: () => (collabEdit.hidden = !collabEdit.hidden) }, "Collab version") : null,
       ),
       plan.collab ? h("span", { class: "collab-badge" }, `Collab · ${plan.collab.name}`) : null,
       !plan.collab && KIND_LABEL[plan.format] ? h("span", { class: "collab-badge admin-only" }, KIND_LABEL[plan.format]) : null,
@@ -1199,6 +1205,7 @@ function detailsBody(r) {
     h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Caption"), h("span", { class: "d-actions" }, newCaptionBtn, editCaptionBtn, copyBtn)),
       captionText,
+      moreCaption,
       captionEdit,
       tags.length ? h("div", { class: "d-chips" },
         tags.map((t) => h("span", { class: "chip" }, `#${t}`, posts.has(t) ? h("small", { class: "admin-only" }, ` ${fmtViews(posts.get(t))}`) : null))) : null,
@@ -1349,18 +1356,21 @@ function soundsSection(r) {
   if (r.status !== "done") return null;
   const list = h("ul", { class: "sounds" }, h("li", { class: "muted" }, "Finding sounds that fit…"));
   api(`/api/renders/${r.id}/sounds`)
-    .then(({ sounds, trending }) =>
+    .then(({ sounds, trending }) => {
+      // Nothing to suggest: the section is only for admins (who can read new sounds in Search).
+      sec.classList.toggle("admin-only", !sounds.length);
       list.replaceChildren(
         ...(sounds.length
           ? sounds.map((x) => soundRow(x, x.why))
           : [h("li", { class: "muted" }, trending ? "None of the trending sounds fit this one." : "No trending sounds yet: they're read every few days (Search page → Trending sounds).")]),
-      ),
-    )
+      );
+    })
     .catch(() => list.replaceChildren(h("li", { class: "muted" }, "Couldn't load sounds.")));
-  return h("section", { class: "d-sec" },
+  const sec = h("section", { class: "d-sec" },
     h("div", { class: "d-sec-head" }, h("span", {}, "Trending sounds that fit")),
     h("p", { class: "d-hint" }, "Picking up fast on TikTok right now. Open one in TikTok, tap Use this sound, and keep the video's own sound low."),
     list);
+  return sec;
 }
 
 async function refreshSoundsList(force = false) {

@@ -1166,3 +1166,25 @@ section[data-tab="ready"] > :not(.tiles) { margin-left: 16px; margin-right: 16px
 .details-actions { background: linear-gradient(to top, var(--bg) 60%, transparent) !important; border: 0 !important; }
 .today-bar .slot { background: transparent; border: 1px solid #444746; color: var(--muted); }
 .today-bar .slot.done { background: var(--tonal); color: var(--on-tonal); border-color: transparent; }
+
+/* The video card: the video edge to edge on top, the rest below with room to breathe */
+.sheet { padding: 0 !important; flex-direction: column; align-items: center; }
+.sheet:not([hidden]) { display: flex !important; }
+.sheet-card { margin-top: auto; flex: none; }
+.sheet-card { width: min(100%, 480px); padding: 0 0 18px; gap: 0; border-radius: 28px 28px 0 0; background: var(--surface) !important; overflow: hidden; }
+@media (min-width: 600px) { .sheet { padding: 24px !important; } .sheet-card { border-radius: 28px; margin-bottom: auto; } }
+.sheet-media { border-radius: 0; background: #000; }
+.sheet-media video { width: 100%; aspect-ratio: 9 / 16; max-height: 78svh; object-fit: cover; background: #000; }
+.sheet-close { top: 12px; right: 12px; background: rgba(0,0,0,.5) !important; color: #fff !important; backdrop-filter: blur(10px); }
+.sheet-card .d { padding: 6px 20px 0; }
+.sheet-card .sheet-actions { padding: 8px 20px 0; }
+.sheet-card .d-head { padding-top: 10px; }
+.d-caption.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; padding-bottom: 0; border-bottom: 12px solid var(--surface-2); }
+.d-more { justify-self: start; margin-top: -2px; }
+.sheet-actions .quiet-btn, .quiet-btn { background: transparent !important; color: var(--err) !important; box-shadow: none !important; }
+/* inputs stay dark wherever older styles made them white */
+input, select, textarea, .perf-input { background: var(--surface-2) !important; color: var(--ink) !important; }
+.perf-row { display: flex; gap: 8px; }
+.perf-row .perf-input { flex: 1; min-width: 0; height: 44px; border-radius: 22px; padding: 0 16px; }
+.perf-row .btn { height: 44px; border-radius: 22px; padding: 0 18px; }
+.perf-platform { display: grid; gap: 6px; margin-bottom: 10px; }

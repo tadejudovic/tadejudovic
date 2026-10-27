@@ -4,76 +4,57 @@
 <meta charset="utf-8">
 <title>Lex Vitals Overlay</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=JetBrains+Mono:wght@700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Inter:wght@400;600&display=swap');
   :root {
-    --card: rgba(14, 16, 22, 0.72);
-    --line: rgba(255, 255, 255, 0.14);
-    --text: #ffffff;
-    --muted: rgba(255, 255, 255, 0.62);
-    --low: #3ddc84;
-    --med: #ffb020;
-    --high: #ff4d5e;
+    --bg: rgba(11, 11, 11, 0.88);
+    --line: #2b2b2b;
+    --accent: #7b6cf6;
+    --text: #f4f1ea;
+    --muted: #a9a59c;
   }
   html, body { margin: 0; width: 1080px; height: 1920px; background: transparent; overflow: hidden; }
-  body.preview { background: #556 linear-gradient(160deg, #6b7a8f, #2b3240); }
-  #card {
-    position: absolute; left: 60px; top: 230px; width: 600px;
-    padding: 30px 34px 32px; box-sizing: border-box;
-    background: var(--card); border: 2px solid var(--line); border-radius: 36px;
+  body.preview { background: linear-gradient(160deg, #6b7a8f, #2b3240); }
+  #grid {
+    position: absolute; left: 60px; top: 230px; width: 840px;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    background: var(--bg); border: 2px solid var(--line);
     font-family: Inter, system-ui, sans-serif; color: var(--text);
-    backdrop-filter: blur(10px);
   }
-  .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
-  .title { font-weight: 800; font-size: 30px; letter-spacing: 0.04em; }
-  .live { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 22px; color: var(--muted); letter-spacing: 0.12em; }
-  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--high); }
-  .stage {
-    display: inline-block; font-weight: 800; font-size: 24px; letter-spacing: 0.14em;
-    padding: 8px 16px; border-radius: 12px; background: rgba(255,255,255,0.12); margin-bottom: 22px;
-  }
-  .row { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 16px 0; border-top: 2px solid var(--line); }
-  .label { font-weight: 700; font-size: 22px; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 8px; }
-  .value { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 58px; line-height: 1; }
-  .unit { font-family: Inter, sans-serif; font-size: 22px; font-weight: 700; color: var(--muted); margin-left: 8px; }
-  canvas { display: block; }
-  .meter { width: 210px; height: 22px; border-radius: 11px; background: rgba(255,255,255,0.14); overflow: hidden; }
-  .fill { height: 100%; border-radius: 11px; }
-  .level { font-weight: 800; font-size: 26px; letter-spacing: 0.1em; text-align: right; margin-top: 10px; }
+  .tile { padding: 30px 28px 32px; border-left: 2px solid var(--line); }
+  .tile:first-child { border-left: 0; }
+  .label { display: flex; align-items: center; gap: 12px; color: var(--accent); font-weight: 600; font-size: 20px; letter-spacing: 0.2em; }
+  .label svg { width: 30px; height: 30px; flex: none; }
+  .num { margin-top: 26px; font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: 78px; line-height: 1; }
+  .unit { font-family: Inter, sans-serif; font-size: 26px; color: var(--muted); margin-left: 10px; }
+  .sub { margin-top: 18px; font-size: 24px; color: var(--muted); }
+  #heart { transform-origin: center; }
 </style>
 </head>
 <body>
-<div id="card">
-  <div class="head">
-    <div class="title">LEX · VITALS</div>
-    <div class="live"><div class="dot" id="dot"></div>LIVE</div>
+<div id="grid">
+  <div class="tile">
+    <div class="label">
+      <svg id="heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
+      HEART RATE
+    </div>
+    <div class="num"><span id="hr">--</span><span class="unit">bpm</span></div>
+    <div class="sub" id="hrSub">Resting range</div>
   </div>
-  <div class="stage" id="stage">CHECK-IN</div>
-
-  <div class="row">
-    <div>
-      <div class="label">HEART RATE</div>
-      <div><span class="value" id="hr">--</span><span class="unit">BPM</span></div>
+  <div class="tile">
+    <div class="label">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8"/></svg>
+      BREATHING
     </div>
-    <canvas id="ecg" width="230" height="90"></canvas>
+    <div class="num"><span id="br">--</span><span class="unit">br/min</span></div>
+    <div class="sub" id="brSub">Calm &amp; steady</div>
   </div>
-
-  <div class="row">
-    <div>
-      <div class="label">BREATHING</div>
-      <div><span class="value" id="br">--</span><span class="unit">BR/MIN</span></div>
+  <div class="tile">
+    <div class="label">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>
+      STRESS
     </div>
-    <canvas id="lung" width="230" height="90"></canvas>
-  </div>
-
-  <div class="row">
-    <div>
-      <div class="label">STRESS</div>
-      <div><span class="value" id="st">--</span><span class="unit">/ 100</span></div>
-    </div>
-    <div>
-      <div class="meter"><div class="fill" id="fill"></div></div>
-      <div class="level" id="level">LOW</div>
-    </div>
+    <div class="num"><span id="st">--</span></div>
+    <div class="sub" id="stSub">Relaxed</div>
   </div>
 </div>
 
@@ -92,97 +73,39 @@ const FPS = 30;
 const TOTAL = STAGES.reduce((s, x) => s + x.seconds, 0);
 const ease = (x) => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
 
-function stageAt(t) {
-  let start = 0;
-  for (let i = 0; i < STAGES.length; i++) {
-    if (t < start + STAGES[i].seconds || i === STAGES.length - 1) return { i, local: t - start };
-    start += STAGES[i].seconds;
-  }
-}
-
 function valuesAt(t) {
-  const { i, local } = stageAt(t);
+  let start = 0, i = 0;
+  while (i < STAGES.length - 1 && t >= start + STAGES[i].seconds) start += STAGES[i++].seconds;
   const cur = STAGES[i], prev = STAGES[Math.max(0, i - 1)];
-  const k = i === 0 ? 1 : ease(local / 1.0);
+  const k = i === 0 ? 1 : ease((t - start) / 1.0);
   const mix = (key) => prev[key] + (cur[key] - prev[key]) * k;
-  // small deterministic jitter so the numbers feel live
   const j = (f, a) => Math.sin(t * f) * a + Math.sin(t * f * 2.3 + 1) * a * 0.5;
-  return {
-    name: cur.name,
-    hr: mix('hr') + j(1.7, 2),
-    br: mix('br') + j(0.9, 0.8),
-    stress: Math.max(0, Math.min(100, mix('stress') + j(0.6, 2))),
-  };
+  return { hr: mix('hr') + j(1.7, 1.5), br: mix('br') + j(0.9, 0.6), stress: mix('stress') };
 }
 
-// integrate rate over time so the waveform speed follows the value smoothly
-function phase(t, key) {
-  const dt = 1 / FPS; let p = 0;
-  for (let s = 0; s < t; s += dt) p += (valuesAt(s)[key] / 60) * dt;
-  return p;
-}
+const band = (v, lo, hi, words) => words[v < lo ? 0 : v < hi ? 1 : 2];
 
-function levelOf(s) {
-  if (s < 35) return ['LOW', 'var(--low)'];
-  if (s < 65) return ['MEDIUM', 'var(--med)'];
-  return ['HIGH', 'var(--high)'];
-}
-
-function ecgShape(x) {
-  // one heartbeat cycle, x in [0,1)
-  const g = (c, w, a) => a * Math.exp(-((x - c) ** 2) / (2 * w * w));
-  return g(0.18, 0.03, 0.12) - g(0.36, 0.012, 0.15) + g(0.4, 0.014, 1) - g(0.44, 0.014, 0.25) + g(0.66, 0.05, 0.25);
-}
-
-function drawECG(t, hr, color) {
-  const c = document.getElementById('ecg'), ctx = c.getContext('2d');
-  ctx.clearRect(0, 0, c.width, c.height);
-  const p = phase(t, 'hr');
-  const beatsVisible = 2.2;
-  ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  ctx.strokeStyle = color; ctx.beginPath();
-  for (let px = 0; px <= c.width; px++) {
-    const b = p - beatsVisible * (1 - px / c.width);
-    const x = ((b % 1) + 1) % 1;
-    const y = c.height * 0.68 - ecgShape(x) * c.height * 0.55;
-    px === 0 ? ctx.moveTo(px, y) : ctx.lineTo(px, y);
-  }
-  ctx.stroke();
-}
-
-function drawLung(t, color) {
-  const c = document.getElementById('lung'), ctx = c.getContext('2d');
-  ctx.clearRect(0, 0, c.width, c.height);
-  const p = phase(t, 'br');
-  ctx.lineWidth = 5; ctx.strokeStyle = color; ctx.lineCap = 'round'; ctx.beginPath();
-  for (let px = 0; px <= c.width; px++) {
-    const b = p - 1.6 * (1 - px / c.width);
-    const y = c.height / 2 - Math.sin(b * Math.PI * 2) * c.height * 0.32;
-    px === 0 ? ctx.moveTo(px, y) : ctx.lineTo(px, y);
-  }
-  ctx.stroke();
+// heart icon beats at the current heart rate
+function beatPhase(t) {
+  let p = 0;
+  for (let s = 0; s < t; s += 1 / FPS) p += (valuesAt(s).hr / 60) / FPS;
+  return p % 1;
 }
 
 function render(t) {
   const v = valuesAt(t);
-  const [lvl, color] = levelOf(v.stress);
-  const resolved = getComputedStyle(document.documentElement).getPropertyValue(color.slice(4, -1)).trim();
-  document.getElementById('stage').textContent = v.name;
   document.getElementById('hr').textContent = Math.round(v.hr);
   document.getElementById('br').textContent = Math.round(v.br);
-  document.getElementById('st').textContent = Math.round(v.stress);
-  document.getElementById('fill').style.width = v.stress + '%';
-  document.getElementById('fill').style.background = color;
-  document.getElementById('level').textContent = lvl;
-  document.getElementById('level').style.color = color;
-  document.getElementById('dot').style.opacity = (Math.floor(t * 2) % 2) ? 0.25 : 1;
-  drawECG(t, v.hr, resolved);
-  drawLung(t, '#7cc7ff');
+  document.getElementById('st').textContent = band(v.stress, 35, 65, ['Low', 'Medium', 'High']);
+  document.getElementById('hrSub').textContent = band(v.hr, 100, 130, ['Resting range', 'Elevated', 'Racing']);
+  document.getElementById('brSub').textContent = band(v.br, 22, 30, ['Calm & steady', 'Picking up', 'Fast']);
+  document.getElementById('stSub').textContent = band(v.stress, 35, 65, ['Relaxed', 'Alert', 'Stressed']);
+  const b = beatPhase(t);
+  document.getElementById('heart').style.transform = `scale(${1 + 0.18 * Math.exp(-b * 9)})`;
 }
 
 window.OVERLAY = { render, TOTAL, FPS };
 
-// live preview when opened directly in a browser
 if (!navigator.webdriver) {
   document.body.classList.add('preview');
   const t0 = performance.now();

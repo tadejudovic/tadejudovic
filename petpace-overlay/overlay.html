@@ -15,18 +15,17 @@
   html, body { margin: 0; width: 1080px; height: 1920px; background: transparent; overflow: hidden; }
   body.preview { background: linear-gradient(160deg, #6b7a8f, #2b3240); }
   #grid {
-    position: absolute; left: 60px; top: 230px; width: 840px;
-    display: grid; grid-template-columns: repeat(3, 1fr);
+    position: absolute; left: 48px; top: 560px; width: 340px;
+    display: grid; grid-template-columns: 1fr;
     background: var(--bg); border: 2px solid var(--line);
     font-family: Inter, system-ui, sans-serif; color: var(--text);
   }
-  .tile { padding: 30px 28px 32px; border-left: 2px solid var(--line); }
-  .tile:first-child { border-left: 0; }
+  .tile { padding: 26px 28px 28px; border-top: 2px solid var(--line); }
+  .tile:first-child { border-top: 0; }
   .label { display: flex; align-items: center; gap: 12px; color: var(--accent); font-weight: 600; font-size: 20px; letter-spacing: 0.2em; }
   .label svg { width: 30px; height: 30px; flex: none; }
-  .num { margin-top: 26px; font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: 78px; line-height: 1; }
+  .num { margin-top: 18px; font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: 78px; line-height: 1; }
   .unit { font-family: Inter, sans-serif; font-size: 26px; color: var(--muted); margin-left: 10px; }
-  .sub { margin-top: 18px; font-size: 24px; color: var(--muted); }
   #heart { transform-origin: center; }
 </style>
 </head>
@@ -38,7 +37,6 @@
       HEART RATE
     </div>
     <div class="num"><span id="hr">--</span><span class="unit">bpm</span></div>
-    <div class="sub" id="hrSub">Resting range</div>
   </div>
   <div class="tile">
     <div class="label">
@@ -46,7 +44,6 @@
       BREATHING
     </div>
     <div class="num"><span id="br">--</span><span class="unit">br/min</span></div>
-    <div class="sub" id="brSub">Calm &amp; steady</div>
   </div>
   <div class="tile">
     <div class="label">
@@ -54,7 +51,6 @@
       STRESS
     </div>
     <div class="num"><span id="st">--</span></div>
-    <div class="sub" id="stSub">Relaxed</div>
   </div>
 </div>
 
@@ -97,9 +93,6 @@ function render(t) {
   document.getElementById('hr').textContent = Math.round(v.hr);
   document.getElementById('br').textContent = Math.round(v.br);
   document.getElementById('st').textContent = band(v.stress, 35, 65, ['Low', 'Medium', 'High']);
-  document.getElementById('hrSub').textContent = band(v.hr, 100, 130, ['Resting range', 'Elevated', 'Racing']);
-  document.getElementById('brSub').textContent = band(v.br, 22, 30, ['Calm & steady', 'Picking up', 'Fast']);
-  document.getElementById('stSub').textContent = band(v.stress, 35, 65, ['Relaxed', 'Alert', 'Stressed']);
   const b = beatPhase(t);
   document.getElementById('heart').style.transform = `scale(${1 + 0.18 * Math.exp(-b * 9)})`;
 }

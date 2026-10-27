@@ -1333,115 +1333,162 @@ const soundRow = (x, note) =>
     h("a", { class: "btn small", href: x.url, target: "_blank", rel: "noopener noreferrer" }, "Open in TikTok"));
 
 /** Trending sounds that fit this video, loaded when the details open (TikTok adds the sound when posting). */
-// The video's shots in order, like an editor's timeline. Tap a shot and the video above jumps to it;
-// hold it for a small menu (swap, cut, never use, play the original); drag it down to cut it.
-// Changed shots are tagged; Apply draws the video again with the same text.
-const SHOT_LABEL = { swap: "Swap", remove: "Cut", never: "Never use" };
+// The video's shots in order, like an editor's timeline, edited by hand:
+//   tap: the video above jumps to the shot (and it's selected, showing its ends);
+//   drag up: delete it; drag down: other footage instead (again: undo);
+//   hold, then slide left or right: move it; pull either end of the selected shot: trim it.
+// Apply draws the video again with the same text, at the same length.
+const SHOT_PX = 40; // a second of footage, in pixels of strip
 function shotsSection(r) {
   if (r.status !== "done" || r.posts?.length || !r.plan.segments?.length) return null;
   let shots = [];
-  const picks = [];
+  let sel = -1;
+  const act = [];
+  const trim = [];
   const strip = h("div", { class: "shots", role: "listbox", "aria-label": "Shots" }, h("span", { class: "muted" }, "Loading shots…"));
-  const menu = h("div", { class: "shot-menu", hidden: true, role: "menu" });
+  const order = () => [...strip.children].map((c) => Number(c.dataset.i));
+  const changes = () => {
+    const moved = order().some((x, k) => x !== k);
+    const trimmed = shots.filter((s) => trim[s.index].start !== s.start || trim[s.index].end !== s.end);
+    return { moved, trimmed, n: act.filter((x) => x !== "keep").length + trimmed.length + (moved ? 1 : 0) };
+  };
   const apply = h("button", { class: "btn primary shot-apply", hidden: true, onclick: (e) => {
-    if (picks.every((a) => a === "remove")) return banner("Keep at least one shot.", "error");
+    if (act.every((a) => a === "remove")) return banner("Keep at least one shot.", "error");
+    const { trimmed } = changes();
     withBusy(e.currentTarget, "Starting…", async () => {
-      await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: picks } });
+      await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: act, order: order(), trims: trimmed.map((s) => ({ index: s.index, ...trim[s.index] })) } });
       banner("Drawing it again with your changes. It reappears in a minute with the same text.", "ok");
       await refreshRenders();
     });
   } });
-  const section = h("section", { class: "d-sec shots-sec" },
-    h("div", { class: "d-sec-head" }, h("span", {}, "Shots"), h("span", { class: "shot-hint" }, "Hold for options · drag down to cut")),
-    strip, menu, apply);
+  const TAG = { swap: "New footage", remove: "Deleted" };
+  const seconds = (i) => (trim[i].end - trim[i].start) / shots[i].speed;
   const draw = () => {
-    for (const [i, card] of [...strip.children].entries()) {
-      card.dataset.a = picks[i];
+    for (const card of strip.children) {
+      const i = Number(card.dataset.i);
+      card.dataset.a = act[i];
+      card.classList.toggle("sel", i === sel && act[i] !== "remove");
+      card.style.width = `${Math.max(36, seconds(i) * SHOT_PX)}px`;
+      card.querySelector(".shot-time").textContent = `${seconds(i).toFixed(1)}s`;
       const tag = card.querySelector(".shot-tag");
-      tag.textContent = SHOT_LABEL[picks[i]] ?? "";
-      tag.hidden = !SHOT_LABEL[picks[i]];
+      tag.textContent = TAG[act[i]] ?? "";
+      tag.hidden = !TAG[act[i]];
     }
-    const n = picks.filter((x) => x !== "keep").length;
+    const { n } = changes();
     apply.hidden = !n;
     apply.textContent = `Apply ${n} change${n > 1 ? "s" : ""}`;
   };
-  const closeMenu = () => { menu.hidden = true; strip.querySelector(".held")?.classList.remove("held"); };
-  const openMenu = (i, card) => {
-    const s = shots[i];
-    const item = (label, action) => h("button", { role: "menuitem", class: picks[i] === action ? "on" : "", onclick: () => { picks[i] = action; closeMenu(); draw(); } }, label);
-    menu.replaceChildren(...[
-      h("b", {}, `Shot ${i + 1} · ${s.from.toFixed(1)}–${s.to.toFixed(1)}s`),
-      item("Swap for other footage", "swap"),
-      item("Cut it", "remove"),
-      item("Never use this clip", "never"),
-      picks[i] !== "keep" ? item("Keep it", "keep") : null,
-      h("button", { role: "menuitem", onclick: () => { closeMenu(); openClip(s.clipId); } }, "Play the original"),
-    ].filter(Boolean));
-    card.classList.add("held");
-    // Above the shot it belongs to, kept inside the card.
-    const left = card.offsetLeft - strip.scrollLeft + card.offsetWidth / 2;
-    menu.style.left = `${Math.max(110, Math.min(section.clientWidth - 110, left))}px`;
-    // Just under the strip, so the held shot stays in view.
-    menu.style.top = `${strip.offsetTop + strip.offsetHeight + 6}px`;
-    menu.hidden = false;
-  };
   // Tap: the video above jumps to this shot and plays from there.
-  const seek = (s) => {
-    const video = section.closest(".sheet-card, .stack-card")?.querySelector("video");
-    if (!video) return openClip(s.clipId);
-    try { video.currentTime = s.from + 0.05; video.play(); } catch {}
+  const seek = (i) => {
+    const video = strip.closest(".sheet-card, .stack-card")?.querySelector("video");
+    if (!video) return;
+    // Where the shot starts now, in the video as it is (moves and trims show after Apply).
+    try { video.currentTime = shots[i].from + 0.05; video.play(); } catch {}
   };
-  const gestures = (card, s) => {
-    let x0 = 0, y0 = 0, timer = 0, held = false, dragging = false, id = null;
+  const gestures = (card, i) => {
+    let x0 = 0, y0 = 0, timer = 0, mode = "", id = null, shift = 0;
     card.addEventListener("pointerdown", (e) => {
-      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; held = false; dragging = false;
-      timer = setTimeout(() => { held = true; navigator.vibrate?.(10); openMenu(s.index, card); }, 450);
+      if (e.target.closest(".trim")) return;
+      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; mode = ""; shift = 0;
+      // Held still for a moment: lifted, to be moved left or right.
+      timer = setTimeout(() => { mode = "move"; card.classList.add("lifted"); card.setPointerCapture(id); navigator.vibrate?.(10); }, 280);
     });
     card.addEventListener("pointermove", (e) => {
       if (e.pointerId !== id) return;
       const dx = e.clientX - x0, dy = e.clientY - y0;
-      if (!dragging && Math.abs(dx) > 8) clearTimeout(timer);
-      if (!dragging && dy > 10 && dy > Math.abs(dx)) { dragging = true; clearTimeout(timer); card.setPointerCapture(id); }
-      if (dragging) {
-        const d = Math.max(0, dy);
-        card.style.transform = `translateY(${d}px) rotate(${Math.min(8, d / 10)}deg)`;
-        card.style.opacity = String(Math.max(0.25, 1 - d / 140));
+      if (!mode && Math.abs(dx) > 8) { clearTimeout(timer); id = null; return; } // a swipe: the strip scrolls
+      if (!mode && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { mode = "vertical"; clearTimeout(timer); card.setPointerCapture(id); }
+      if (mode === "vertical") {
+        card.style.transform = `translateY(${dy}px)`;
+        card.style.opacity = String(Math.max(0.3, 1 - Math.abs(dy) / 150));
+      }
+      if (mode === "move") {
+        // Past the middle of a neighbour: it trades places, and the card keeps following the finger.
+        const off = dx - shift;
+        const sib = off > 0 ? card.nextElementSibling : card.previousElementSibling;
+        if (sib && Math.abs(off) > sib.offsetWidth / 2 + 3) {
+          const w = sib.offsetWidth + 4;
+          if (off > 0) sib.after(card); else sib.before(card);
+          shift += off > 0 ? w : -w;
+        }
+        card.style.transform = `translateX(${dx - shift}px) scale(1.06)`;
       }
     });
     const end = (e) => {
       if (e.pointerId !== id) return;
       clearTimeout(timer);
       id = null;
-      if (dragging) {
-        const cut = e.clientY - y0 > 60;
-        card.style.transform = card.style.opacity = "";
-        if (cut) { picks[s.index] = picks[s.index] === "remove" ? "keep" : "remove"; navigator.vibrate?.(15); draw(); }
-      } else if (!held && e.type === "pointerup") seek(s);
-      dragging = false;
+      const dy = e.clientY - y0;
+      card.style.transform = card.style.opacity = "";
+      card.classList.remove("lifted");
+      if (mode === "vertical" && Math.abs(dy) > 50) {
+        const want = dy < 0 ? "remove" : "swap";
+        act[i] = act[i] === want ? "keep" : want;
+        navigator.vibrate?.(15);
+      } else if (!mode && e.type === "pointerup") {
+        if (act[i] === "remove") act[i] = "keep"; // tapping a deleted shot brings it back
+        sel = i;
+        seek(i);
+      }
+      mode = "";
+      draw();
     };
     card.addEventListener("pointerup", end);
     card.addEventListener("pointercancel", end);
     card.addEventListener("contextmenu", (e) => e.preventDefault());
+    // The ends of the selected shot: pulled in or out, a second for every SHOT_PX pixels.
+    for (const side of ["start", "end"]) {
+      const grip = card.querySelector(`.trim.${side}`);
+      let gx = 0, from = 0;
+      grip.addEventListener("pointerdown", (e) => { e.stopPropagation(); gx = e.clientX; from = trim[i][side]; grip.setPointerCapture(e.pointerId); grip.classList.add("on"); });
+      grip.addEventListener("pointermove", (e) => {
+        if (!grip.hasPointerCapture(e.pointerId)) return;
+        const d = ((e.clientX - gx) / SHOT_PX) * shots[i].speed;
+        const t = trim[i];
+        if (side === "start") t.start = Math.max(0, Math.min(t.end - 0.5, from + d));
+        else t.end = Math.min(shots[i].clipDuration, Math.max(t.start + 0.5, from + d));
+        draw();
+      });
+      const stop = (e) => { grip.releasePointerCapture?.(e.pointerId); grip.classList.remove("on"); };
+      grip.addEventListener("pointerup", stop);
+      grip.addEventListener("pointercancel", stop);
+    }
   };
-  section.addEventListener("pointerdown", (e) => { if (!menu.hidden && !menu.contains(e.target) && !e.target.closest(".shot")) closeMenu(); });
   api(`/api/renders/${r.id}/timeline`)
     .then((list) => {
       shots = list;
-      list.forEach((s) => (picks[s.index] = "keep"));
+      for (const s of list) { act[s.index] = "keep"; trim[s.index] = { start: s.start, end: s.end }; }
       strip.replaceChildren(
         ...list.map((s) => {
-          const card = h("div", { class: "shot", role: "option", tabindex: "0", "aria-label": `Shot ${s.index + 1}, ${s.from.toFixed(1)} to ${s.to.toFixed(1)} seconds. Hold for options.`, style: { flexBasis: `${Math.max(56, Math.min(120, (s.to - s.from) * 34))}px` } },
+          const card = h("div", { class: "shot", role: "option", tabindex: "0", "data-i": String(s.index), "aria-label": `Shot ${s.index + 1}` },
             h("img", { src: s.frame, alt: "", loading: "lazy", draggable: "false" }),
-            h("span", { class: "shot-time" }, `${(s.to - s.from).toFixed(1)}s`),
-            h("span", { class: "shot-tag", hidden: true }));
-          gestures(card, s);
-          card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMenu(s.index, card); } });
+            h("span", { class: "shot-time" }),
+            h("span", { class: "shot-tag", hidden: true }),
+            h("span", { class: "trim start", "aria-label": "Pull to trim the start" }),
+            h("span", { class: "trim end", "aria-label": "Pull to trim the end" }));
+          gestures(card, s.index);
+          // Keyboard: Delete removes, R puts other footage in, arrows move it.
+          card.addEventListener("keydown", (e) => {
+            const i = s.index;
+            if (e.key === "Delete" || e.key === "Backspace") act[i] = act[i] === "remove" ? "keep" : "remove";
+            else if (e.key.toLowerCase() === "r") act[i] = act[i] === "swap" ? "keep" : "swap";
+            else if (e.key === "ArrowLeft" && card.previousElementSibling) card.previousElementSibling.before(card);
+            else if (e.key === "ArrowRight" && card.nextElementSibling) card.nextElementSibling.after(card);
+            else return;
+            e.preventDefault();
+            card.focus();
+            draw();
+          });
           return card;
         }));
       draw();
     })
     .catch(() => strip.replaceChildren(h("span", { class: "muted" }, "Couldn't load the shots.")));
-  return section;
+  return h("section", { class: "d-sec shots-sec" },
+    h("div", { class: "d-sec-head" }, h("span", {}, "Shots")),
+    strip,
+    h("p", { class: "shot-hint" }, "Drag up to delete · down for other footage · hold to move · pull the ends to trim"),
+    apply);
 }
 
 function soundsSection(r) {

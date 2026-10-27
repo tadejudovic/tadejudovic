@@ -42,3 +42,21 @@ test("shots from the timeline: swap, cut and never use keep the video's length a
   video("v3");
   assert.throws(() => editShots("v3", ["remove", "remove", "remove"]), /at least one/);
 });
+
+test("shots can be moved and trimmed, and the video keeps its length", () => {
+  clip("m1", "airport terminal");
+  clip("m2", "inside airplane");
+  clip("m3", "hotel room");
+  const overlays = [{ text: "x", start: 0, end: 6 }];
+  store.addRender({ id: "v4", createdAt: new Date().toISOString(), status: "done", progress: 1, review: "pending", options: {} as any,
+    plan: { format: "fun", overlays, hook: "x", segments: [{ clipId: "m1", start: 0, end: 2, speed: 1 }, { clipId: "m2", start: 2, end: 4, speed: 1 }, { clipId: "m3", start: 1, end: 3, speed: 1 }] } } as any);
+  const fresh = editShots("v4", [], { order: [2, 0, 1], trims: [{ index: 0, start: 0.5, end: 2 }] });
+  const segs = fresh.plan.segments;
+  assert.deepEqual(segs.map((x: any) => x.clipId), ["m3", "m1", "m2"]);
+  assert.equal(segs[1].start, 0.5, "the first shot was pulled in at its start");
+  assert.ok(Math.abs(len(segs) - 6) < 0.05, `still 6 s, got ${len(segs)}`);
+  // An order that isn't every shot once is ignored.
+  store.addRender({ id: "v5", createdAt: new Date().toISOString(), status: "done", progress: 1, review: "pending", options: {} as any,
+    plan: { format: "fun", overlays, hook: "x", segments: [{ clipId: "m1", start: 0, end: 2, speed: 1 }, { clipId: "m2", start: 2, end: 4, speed: 1 }] } } as any);
+  assert.deepEqual(editShots("v5", [], { order: [0, 0] }).plan.segments.map((x: any) => x.clipId), ["m1", "m2"]);
+});

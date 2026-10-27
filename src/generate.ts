@@ -1581,30 +1581,48 @@ function swapFor(seg: Segment, inVideo: Set<string>, scene?: string): Segment | 
  * use this clip again (swapped, and the clip is set aside for good). The text and its timing stay;
  * the video is drawn again in place (same review, editor's notes kept).
  */
-export function editShots(id: string, actions: ShotAction[]): Render {
+export function editShots(
+  id: string,
+  actions: ShotAction[],
+  { order, trims = [] }: { order?: number[]; trims?: { index: number; start: number; end: number }[] } = {},
+): Render {
   const r = store.render(id);
   if (!r || r.status !== "done") throw new Error("That video isn't ready.");
   if (r.posts?.length) throw new Error("This video is already posted.");
-  const segs = r.plan.segments;
-  if (!segs.every((x) => store.clip(x.clipId)?.status === "ready")) throw new Error("Some of this video's footage is no longer in the library: use Make again instead.");
+  if (!r.plan.segments.every((x) => store.clip(x.clipId)?.status === "ready")) throw new Error("Some of this video's footage is no longer in the library: use Make again instead.");
+  // Trimmed shots: the creator pulled an end in or out, within the clip (at least half a second).
+  const segs = r.plan.segments.map((seg, i) => {
+    const t = trims.find((x) => x.index === i);
+    if (!t) return seg;
+    const dur = store.clip(seg.clipId)?.duration ?? seg.end;
+    const start = Math.max(0, Math.min(t.start, dur - 0.5));
+    return { ...seg, start, end: Math.max(start + 0.5, Math.min(t.end, dur)) };
+  });
+  // The order the creator dragged them into (every shot once), or as they were.
+  const valid = order && order.length === segs.length && [...order].sort((a, b) => a - b).every((x, i) => x === i);
+  const sequence = valid ? order : segs.map((_, i) => i);
   const len = (xs: Segment[]) => xs.reduce((a, x) => a + (x.end - x.start) / (x.speed ?? 1), 0);
-  const total = len(segs);
+  const total = len(r.plan.segments);
   const inVideo = new Set(segs.map((x) => x.clipId));
   const out: Segment[] = [];
   const missing: number[] = [];
-  segs.forEach((seg, i) => {
+  for (const i of sequence) {
+    const seg = segs[i];
     const a = actions[i] ?? "keep";
-    if (a === "keep") return void out.push(seg);
+    if (a === "keep") { out.push(seg); continue; }
     if (a === "never") store.updateClip(seg.clipId, { disliked: true });
-    if (a === "remove") return;
+    if (a === "remove") continue;
     const other = swapFor(seg, inVideo, store.clip(seg.clipId)?.scene);
     if (other) out.push(other);
     else missing.push(i);
-  });
+  }
   if (!out.length) throw new Error("Keep at least one shot.");
-  // Removed shots' time: the shots around them play on into their own unused footage, so the text
-  // keeps its timing (or the video gets a little shorter when there's none).
-  const segments = len(out) < total - 0.05 ? trimTo(lengthenFootage(out, total, (cid) => store.clip(cid)?.duration ?? 0), total) : out;
+  // The video keeps its length, so the text keeps its timing: time taken out (a shot removed or
+  // trimmed) goes to the shots around it from their unused footage; time added comes off the end.
+  const segments =
+    len(out) < total - 0.05 ? trimTo(lengthenFootage(out, total, (cid) => store.clip(cid)?.duration ?? 0), total)
+    : len(out) > total + 0.05 ? trimTo(out, total)
+    : out;
   const plan = { ...r.plan, segments, editorPass: EDITOR_ATTEMPTS };
   const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
   store.updateRender(fresh.id, { ...(r.review === "approved" ? { review: "approved", reviewedAt: r.reviewedAt } : {}), ...(r.editor ? { editor: r.editor } : {}) });

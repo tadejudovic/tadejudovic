@@ -1074,7 +1074,7 @@ app.get("/api/renders/:id/timeline", (req, res) => {
     r.plan.segments.map((seg, index) => {
       const clip = store.clip(seg.clipId);
       const seconds = (seg.end - seg.start) / (seg.speed ?? 1);
-      const shot = { index, clipId: seg.clipId, start: seg.start, end: seg.end, from: at, to: at + seconds, scene: clip?.scene, summary: clip?.ai?.summary, missing: clip?.status !== "ready", frame: `/media/frame/${seg.clipId}?t=${((seg.start + seg.end) / 2).toFixed(1)}` };
+      const shot = { index, clipId: seg.clipId, start: seg.start, end: seg.end, clipDuration: clip?.duration ?? seg.end, speed: seg.speed ?? 1, from: at, to: at + seconds, scene: clip?.scene, summary: clip?.ai?.summary, missing: clip?.status !== "ready", frame: `/media/frame/${seg.clipId}?t=${((seg.start + seg.end) / 2).toFixed(1)}` };
       at += seconds;
       return shot;
     }),
@@ -1086,8 +1086,12 @@ app.post(
   h(async (req, res) => {
     const ok: ShotAction[] = ["keep", "swap", "remove", "never"];
     const actions = Array.isArray(req.body?.actions) ? req.body.actions.map((a: unknown) => (ok.includes(a as ShotAction) ? (a as ShotAction) : "keep")) : [];
+    const order = Array.isArray(req.body?.order) ? req.body.order.map(Number).filter(Number.isInteger) : undefined;
+    const trims = Array.isArray(req.body?.trims)
+      ? req.body.trims.map((t: any) => ({ index: Number(t?.index), start: Number(t?.start), end: Number(t?.end) })).filter((t: any) => Number.isInteger(t.index) && Number.isFinite(t.start) && Number.isFinite(t.end))
+      : [];
     try {
-      res.json(editShots(String(req.params.id), actions));
+      res.json(editShots(String(req.params.id), actions, { order, trims }));
     } catch (e) {
       res.status(400).json({ error: (e as Error).message });
     }

@@ -843,19 +843,38 @@ app.get("/media/thumb/:id", (req, res) => {
   res.sendFile(clip.thumb);
 });
 
-// One frame of a clip at a moment (a shot in a video's timeline), made once and kept.
+// One frame of a shot in a video's timeline, made once and kept: from the clip at that moment, or
+// (if the clip's file is gone or can't be read) from the finished video itself, or the clip's cover.
+async function cachedFrame(file: string, t: number, out: string): Promise<boolean> {
+  if (fs.existsSync(out)) return true;
+  try {
+    fs.mkdirSync(config.thumbsDir, { recursive: true });
+    await frameAt(file, t, out, 240);
+    return fs.existsSync(out);
+  } catch (err) {
+    console.warn(`[frame] ${path.basename(file)} at ${t}s:`, (err as Error).message);
+    fs.rmSync(out, { force: true });
+    return false;
+  }
+}
+
 app.get(
   "/media/frame/:id",
   h(async (req, res) => {
     const clip = store.clip(String(req.params.id));
-    if (!clip || clip.status !== "ready" || !fs.existsSync(clip.file)) return void res.sendStatus(404);
-    const t = Math.max(0, Math.min(Number(req.query.t) || 0, Math.max(0, clip.duration - 0.1)));
-    const out = path.join(config.thumbsDir, `shot-${clip.id}-${t.toFixed(1)}.jpg`);
-    if (!fs.existsSync(out)) {
-      fs.mkdirSync(config.thumbsDir, { recursive: true });
-      await frameAt(clip.file, t, out, 240);
+    if (clip?.status === "ready" && fs.existsSync(clip.file)) {
+      const t = Math.max(0, Math.min(Number(req.query.t) || 0, Math.max(0, clip.duration - 0.1)));
+      const out = path.join(config.thumbsDir, `shot-${clip.id}-${t.toFixed(1)}.jpg`);
+      if (await cachedFrame(clip.file, t, out)) return void res.set("Cache-Control", "private, max-age=86400").sendFile(out);
     }
-    res.set("Cache-Control", "private, max-age=86400").sendFile(out);
+    const r = typeof req.query.r === "string" ? store.render(req.query.r) : undefined;
+    if (r?.file && fs.existsSync(r.file)) {
+      const at = Math.max(0, Number(req.query.at) || 0);
+      const out = path.join(config.thumbsDir, `shot-${r.id}-${Math.round(fs.statSync(r.file).mtimeMs)}-${at.toFixed(1)}.jpg`);
+      if (await cachedFrame(r.file, at, out)) return void res.set("Cache-Control", "private, max-age=86400").sendFile(out);
+    }
+    if (clip?.thumb && fs.existsSync(clip.thumb)) return void res.sendFile(clip.thumb);
+    res.sendStatus(404);
   }),
 );
 
@@ -1074,7 +1093,7 @@ app.get("/api/renders/:id/timeline", (req, res) => {
     r.plan.segments.map((seg, index) => {
       const clip = store.clip(seg.clipId);
       const seconds = (seg.end - seg.start) / (seg.speed ?? 1);
-      const shot = { index, clipId: seg.clipId, start: seg.start, end: seg.end, clipDuration: clip?.duration ?? seg.end, speed: seg.speed ?? 1, from: at, to: at + seconds, scene: clip?.scene, summary: clip?.ai?.summary, missing: clip?.status !== "ready", frame: `/media/frame/${seg.clipId}?t=${((seg.start + seg.end) / 2).toFixed(1)}` };
+      const shot = { index, clipId: seg.clipId, start: seg.start, end: seg.end, clipDuration: clip?.duration ?? seg.end, speed: seg.speed ?? 1, from: at, to: at + seconds, scene: clip?.scene, summary: clip?.ai?.summary, missing: clip?.status !== "ready", frame: `/media/frame/${seg.clipId}?t=${((seg.start + seg.end) / 2).toFixed(1)}&r=${r.id}&at=${(at + seconds / 2).toFixed(1)}` };
       at += seconds;
       return shot;
     }),

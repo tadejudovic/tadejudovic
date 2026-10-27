@@ -1461,7 +1461,7 @@ function shotsSection(r) {
       strip.replaceChildren(
         ...list.map((s) => {
           const card = h("div", { class: "shot", role: "option", tabindex: "0", "data-i": String(s.index), "aria-label": `Shot ${s.index + 1}` },
-            h("img", { src: s.frame, alt: "", loading: "lazy", draggable: "false" }),
+            h("img", { src: s.frame, alt: "", loading: "lazy", draggable: "false", onerror: (e) => e.currentTarget.classList.add("gone") }),
             h("span", { class: "shot-time" }),
             h("span", { class: "shot-tag", hidden: true }),
             h("span", { class: "trim start", "aria-label": "Pull to trim the start" }),

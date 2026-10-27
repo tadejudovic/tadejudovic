@@ -1226,3 +1226,4 @@ input, select, textarea, .perf-input { background: var(--surface-2) !important; 
 .shot .trim.on { transform: scale(1.15); }
 .shots .shot.sel .trim { display: block; }
 .shot-tag { white-space: nowrap; }
+.shot img.gone { visibility: hidden; }

@@ -377,8 +377,8 @@ main { max-width: 980px; }
 .stack-why b { font-size: 18px; }
 .why-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 8px; }
 .stack-why[hidden] { display: none; }
-.stack-why button, .shot-why button { border: 1.5px solid #d4d4d8; background: #fff; border-radius: 12px; padding: 12px; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; }
-.stack-why button:hover, .shot-why button:hover { border-color: var(--ink); }
+.stack-why button { border: 1.5px solid #d4d4d8; background: #fff; border-radius: 12px; padding: 12px; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; }
+.stack-why button:hover { border-color: var(--ink); }
 .tab-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 2px; border-radius: 999px;
   background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; vertical-align: 1px; }
 .tab-count[hidden] { display: none; }
@@ -821,29 +821,24 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .sounds .sound { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .sounds .sound .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
-/* Shot timeline in a video's details: a strip of frames (width ~ length), then ✗ / ✓ for the
-   selected shot like the feed */
-.shots { display: flex; gap: 4px; overflow-x: auto; padding: 4px 4px 6px; scrollbar-width: none; }
+/* Shot timeline in a video's details: a strip of frames (width ~ length), one bar for the selected shot */
+.shots { display: flex; gap: 4px; overflow-x: auto; padding: 3px 3px 6px; scrollbar-width: none; }
 .shots::-webkit-scrollbar { display: none; }
 .shot { position: relative; flex: 0 0 auto; height: 96px; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--line); cursor: pointer; }
 .shot img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .15s; }
-.shot.sel { box-shadow: 0 0 0 2px var(--bg, #fff), 0 0 0 4px var(--ink, #111); }
+.shot.sel { box-shadow: 0 0 0 2px var(--bg, #fff), 0 0 0 4px var(--accent); }
 .shot-time { position: absolute; right: 4px; bottom: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 4px; }
-.shot-mark { display: none; position: absolute; left: 4px; top: 4px; width: 20px; height: 20px; border-radius: 999px; place-items: center; color: #fff; }
-.shot-mark svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
-.shot-mark.yes { background: #16a34a; }
-.shot-mark.no { background: #dc2626; }
-.shot[data-a="keep"] .shot-mark.yes, .shot[data-a="swap"] .shot-mark.no, .shot[data-a="remove"] .shot-mark.no, .shot[data-a="never"] .shot-mark.no { display: grid; }
-.shot[data-a="swap"] img, .shot[data-a="remove"] img, .shot[data-a="never"] img { opacity: .35; }
-.shot-bar { display: grid; gap: 6px; margin-top: 6px; padding: 12px 14px 30px; border: 1px solid var(--line); border-radius: 16px; }
-.shot-info { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
-.shot-sum { margin: 0; font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.shot-vote { gap: 48px; margin-top: 6px; }
-.shot-vote .round { width: 58px; height: 58px; }
-.shot-vote .round svg { width: 26px; height: 26px; }
-.shot-vote .round.no.on { background: #dc2626; color: #fff; }
-.shot-vote .round.yes:not(.on) { background: #fff; color: #16a34a; box-shadow: 0 6px 18px rgba(22,163,74,.18); }
-.shot-why { display: grid; gap: 4px; margin-top: 26px; justify-items: center; font-size: 14px; }
-.shot-why .why-options button:last-child { grid-column: 1 / -1; }
-.shot-why .why-options button.on { background: var(--ink, #111); color: #fff; border-color: var(--ink, #111); }
+.shot-tag { position: absolute; left: 4px; top: 4px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 5px; }
+.shot[data-a="remove"] img, .shot[data-a="never"] img { opacity: .3; }
+.shot[data-a="never"] .shot-tag { background: #dc2626; }
+.shot-bar { display: grid; gap: 8px; margin-top: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; }
+.shot-info { display: grid; gap: 2px; font-size: 13px; min-width: 0; }
+.shot-info .muted { font-size: 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.shot-btns { display: flex; gap: 4px; }
+.shot-btn { flex: 1; display: grid; justify-items: center; gap: 3px; padding: 6px 2px; border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+.shot-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.shot-btn:first-child svg { fill: currentColor; stroke: none; }
+.shot-btn:hover { background: var(--line); }
+.shot-btn.on { background: var(--accent); color: #fff; }
+.shot-btn.danger.on { background: #dc2626; }
 .shot-apply { width: 100%; margin-top: 8px; }

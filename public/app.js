@@ -1226,16 +1226,15 @@ const soundRow = (x, note) =>
     h("a", { class: "btn small", href: x.url, target: "_blank", rel: "noopener noreferrer" }, "Open in TikTok"));
 
 /** Trending sounds that fit this video, loaded when the details open (TikTok adds the sound when posting). */
-// The video's shots in order, like an editor's timeline, reviewed like the feed: tap a shot, then
-// ✓ keeps it or ✗ drops it (other footage in its place, just cut, or that clip never again), and
-// the next shot comes up. Apply draws the video again with the same text.
-const SHOT_DROPS = [["swap", "Other footage"], ["remove", "Just cut it"], ["never", "Never use this clip"]];
+// The video's shots in order, like an editor's timeline: tap a shot to select it, and one bar
+// under the strip swaps it, cuts it, or keeps that clip out for good (the same button again keeps
+// it). Apply draws the video again with the same text.
+const SHOT_LABEL = { swap: "Swap", remove: "Cut", never: "Never use" };
 function shotsSection(r) {
   if (r.status !== "done" || r.posts?.length || !r.plan.segments?.length) return null;
   let shots = [];
   let sel = 0;
   const picks = [];
-  const seen = new Set();
   const strip = h("div", { class: "shots", role: "listbox", "aria-label": "Shots" }, h("span", { class: "muted" }, "Loading shots…"));
   const bar = h("div", { class: "shot-bar" });
   const apply = h("button", { class: "btn primary shot-apply", hidden: true, onclick: (e) => {
@@ -1246,45 +1245,42 @@ function shotsSection(r) {
       await refreshRenders();
     });
   } });
-  const svg = (d) => {
+  const icon = (d) => {
     const ns = "http://www.w3.org/2000/svg";
-    const el = document.createElementNS(ns, "svg");
-    el.setAttribute("viewBox", "0 0 24 24");
-    el.setAttribute("aria-hidden", "true");
-    for (const x of d) el.appendChild(document.createElementNS(ns, "path")).setAttribute("d", x);
-    return el;
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    for (const x of d) svg.appendChild(document.createElementNS(ns, "path")).setAttribute("d", x);
+    return svg;
   };
-  const NO = ["M6 6l12 12M18 6L6 18"];
-  const YES = ["M4.5 12.5l5 5L19.5 7"];
-  const next = () => {
-    const i = shots.findIndex((s) => s.index > sel && !seen.has(s.index));
-    if (i >= 0) sel = shots[i].index;
-    draw();
-    strip.children[sel]?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  const ICONS = {
+    play: ["M8 5v14l11-7z"],
+    swap: ["M7 7h11l-3-3M17 17H6l3 3"],
+    remove: ["M6 6l12 12M18 6L6 18"],
+    never: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18M5.6 5.6l12.8 12.8"],
   };
   const draw = () => {
     for (const [i, card] of [...strip.children].entries()) {
       card.classList.toggle("sel", i === sel);
       card.setAttribute("aria-selected", String(i === sel));
-      card.dataset.a = seen.has(i) ? picks[i] : "";
+      card.dataset.a = picks[i];
+      const tag = card.querySelector(".shot-tag");
+      tag.textContent = SHOT_LABEL[picks[i]] ?? "";
+      tag.hidden = !SHOT_LABEL[picks[i]];
     }
     const s = shots[sel];
     const a = picks[sel];
-    const dropped = seen.has(sel) && a !== "keep";
+    const act = (key, label, next) =>
+      h("button", { class: `shot-btn${a === key ? " on" : ""}${key === "never" ? " danger" : ""}`, onclick: () => { picks[sel] = a === key ? "keep" : next; draw(); } }, icon(ICONS[key]), h("span", {}, label));
     bar.replaceChildren(
       h("div", { class: "shot-info" },
-        h("span", {}, h("b", {}, `Shot ${sel + 1} of ${shots.length}`), h("span", { class: "muted" }, ` · ${s.from.toFixed(1)}–${s.to.toFixed(1)}s`)),
-        h("button", { class: "d-link", onclick: () => openClip(s.clipId) }, "Play ›")),
-      s.summary || s.scene ? h("p", { class: "shot-sum muted" }, s.summary || s.scene) : null,
-      h("div", { class: "stack-actions shot-vote" },
-        h("button", { class: `round no${dropped ? " on" : ""}`, "aria-label": "Drop this shot", onclick: () => { picks[sel] = a !== "keep" ? a : "swap"; seen.add(sel); draw(); } }, svg(NO), h("span", {}, "Drop")),
-        h("button", { class: `round yes${seen.has(sel) && a === "keep" ? " on" : ""}`, "aria-label": "Keep this shot", onclick: () => { picks[sel] = "keep"; seen.add(sel); next(); } }, svg(YES), h("span", {}, "Keep"))),
-      dropped
-        ? h("div", { class: "shot-why" },
-            h("b", {}, "Instead?"),
-            h("div", { class: "why-options" },
-              ...SHOT_DROPS.map(([k, label]) => h("button", { class: a === k ? "on" : "", onclick: () => { picks[sel] = k; next(); } }, label))))
-        : null);
+        h("b", {}, `Shot ${sel + 1} · ${s.from.toFixed(1)}–${s.to.toFixed(1)}s`),
+        h("span", { class: "muted" }, s.summary || s.scene || "")),
+      h("div", { class: "shot-btns" },
+        h("button", { class: "shot-btn", onclick: () => openClip(s.clipId) }, icon(ICONS.play), h("span", {}, "Play")),
+        act("swap", "Swap", "swap"),
+        act("remove", "Cut", "remove"),
+        act("never", "Never use", "never")));
     const n = picks.filter((x) => x !== "keep").length;
     apply.hidden = !n;
     apply.textContent = `Apply ${n} change${n > 1 ? "s" : ""}`;
@@ -1298,8 +1294,7 @@ function shotsSection(r) {
           h("button", { class: "shot", role: "option", style: { flexBasis: `${Math.max(56, Math.min(120, (s.to - s.from) * 34))}px` }, onclick: () => { sel = s.index; draw(); } },
             h("img", { src: s.frame, alt: `Shot ${s.index + 1}`, loading: "lazy" }),
             h("span", { class: "shot-time" }, `${(s.to - s.from).toFixed(1)}s`),
-            h("i", { class: "shot-mark yes" }, svg(YES)),
-            h("i", { class: "shot-mark no" }, svg(NO)))));
+            h("span", { class: "shot-tag", hidden: true }))));
       draw();
     })
     .catch(() => strip.replaceChildren(h("span", { class: "muted" }, "Couldn't load the shots.")));

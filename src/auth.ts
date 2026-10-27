@@ -73,6 +73,21 @@ function sessionOf(token: string | undefined): string | null {
   return who;
 }
 
+/**
+ * Admins (ADMIN_EMAILS, comma-separated) see and change everything: Labs, research, partners,
+ * spending, diagnostics. Everyone else signed in gets the app as it rolls out. Without ADMIN_EMAILS,
+ * everyone allowed in is an admin (as before), and on this computer alone there's no gate at all.
+ */
+export const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+  .split(/[\s,;]+/)
+  .map((e) => e.trim().toLowerCase())
+  .filter((e) => e.includes("@"));
+export function isAdmin(req: Request): boolean {
+  if (!gateEnabled || !adminEmails.length) return true;
+  const who = signedInAs(req);
+  return !!who && adminEmails.includes(who);
+}
+
 /** Email of whoever is signed in (for the app's "signed in as"). */
 export function signedInAs(req: Request): string | undefined {
   const who = sessionOf(readCookie(req, COOKIE));

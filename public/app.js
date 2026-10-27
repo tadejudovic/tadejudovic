@@ -97,6 +97,8 @@ async function loadStatus() {
   $("#chip-google").classList.toggle("on", s.google.connected);
   $("#paused").hidden = !s.paused;
   $("#ai-credit").hidden = !s.aiOutOfCredit;
+  // Admin-only pages (Labs, research, partners, spending, diagnostics) are hidden from everyone else.
+  document.body.classList.toggle("admin", s.admin !== false);
   applyFeatures(s.settings?.features ?? {});
   $("#ai-budget").hidden = !s.claude?.enabled || !(s.spend && s.spend.usd >= s.spend.limit);
   const sp = s.spend;
@@ -1128,7 +1130,7 @@ function detailsBody(r) {
           await refreshRenders();
           banner("Fixed the text. Re-making the video now; it comes back to Review in a minute or two.", "ok");
         }) }, "Fix the text"),
-        h("button", { class: "d-link", onclick: (e) => withBusy(e.currentTarget, "Copying…", async () => {
+        h("button", { class: "d-link admin-only", onclick: (e) => withBusy(e.currentTarget, "Copying…", async () => {
           const d = await api(`/api/renders/${r.id}/diagnostics`);
           const text = JSON.stringify(d, null, 1);
           try {

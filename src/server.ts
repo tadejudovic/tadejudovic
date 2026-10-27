@@ -33,7 +33,7 @@ import { apifyEnabled, platformOf } from "./ai/tiktokSearch.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
-import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, listenHost, lockedOut, loginPage, logout, requireAuth, signedInAs } from "./auth.ts";
+import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, listenHost, lockedOut, loginPage, logout, requireAuth, signedInAs, isAdmin } from "./auth.ts";
 import { aiOutOfCredit, monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, StoryDraft, TemplateId, VideoPlan } from "./types.ts";
 
@@ -55,6 +55,17 @@ app.get("/landing", (_req, res) => sendLanding(res)); // preview the public page
 app.get("/login/google", googleStart);
 app.get("/login/google/callback", (req, res, next) => { googleCallback(req, res).catch(next); });
 app.use(requireAuth);
+
+// What only admins change (the rest of the app is what rolls out): Labs features, research,
+// partners, story and vlog tools, making videos by hand, wiping videos. Reading stays open so the
+// app loads the same for everyone; the admin-only pages are hidden from the others.
+const ADMIN_WRITES = /^\/api\/(albums|audience|examples|partners|scenes|search-demand|story|vlog|voice|themes|plan|generate|reset|videos\/(clear|refresh-design)|posts\/winners|renders\/[^/]+\/collab)(\/|$)/;
+const ADMIN_READS = /^\/api\/(diagnostics|renders\/[^/]+\/diagnostics)(\/|$)/;
+app.use((req, res, next) => {
+  const admin = ADMIN_READS.test(req.path) || (req.method !== "GET" && ADMIN_WRITES.test(req.path));
+  if (admin && !isAdmin(req)) return void res.status(403).json({ error: "Only an admin can do that." });
+  next();
+});
 // Features behind a switch (Settings > Labs): their actions are refused while off.
 const FEATURE_ROUTES: [RegExp, Feature, string][] = [
   [/^\/api\/vlog/, "vlog", "Day vlog"],
@@ -173,6 +184,7 @@ app.get("/api/status", (req, res) => {
     claude: { enabled: config.claude.enabled, model: config.claude.model },
     gate: gateEnabled,
     user: signedInAs(req),
+    admin: isAdmin(req),
     paused,
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     memoryMb,
@@ -191,7 +203,9 @@ app.get("/api/status", (req, res) => {
 });
 
 app.put("/api/settings", (req, res) => {
-  const { features, bandwidthGb, petName, handle, fontId, textStyle, textSize, aiMonthlyBudget, maxVideosPerDay, onlySituations, captionAudience, story, dailyMix, faq, instagramHandle, shotTags } = req.body ?? {};
+  // Labs, spending and bandwidth are the admin's to change.
+  const { features, bandwidthGb, aiMonthlyBudget } = isAdmin(req) ? req.body ?? {} : {};
+  const { petName, handle, fontId, textStyle, textSize, maxVideosPerDay, onlySituations, captionAudience, story, dailyMix, faq, instagramHandle, shotTags } = req.body ?? {};
   const fontOk = typeof fontId === "string" && listFonts().some((f) => f.id === fontId);
   const saved = store.updateSettings({
       ...(typeof petName === "string" && petName.trim() ? { petName: petName.trim().slice(0, 40) } : {}),

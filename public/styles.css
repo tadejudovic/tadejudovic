@@ -842,3 +842,6 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .shot-btn.on { background: var(--accent); color: #fff; }
 .shot-btn.danger.on { background: #dc2626; }
 .shot-apply { width: 100%; margin-top: 8px; }
+
+/* Admin-only pages and buttons: hidden unless the signed-in account is an admin */
+body:not(.admin) .admin-only { display: none !important; }

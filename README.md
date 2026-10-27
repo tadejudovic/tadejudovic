@@ -1,6 +1,21 @@
 # Rollcut 🎞️
 
-Turn your phone library into ready-to-post TikTok clips. Built first for @lex.poodle.
+**Mission: Rollcut turns your camera roll into videos ready to post, so anyone can become a creator and make a living from it.**
+
+Built first for @lex.poodle.
+
+## Bugs and feature requests
+
+File them as [GitHub issues](../../issues/new/choose) (Bug or Feature). This repository is public: never put passwords, keys, emails or private links in an issue. Every issue gets one priority label, judged against the mission (does it help someone post more, better videos with less work, or earn from them?):
+
+| Label | Meaning | When |
+|---|---|---|
+| `P0` | Broken: videos can't be made, played, saved or posted, or someone can't sign in | Now, before anything else |
+| `P1` | Needed for the rollout, or clearly makes the videos better | This week |
+| `P2` | Worth doing; makes the app nicer or faster | When P0 and P1 are clear |
+| `P3` | Idea, later, or admin-only tooling | Someday |
+
+Work goes top-down: oldest P0 first, then P1. Admin-only tools (Labs, research, partners, spending) stay hidden from everyone but the accounts in `ADMIN_EMAILS`.
 
 Turn the pile of pet footage in your Google Photos library into ready-to-post **10–20 second vertical shorts** for TikTok, Reels and Shorts, several a day, in a few clicks.
 

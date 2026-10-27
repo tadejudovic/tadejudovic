@@ -960,3 +960,175 @@ body:not(.admin) .admin-only { display: none !important; }
 .onb-learn-dots { grid-column: 1 / -1; display: flex; gap: 5px; justify-content: center; margin-top: 4px; }
 .onb-learn-dots i { width: 6px; height: 6px; border-radius: 6px; background: rgba(255,255,255,.3); transition: width .3s; }
 .onb-learn-dots i.on { width: 18px; background: var(--accent); }
+
+/* =====================================================================
+   "Stickers" look: cream paper, black outlines with hard shadows, neon
+   yellow for what to tap, pink for numbers worth celebrating, chunky
+   Archivo Black headings, Rubik for everything else, black pill bar.
+   ===================================================================== */
+:root {
+  --bg: #f4f1ea;
+  --panel: #ffffff;
+  --ink: #111111;
+  --muted: #5d5a53;
+  --faint: #8d897f;
+  --line: #111111;
+  --soft: #ebe6da;
+  --accent: #111111;
+  --accent-soft: #f7ffd6;
+  --neon: #d7ff3d;
+  --pink: #ff5ca8;
+  --hard: 4px 4px 0 #111;
+  --hard-sm: 3px 3px 0 #111;
+  --shadow: none;
+  --shadow-soft: var(--hard);
+  --head: "Archivo Black", "Rubik", system-ui, sans-serif;
+  --grad: var(--neon);
+}
+html, body { background: var(--bg); }
+body { font-family: Rubik, Inter, ui-sans-serif, system-ui, sans-serif; color: var(--ink); }
+h1, h2, h3, .settings-title, .section-title, .sp-head h2, .d-title, .group-label, .d-sec-head { font-family: var(--head); font-weight: 400; letter-spacing: -0.015em; }
+.settings-title { font-size: 36px; line-height: 1; }
+.group-label { color: var(--ink); text-transform: uppercase; font-size: 12px; letter-spacing: .04em; }
+.section-title { font-size: 22px; }
+.muted, .hint, .sub, .sp-intro, .d-hint { color: var(--muted); }
+a, .d-link, .link { color: var(--ink); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+/* the brand: lower case with a pink asterisk */
+.brand-row { font-family: var(--head); font-weight: 400; font-size: 20px; text-transform: lowercase; }
+.brand-row .brand-name::after { content: "*"; color: var(--pink); }
+.mark { background: var(--neon); border: 2.5px solid #111; border-radius: 7px; box-shadow: 2px 2px 0 #111; }
+
+/* buttons: outlined pills with a hard shadow; neon for the main action */
+.btn { border: 2.5px solid #111 !important; border-radius: 999px; background: #fff; color: #111; font-weight: 700; box-shadow: var(--hard-sm); transition: transform .08s, box-shadow .08s; }
+.btn.primary { background: var(--neon) !important; color: #111 !important; }
+.btn.primary:hover, .btn:hover { filter: none; background: #fff; }
+.btn.primary:hover { background: #e3ff6b !important; }
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #111; }
+.btn:disabled { opacity: .45; box-shadow: none; }
+.btn.small { box-shadow: 2px 2px 0 #111; }
+
+/* inputs */
+input[type="text"], input[type="email"], input[type="url"], input[type="number"], input[type="search"], input:not([type]), select, textarea {
+  border: 2px solid #111 !important; border-radius: 12px; background: #fff; }
+input:focus, select:focus, textarea:focus { outline: 3px solid var(--neon); outline-offset: 1px; }
+
+/* chips, pills, segmented controls */
+.pill, .chip, .badge, .collab-badge { border: 2px solid #111; background: #fff; color: #111; font-weight: 700; border-radius: 999px; }
+.pill.approved, .chip.on { background: var(--neon); color: #111; }
+.pill.rejected { background: #fff; color: #111; text-decoration: line-through; }
+.chip::before, .chip.on::before { content: none; }
+.seg { background: #fff; border: 2.5px solid #111; border-radius: 999px; box-shadow: var(--hard-sm); padding: 3px; }
+.seg label { border-radius: 999px; color: var(--ink); font-weight: 600; }
+.seg label:has(input:checked) { background: #111; color: var(--neon); box-shadow: none; }
+
+/* cards and groups: white, outlined, hard shadow */
+.group, .sp-body .grid-form, .sp-body .look, .d-source, .sheet-card, .empty-card, .voice-card, .scene, .example, .plan {
+  background: #fff; border: 2.5px solid #111 !important; border-radius: 20px; box-shadow: var(--hard); }
+.srow { border-color: #111 !important; border-bottom-width: 2px !important; }
+.group .srow:last-child { border-bottom: 0 !important; }
+.row-title { font-weight: 600; }
+.row-value { font-size: 12px; font-weight: 600; color: #111; background: var(--neon); border: 2px solid #111; border-radius: 999px; padding: 2px 9px; max-width: 52%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-value:empty { display: none; }
+.srow.danger .row-title { color: #111; text-decoration: underline wavy var(--pink); }
+.sp-head { background: var(--bg); border-bottom: 2.5px solid #111; }
+.sp-back { width: 40px; height: 40px; border-radius: 999px; border: 2.5px solid #111 !important; background: #fff; box-shadow: 2px 2px 0 #111; }
+.subpage { background: var(--bg); }
+
+/* bottom bar: a black pill, the open page in neon */
+.bottom-nav { left: 14px; right: 14px; bottom: calc(12px + env(safe-area-inset-bottom)); border: 0; border-radius: 999px; background: #111; padding: 6px; backdrop-filter: none; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+.bottom-nav button { color: #9b978e; font-family: var(--head); font-weight: 400; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; grid-auto-flow: column; align-items: center; gap: 6px; padding: 12px 6px; border-radius: 999px; }
+.bottom-nav button svg { width: 18px; height: 18px; stroke-width: 2.4; }
+.bottom-nav button.on { background: var(--neon); color: #111; }
+.bottom-nav button.on::after { content: none; }
+.bottom-nav .tab-count { position: static; background: var(--pink); color: #fff; border: 2px solid #111; font-family: Rubik; font-weight: 800; }
+main { padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important; }
+main:has(section[data-tab="review"]:not([hidden]) #stack:not([hidden])) { padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important; }
+
+/* review: the video as a sticker card, cross and check as outlined pills */
+.stack-card { background: #111; border: 3px solid #111; border-radius: 28px; padding: 0; box-shadow: 6px 6px 0 #111; }
+.stack-media { border-radius: 25px; }
+.stack-tap, .stack-sound { background: #fff; color: #111; border: 2px solid #111; font-weight: 700; }
+.stack-sound svg { stroke: #111; }
+.round { border: 3px solid #111 !important; box-shadow: var(--hard) !important; }
+.round.no { background: #fff !important; color: #111 !important; }
+.round.yes { background: var(--neon) !important; color: #111 !important; }
+.round.no:hover { background: #fff !important; } .round.yes:hover { background: #e3ff6b !important; }
+.round:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #111 !important; }
+.stack-media .round span, .round span { font-family: var(--head); font-weight: 400; text-transform: uppercase; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.8); letter-spacing: .03em; }
+.round span.with-icon, .stack-media .round span.with-icon { color: #fff; }
+.round .dl-badge { border: 2px solid #111; }
+.stamp { font-family: var(--head); border-width: 3px; box-shadow: var(--hard-sm); background: #fff; }
+.stamp.keep { color: #111; background: var(--neon); border-color: #111; }
+.stamp.nope { color: #111; border-color: #111; }
+.today-bar button, .segs button, .tabs button, .ready-filter button { border: 2px solid #111 !important; border-radius: 999px; background: #fff; color: #111; font-weight: 700; }
+.today-bar button.on, .segs button.on, .ready-filter button.on, .tabs button.on { background: #111 !important; color: var(--neon) !important; }
+.stack-why { background: #fff; border: 2.5px solid #111; border-radius: 20px; box-shadow: var(--hard); }
+.stack-why button, .why-options button { border: 2.5px solid #111 !important; border-radius: 14px; box-shadow: var(--hard-sm); background: #fff; }
+
+/* ready: tilted sticker tiles, view counts in pink */
+.tile { background: #fff; border: 3px solid #111 !important; border-radius: 22px; box-shadow: var(--hard); padding: 6px; }
+.tile:nth-child(odd) { transform: rotate(-1.2deg); }
+.tile:nth-child(even) { transform: rotate(1.2deg); }
+.tile-media { border-radius: 16px; border: 2px solid #111; }
+.tile .badge, .tile .views { font-family: var(--head); font-weight: 400; font-size: 11px; text-transform: uppercase; }
+
+/* video details */
+.details-view { background: var(--bg); }
+.d-sec { border-top: 2.5px solid #111 !important; }
+.d-sec-head { color: #111; font-size: 13px; text-transform: uppercase; }
+.d-caption, .d-edit textarea { background: #fff; border: 2px solid #111; border-radius: 14px; }
+.shot { border: 2.5px solid #111; border-radius: 12px; }
+.shot.sel { box-shadow: 0 0 0 3px var(--neon), 0 0 0 5.5px #111; }
+.shot-bar { background: #fff; border: 2.5px solid #111 !important; border-radius: 18px; box-shadow: var(--hard-sm); }
+.shot-btn.on { background: var(--neon); color: #111; border: 2px solid #111; }
+.shot-btn.danger.on { background: var(--pink); color: #fff; }
+.shot-tag { background: var(--neon); color: #111; border: 1.5px solid #111; }
+.style-tile .style-swatch { border: 2.5px solid #111 !important; }
+.style-grid .style-tile:has(input:checked) .style-swatch { border-color: #111 !important; box-shadow: 0 0 0 3px var(--neon), 0 0 0 5.5px #111 !important; }
+.d-proof-icon svg, .onb-learn-icon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.d-proof-icon { color: var(--pink); }
+
+/* banners */
+.banner { background: #fff; color: #111; border: 2.5px solid #111 !important; border-radius: 16px; box-shadow: var(--hard-sm); font-weight: 600; }
+.banner.ok { background: var(--neon); color: #111; }
+.banner.warn { background: #fff4c2; color: #111; }
+
+/* onboarding in the same look */
+.onb, .onb-screen, .onb-screen.dark { background: var(--bg); color: #111; }
+.onb h1 { font-family: var(--head); font-weight: 400; letter-spacing: -.02em; }
+.onb-kicker { font-family: "Permanent Marker", var(--head); color: var(--pink); text-transform: none; letter-spacing: 0; font-size: 16px; }
+.onb-sub { opacity: 1; color: var(--muted); }
+.onb-cta { background: var(--neon); color: #111; border: 3px solid #111; border-radius: 999px; box-shadow: var(--hard); font-family: var(--head); font-weight: 400; text-transform: uppercase; letter-spacing: .02em; }
+.onb-cta:disabled { opacity: .45; box-shadow: none; }
+.onb-skip { opacity: 1; color: #111; text-decoration: underline; text-underline-offset: 3px; }
+.onb-bars i { background: rgba(17,17,17,.15); }
+.onb-bars i.done { background: #111; opacity: 1; }
+.onb-bars i.on { background: var(--pink); }
+.onb-phone { box-shadow: 0 0 0 3px #111, 8px 8px 0 #111; transform: rotate(-1.5deg); }
+.onb-connect .onb-phone { transform: rotate(2deg); }
+.onb-learn { background: #fff; border: 2.5px solid #111; box-shadow: var(--hard); }
+.onb-learn-text span { opacity: 1; color: var(--muted); }
+.onb-learn-dots i { background: rgba(17,17,17,.2); }
+.onb-learn-dots i.on { background: #111; }
+.onb-learn-icon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--neon); border: 2px solid #111; }
+.onb-scan-tile { border: 2.5px solid #111; box-shadow: var(--hard-sm); }
+.onb-tag { background: #fff; color: #111; border: 1.5px solid #111; }
+.onb-scanline { background: linear-gradient(to bottom, transparent, rgba(215,255,61,.75), transparent); }
+.onb-progress { background: rgba(255,255,255,.5); border: 1.5px solid #111; }
+.onb-progress i { background: var(--neon); }
+.onb-why button { background: #fff; color: #111; border: 2.5px solid #111; box-shadow: var(--hard-sm); }
+.onb-plan { border: 2.5px solid #111; box-shadow: var(--hard); }
+.onb-plan img { border: 2px solid #111; }
+.onb-test { border: 2px solid #111; background: #fff4c2; }
+.onb-field input { border: 2px solid #111; }
+.onb-preview-pill { border: 2px solid #111; box-shadow: 2px 2px 0 #111; background: var(--neon); color: #111; }
+.onb-gphotos i { border: 2px solid #111; }
+.badge.yes { background: var(--pink); color: #fff; }
+.badge.no { background: #fff; color: #111; }
+.badge.err { background: #fff4c2; color: #111; }
+.tile .badge.yes:not(:empty) { background: var(--neon); color: #111; }
+.collab-badge, .collab-badge.on-video { background: #fff !important; color: #111 !important; border: 2px solid #111; font-family: var(--head); font-weight: 400; font-size: 11px; text-transform: uppercase; opacity: 1 !important; }
+/* the bar shows words only, like the stickers mockup */
+.bottom-nav button svg { display: none; }
+.d-caption { padding: 10px 12px; }

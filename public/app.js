@@ -1247,7 +1247,7 @@ function detailsBody(r) {
     b ? h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Inspired by")),
       h("div", { class: "d-proof" },
-        h("span", { class: "d-proof-icon" }, "🔥"),
+        h("span", { class: "d-proof-icon" }, svgIcon("M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 2 1.3 3 2.5 3.5C11.5 9 11 6 12 3z")),
         h("span", {},
           h("b", {}, b.views ? `${fmtViews(b.views)} views on TikTok` : "A popular TikTok"),
           h("span", { class: "d-proof-text" }, `“${b.text}”`),
@@ -3038,13 +3038,12 @@ const phone = (...screen) => h("div", { class: "onb-phone" }, h("div", { class: 
 // A clip whose frame can't load leaves its coloured tile showing instead of a broken image.
 const thumb = (id) => h("img", { src: `/media/thumb/${id}`, alt: "", loading: "lazy", onerror: (e) => (e.currentTarget.style.visibility = "hidden") });
 
-/** Placeholder tiles for a camera roll before any footage is in: the kinds of moments people film. */
-const ROLL_TILES = ["✈️", "🐶", "🍜", "🏔️", "🎂", "🏖️", "🛠️", "🎸", "👶", "🌆", "🐈", "🚐", "🎨", "⚽", "🌮", "🎄", "🏃", "🌅"];
+/** A camera roll: their clips drifting by, or coloured tiles before any footage is in. */
 function cameraRoll(ids = []) {
-  const tiles = ids.length ? ids : ROLL_TILES;
+  const tiles = ids.length ? ids : Array.from({ length: 18 }, () => null);
   const col = (k) => h("div", { class: "onb-roll-col", style: { animationDelay: `${-k * 4}s` } },
     [...tiles, ...tiles].filter((_, j) => j % 3 === k).map((t, j) =>
-      h("div", { class: `onb-tile g${(j + k) % 6}` }, ids.length ? thumb(t) : h("span", {}, t))));
+      h("div", { class: `onb-tile g${(j + k) % 6}` }, t ? thumb(t) : null)));
   return h("div", { class: "onb-roll" }, col(0), col(1), col(2));
 }
 
@@ -3062,11 +3061,11 @@ const svgIcon = (d) => {
  * works, that the clips are safe, what happens next. They turn by themselves (tap for the next one).
  */
 const ONB_CARDS = [
-  ["💡", "Great footage, never posted", "Editing takes hours and finding the words is the hardest part. Rollcut does both, from what you already filmed."],
-  ["🎞️", "It watches every second", "Each clip gets a motion and sound curve, and the AI sees what's happening in every shot, to find the moment worth posting."],
-  ["📈", "Built on what gets views", "Openings that already worked on TikTok, a new shot every 2 seconds, and text that never covers a face."],
-  ["🔒", "Your clips stay yours", "Only the videos you pick, behind your Google sign-in. Nothing is posted without your ✓, you can delete any clip, and they're never used to train AI."],
-  ["☀️", "Every morning, new videos", "✓ the ones you'd post, ✗ the rest and say why. Every answer makes the next ones more like you."],
+  ["M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z", "Great footage, never posted", "Editing takes hours and finding the words is the hardest part. Rollcut does both, from what you already filmed."],
+  ["M4 5h16v14H4zM8 5v14M16 5v14M4 9h4M4 15h4M16 9h4M16 15h4", "It watches every second", "Each clip gets a motion and sound curve, and the AI sees what's happening in every shot, to find the moment worth posting."],
+  ["M4 19h16M5 15l5-5 4 3 5-7", "Built on what gets views", "Openings that already worked on TikTok, a new shot every 2 seconds, and text that never covers a face."],
+  ["M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3", "Your clips stay yours", "Only the videos you pick, behind your Google sign-in. Nothing is posted without your ✓, you can delete any clip, and they're never used to train AI."],
+  ["M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4", "Every morning, new videos", "✓ the ones you'd post, ✗ the rest and say why. Every answer makes the next ones more like you."],
 ];
 function onbCard() {
   onb.cardShift ??= 0;
@@ -3080,7 +3079,7 @@ function onbCard() {
     onb.cardShift++;
     e.currentTarget.replaceWith(onbCard());
   } },
-    h("span", { class: "onb-learn-icon" }, icon),
+    h("span", { class: "onb-learn-icon" }, svgIcon(icon)),
     h("span", { class: "onb-learn-text" }, h("b", {}, title), h("span", {}, text)),
     h("span", { class: "onb-learn-dots" }, ONB_CARDS.map((_, j) => h("i", { class: j === i ? "on" : "" }))));
 }

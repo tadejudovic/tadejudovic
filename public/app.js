@@ -87,6 +87,20 @@ const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)
 
 // ---- Status ---------------------------------------------------------------
 
+// The text looks, most used first (the box, outline, MrBeast and Hormozi looks dominate shorts).
+const TEXT_STYLES = [
+  ["yellowbox", "Yellow box"], ["box", "White box"], ["blackbox", "Black box"], ["classic", "Outline"],
+  ["bold", "Bold caps"], ["highlight", "Highlight"], ["yellow", "Yellow"], ["plain", "Plain"],
+];
+/** A tile per look, each showing two words in it; picking one calls `onPick(value)`. */
+function styleTiles(name, current, onPick) {
+  return TEXT_STYLES.map(([value, label]) =>
+    h("label", { class: "style-tile" },
+      h("input", { type: "radio", name, value, checked: value === current, onchange: () => onPick(value) }),
+      h("span", { class: `style-swatch look-preview ${value}` }, h("span", {}, "Fly ", h("b", { class: "kw" }, "calm"))),
+      h("small", {}, label)));
+}
+
 function creatorView() {
   try { return localStorage.getItem("rollcut.creatorView") === "1"; } catch { return false; }
 }
@@ -452,7 +466,7 @@ function renderSummaries() {
   const a = state.auto;
   set("sum-videos", a ? `${a.enabled ? `${a.dailyCount} per round` : "Off"} · max ${s.settings.maxVideosPerDay}/day` : "");
   const size = { small: "Small", medium: "Medium", large: "Large" }[s.settings.textSize] ?? "Medium";
-  const style = { yellowbox: "Yellow box", yellow: "Yellow", classic: "Outline", box: "Box", plain: "Plain" }[s.settings.textStyle] ?? "";
+  const style = Object.fromEntries(TEXT_STYLES)[s.settings.textStyle] ?? "";
   set("sum-look", `${style} · ${size}`);
   set("sum-scenes", s.tiktokSearch ? `${s.settings.scenes.length} situations` : "Apify not connected");
   set("sum-profile", s.settings.handle || s.settings.petName || "");
@@ -1027,7 +1041,7 @@ function detailsBody(r) {
   }) }, "Apply to this video");
   const styleEdit = h("div", { class: "d-style", hidden: true },
     h("span", { class: "d-label" }, "Size"), segControl("textSize", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]]),
-    h("span", { class: "d-label" }, "Look"), segControl("textStyle", [["yellowbox", "Yellow box"], ["yellow", "Yellow"], ["classic", "White"], ["box", "Box"], ["plain", "Plain"]]),
+    h("span", { class: "d-label" }, "Look"), h("div", { class: "style-grid small" }, styleTiles(`textStyle-${r.id}`, look.textStyle, (v) => { look.textStyle = v; applyLook.hidden = false; })),
     h("span", { class: "d-label" }, "Font"), fontSelect,
     applyLook,
   );
@@ -2658,7 +2672,9 @@ function fontFamily(f) {
 async function loadFonts() {
   const fonts = await api("/api/fonts");
   const { fontId, textStyle, textSize = "medium", petName } = state.status.settings;
-  $("#look-sample").textContent = `POV: the energy shift when ${petName || "Lex"} realizes we're at the airport`;
+  // The highlight look turns one word yellow (the server picks the same kind of word).
+  $("#look-sample").replaceChildren(`POV: the energy shift when ${petName || "Lex"} realizes we're at the `, h("b", { class: "kw" }, "airport"));
+  if (!$("#text-style").childElementCount) $("#text-style").append(...styleTiles("textStyle", textStyle, () => {}));
   const current = fonts.find((f) => f.id === fontId) ?? fonts.find((f) => f.id === "tiktok-sans");
   $("#look-sample").style.fontFamily = `"${fontFamily(current)}"`;
   $("#look-preview").className = `look-preview ${textStyle} size-${textSize}`;

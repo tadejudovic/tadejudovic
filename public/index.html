@@ -229,7 +229,7 @@
           <select name="template" id="auto-template" hidden></select>
           <select name="syncEveryHours" hidden><option value="1">1h</option><option value="3">3h</option><option value="6">6h</option><option value="12">12h</option><option value="24">24h</option></select>
         </form>
-        <div class="mix">
+        <div class="mix admin-only">
           <p class="field">Each morning's round</p>
           <p class="hint">Candidates of each kind; keep the best one of each for today's posts.</p>
           <div id="daily-mix" class="mix-grid">
@@ -240,7 +240,7 @@
         </div>
         <form id="limits" class="grid-form">
           <label>Most videos a day (safety cap) <input type="number" name="maxVideosPerDay" min="1" max="30" /></label>
-          <label class="check"><input type="checkbox" name="onlySituations" /> Only use clips from my situations</label>
+          <label class="check admin-only"><input type="checkbox" name="onlySituations" /> Only use clips from my situations</label>
           <span class="muted hint-inline">Clips sorted as "other" (beach, random moments) are never picked automatically. You can still make a video from any clip in Your clips.</span>
           <span class="muted" id="videos-today"></span>
         </form>
@@ -254,13 +254,7 @@
           <div id="look-preview" class="look-preview"><span id="look-sample">POV: the energy shift when we pull into the airport</span></div>
           <div class="look-controls">
             <label class="field">Font <select id="font-select"></select></label>
-            <div class="seg" id="text-style">
-              <label><input type="radio" name="textStyle" value="yellowbox" />Yellow box</label>
-              <label><input type="radio" name="textStyle" value="yellow" />Yellow</label>
-              <label><input type="radio" name="textStyle" value="classic" />Outline</label>
-              <label><input type="radio" name="textStyle" value="box" />Box</label>
-              <label><input type="radio" name="textStyle" value="plain" />Plain</label>
-            </div>
+            <div class="style-grid" id="text-style" role="radiogroup" aria-label="Text style"></div>
             <label class="field">Size</label>
             <div class="seg" id="text-size">
               <label><input type="radio" name="textSize" value="small" />Small</label>

@@ -94,9 +94,10 @@ interface TextOpts {
  * files (textfile=) so quotes, colons and % never need filter escaping.
  */
 export function textFilters(text: string, opts: TextOpts): { filters: string[]; height: number; top: number; left: number; width: number } {
-  const clean = screenText(text);
+  // The MrBeast look is all capitals.
+  const clean = opts.style === "bold" ? screenText(text).toUpperCase() : screenText(text);
   if (!clean) return { filters: [], height: 0, top: 0, left: 0, width: 0 };
-  const boxed = !opts.style || opts.style === "yellowbox" || opts.style === "box";
+  const boxed = isBoxed(opts.style);
   const padX = Math.round(opts.size * 0.55);
   const padY = Math.round(opts.size * 0.38);
   // Off-center text (points that zig-zag) keeps its center and gets the room on its narrower side.
@@ -117,45 +118,73 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
   // Box styles: one solid block behind all the lines, sized to the widest one.
   // No style given (older videos, other entry points): the yellow box, the default look.
   if (!opts.style) opts = { ...opts, style: "yellowbox" };
-  const block = opts.style === "yellowbox" ? "0xF5C400" : opts.style === "box" ? "white" : null;
+  const block = opts.style === "yellowbox" ? "0xF5C400@1" : opts.style === "box" ? "white@1" : opts.style === "blackbox" ? "black@0.82" : null;
   if (block) {
     const widths = lines.map((l) => textWidth(opts.font, l, opts.size));
     const w = Math.min(room, Math.round(Math.max(...widths)) + padX * 2);
     const h = Math.round(blockH) + padY * 2;
     const box = [
-      `drawbox=x=${Math.round(cx - w / 2)}:y=${top - padY}:w=${w}:h=${h}:color=${block}@1:t=fill`,
+      `drawbox=x=${Math.round(cx - w / 2)}:y=${top - padY}:w=${w}:h=${h}:color=${block}:t=fill`,
       opts.enable ? `enable='${opts.enable}'` : "",
     ].filter(Boolean).join(":");
-    const ink = textFilters(text, { ...opts, yTop: top, maxChars: chars, style: "ink" as RenderOptions["textStyle"] });
+    const ink = textFilters(text, { ...opts, yTop: top, maxChars: chars, style: (opts.style === "blackbox" ? "inkwhite" : "ink") as RenderOptions["textStyle"] });
     return { filters: [box, ...ink.filters], height: ink.height, top, left: Math.round(cx - w / 2), width: w };
   }
   const style = {
     ink: "fontcolor=0x111111",
+    inkwhite: "fontcolor=white",
     yellowbox: "",
+    box: "",
+    blackbox: "",
+    // MrBeast: thick white capitals, heavy black outline.
+    bold: `fontcolor=white:borderw=${Math.max(8, Math.round(opts.size * 0.17))}:bordercolor=black:shadowcolor=black@0.5:shadowx=0:shadowy=5`,
+    // Hormozi: white with a black outline, the key word in yellow.
+    highlight: "fontcolor=white:borderw=7:bordercolor=black@0.95:shadowcolor=black@0.45:shadowx=0:shadowy=4",
     classic: "fontcolor=white:borderw=7:bordercolor=black@0.95:shadowcolor=black@0.45:shadowx=0:shadowy=4",
-    box: "fontcolor=black:box=1:boxcolor=white@0.97:boxborderw=18",
     plain: "fontcolor=white:shadowcolor=black@0.7:shadowx=0:shadowy=3",
     // CapCut's yellow preset: yellow fill, thin dark outline, drop shadow down and to the right.
     yellow: "fontcolor=0xFFE41A:borderw=4:bordercolor=0x1A1400@0.95:shadowcolor=black@0.55:shadowx=5:shadowy=5",
-  }[opts.style];
-  const filters = lines.map((line, i) => {
-    const file = path.join(opts.tmp, `${opts.key}-${i}.txt`);
-    fs.writeFileSync(file, line);
-    return [
-      `drawtext=fontfile='${esc(opts.font)}'`,
-      `textfile='${esc(file)}'`,
-      "expansion=none",
-      `fontsize=${opts.size}`,
-      style,
-      `x=${cx}-text_w/2`,
-      `y=${top + i * lineH}`,
-      opts.enable ? `enable='${opts.enable}'` : "",
-    ]
-      .filter(Boolean)
-      .join(":");
+  }[opts.style as string] ?? "";
+  // The highlight look draws each line in pieces so the key word can be yellow.
+  const key = opts.style === "highlight" ? keyWord(clean) : undefined;
+  const filters = lines.flatMap((line, i) => {
+    const y = top + i * lineH;
+    const draw = (s: string, x: string, color?: string, n = "") => {
+      const file = path.join(opts.tmp, `${opts.key}-${i}${n}.txt`);
+      fs.writeFileSync(file, s);
+      return [`drawtext=fontfile='${esc(opts.font)}'`, `textfile='${esc(file)}'`, "expansion=none", `fontsize=${opts.size}`, color ? style.replace("fontcolor=white", `fontcolor=${color}`) : style, `x=${x}`, `y=${y}`, opts.enable ? `enable='${opts.enable}'` : ""]
+        .filter(Boolean)
+        .join(":");
+    };
+    const at = key ? line.split(" ").findIndex((w) => w.replace(/[^\p{L}\p{N}$%€£]/gu, "").toLowerCase() === key) : -1;
+    if (at < 0) return [draw(line, `${cx}-text_w/2`)];
+    // Pieces placed from the line's measured left edge: before, the word, after.
+    const words = line.split(" ");
+    const before = words.slice(0, at).join(" ");
+    const after = words.slice(at + 1).join(" ");
+    const x0 = Math.round(cx - textWidth(opts.font, line, opts.size) / 2);
+    const xw = x0 + (before ? Math.round(textWidth(opts.font, `${before} `, opts.size)) : 0);
+    const xa = xw + Math.round(textWidth(opts.font, `${words[at]} `, opts.size));
+    return [before ? draw(before, String(x0), undefined, "a") : "", draw(words[at], String(xw), "0xFFD60A", "b"), after ? draw(after, String(xa), undefined, "c") : ""].filter(Boolean);
   });
   const textW = Math.round(Math.max(...lines.map((l) => textWidth(opts.font, l, opts.size))));
   return { filters, height: lines.length * lineH, top, left: Math.round(cx - textW / 2), width: textW };
+}
+
+/** The looks that put the text on a solid block (numbered points get their tab box in these). */
+export const isBoxed = (style?: string) => !style || style === "yellowbox" || style === "box" || style === "blackbox";
+
+const STOP = new Set("the a an and or but to of in on at for with from by is are was were be been it its this that these those your you my our we he she they his her their me him them what when where why how who which do does did not no so as if than then just about into over under up out all any can will would should could have has had".split(" "));
+
+/**
+ * The word the highlight look turns yellow: a number or price if there is one ("$45", "3", "24h"),
+ * else the longest word that carries meaning. Lowercase, without punctuation.
+ */
+export function keyWord(text: string): string | undefined {
+  const words = text.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}$%€£]/gu, "").toLowerCase()).filter(Boolean);
+  const number = words.find((w) => /\d/.test(w));
+  if (number) return number;
+  return words.filter((w) => w.length >= 4 && !STOP.has(w)).sort((a, b) => b.length - a.length)[0];
 }
 
 /** "1. Call the airline" → ["1", "Call the airline"]; text that isn't a numbered point → undefined. */
@@ -222,7 +251,8 @@ export function pointFilters(num: string, text: string, opts: TextOpts & { boxW:
   top = Math.max(minTop, Math.min(top, Math.max(minTop, maxTop)));
   const h = Math.round(blockH) + padY * 2;
   const enable = opts.enable ? `enable='${opts.enable}'` : "";
-  const body = opts.style === "box" ? "white" : "0xF5C400";
+  const body = opts.style === "box" ? "white" : opts.style === "blackbox" ? "0x111111" : "0xF5C400";
+  const ink = opts.style === "blackbox" ? "white" : "0x111111";
   const write = (name: string, s: string) => {
     const file = path.join(opts.tmp, `${opts.key}-${name}.txt`);
     fs.writeFileSync(file, s);
@@ -230,6 +260,8 @@ export function pointFilters(num: string, text: string, opts: TextOpts & { boxW:
   };
   const numSize = labelSize(num, size);
   const tab = tabColors(num, body);
+  // On the black box the number's black tab would vanish: yellow number on it instead.
+  if (opts.style === "blackbox" && tab.fg === body) tab.fg = "0xFFD60A";
   const filters = [
     [`drawbox=x=${left + badgeW}:y=${top - padY}:w=${w - badgeW}:h=${h}:color=${body}@1:t=fill`, enable],
     [`drawbox=x=${left}:y=${top - padY}:w=${badgeW}:h=${h}:color=${tab.bg}@1:t=fill`, enable],
@@ -238,7 +270,7 @@ export function pointFilters(num: string, text: string, opts: TextOpts & { boxW:
       `x=${left + badgeW / 2}-text_w/2`, `y=${top - padY + h / 2}-text_h/2`, enable,
     ],
     ...lines.map((line, i) => [
-      `drawtext=fontfile='${esc(opts.font)}'`, write(String(i), line), "expansion=none", `fontsize=${size}`, "fontcolor=0x111111",
+      `drawtext=fontfile='${esc(opts.font)}'`, write(String(i), line), "expansion=none", `fontsize=${size}`, `fontcolor=${ink}`,
       `x=${left + badgeW + padX}`, `y=${top + i * lineH}`, enable,
     ]),
   ].map((parts) => parts.filter(Boolean).join(":"));
@@ -454,7 +486,7 @@ async function finalize(
   for (const o of overlays) if (o.y === undefined && o.end - o.start < 1.5) o.end = Math.min(duration + 1, o.start + 1.5);
   // The opening headline is pinned, in every video: the same box in the same place at the top of the
   // safe zone, at most two even lines. It never moves (other text steers around faces instead).
-  const boxed = !options.textStyle || options.textStyle === "yellowbox" || options.textStyle === "box";
+  const boxed = isBoxed(options.textStyle);
   const headers = new Set<Overlay>();
   const numbered = boxed ? points.filter((o) => splitNumber(screenText(o.text))) : [];
   const headline = overlays.filter((o) => o.y === undefined && o.at !== "caption").sort((a, b) => a.start - b.start)[0];

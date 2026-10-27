@@ -35,6 +35,7 @@ import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, listenHost, lockedOut, loginPage, logout, requireAuth, signedInAs, isAdmin } from "./auth.ts";
 import { aiOutOfCredit, monthlyLimit, spendThisMonth } from "./ai/budget.ts";
+import { TEXT_STYLES } from "./types.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, StoryDraft, TemplateId, VideoPlan } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -211,7 +212,7 @@ app.put("/api/settings", (req, res) => {
       ...(typeof petName === "string" && petName.trim() ? { petName: petName.trim().slice(0, 40) } : {}),
       ...(typeof handle === "string" ? { handle: handle.trim().slice(0, 40) } : {}),
       ...(fontOk ? { fontId } : {}),
-      ...(["yellowbox", "yellow", "classic", "box", "plain"].includes(textStyle) ? { textStyle } : {}),
+      ...(TEXT_STYLES.includes(textStyle) ? { textStyle } : {}),
       ...(["small", "medium", "large"].includes(textSize) ? { textSize } : {}),
       ...(["pets", "mix", "everyone"].includes(captionAudience) ? { captionAudience } : {}),
       ...(typeof story === "string" ? { story: story.trim().slice(0, 2000) } : {}),
@@ -893,7 +894,7 @@ function parseOptions(body: any): RenderOptions {
   const fontId = typeof body?.fontId === "string" && listFonts().some((f) => f.id === body.fontId) ? body.fontId : settings.fontId;
   return {
     keepOriginalAudio: body?.keepOriginalAudio !== false,
-    textStyle: ["yellowbox", "yellow", "classic", "box", "plain"].includes(body?.textStyle) ? body.textStyle : settings.textStyle,
+    textStyle: TEXT_STYLES.includes(body?.textStyle) ? body.textStyle : settings.textStyle,
     textSize: ["small", "medium", "large"].includes(body?.textSize) ? body.textSize : settings.textSize,
     fontId,
     musicFile,

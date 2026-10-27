@@ -26,9 +26,9 @@
   .num { margin-top: 18px; font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 96px; line-height: 1; }
   .unit { font-family: Inter, sans-serif; font-weight: 700; font-size: 30px; color: var(--text); margin-left: 10px; }
   #heart { transform-origin: center; }
-  /* green-screen export: hard outline instead of soft shadow, so chroma key leaves no green fringe */
-  body.keyable #grid { text-shadow: 3px 0 #0b0b0b, -3px 0 #0b0b0b, 0 3px #0b0b0b, 0 -3px #0b0b0b, 2px 2px #0b0b0b, -2px -2px #0b0b0b, 2px -2px #0b0b0b, -2px 2px #0b0b0b, 0 4px 0 #0b0b0b; }
-  body.keyable .label svg { filter: drop-shadow(2px 0 0 #0b0b0b) drop-shadow(-2px 0 0 #0b0b0b) drop-shadow(0 2px 0 #0b0b0b) drop-shadow(0 -2px 0 #0b0b0b); }
+  /* green-screen export: no shadow or outline, so chroma key leaves clean edges */
+  body.keyable #grid { text-shadow: none; }
+  body.keyable .label svg { filter: none; }
 </style>
 </head>
 <body>

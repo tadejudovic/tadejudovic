@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
  */
 
 
-/** Line icons (Lucide-style, 24px grid, stroke = currentColor). The only emoji on the page is 🔥. */
+/** Line icons (Lucide-style, 24px grid, stroke = currentColor). No emoji on the page. */
 const ICONS: Record<string, string> = {
   camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
   sparkle: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
@@ -114,7 +114,7 @@ export function landingHtml(opts: { signInUrl: string; google: boolean }): strin
 <meta property="og:description" content="Ready-to-post videos from your camera roll, every day. You just swipe.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fe2c55%22/%3E%3Cstop offset=%221%22 stop-color=%22%23ffb020%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22url(%23g)%22/%3E%3Cpath d=%22M12 10v12l10-6z%22 fill=%22%23fff%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--ink:#0b0b0f;--paper:#fafafa;--muted:#8b8b98;--accent:#fe2c55;--accent2:#ff8a3d;--cyan:#25f4ee;--yellow:#ffe41a;color-scheme:dark}
 *{box-sizing:border-box}
@@ -398,6 +398,56 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
   .roll-ui,.profile,.just{opacity:0}.clip{opacity:1;clip-path:none}.ov span,.tags,.clip .ui,.stage .chip{opacity:1}
   .r{opacity:1;transform:none}
 }
+
+/* ---- The app's look: near-black, soft rounded dark cards, Google's light blue for the one action ---- */
+:root{--ink:#0f0f10;--paper:#0f0f10;--muted:#a8abaf;--accent:#a8c7fa;--surface:#1e1f20;--surface2:#28292b;--tonal:#3b4858;--on-tonal:#d3e3fd;--on-primary:#062e6f}
+body{font-family:Figtree,"Google Sans",Roboto,system-ui,sans-serif}
+.logo{font-weight:700;letter-spacing:-.02em}
+.logo i{border-radius:50%;background:conic-gradient(#ea4335 0 25%,#fbbc04 0 50%,#34a853 0 75%,#4285f4 0)}
+.signin{border:0;background:var(--surface);font-weight:600}
+.signin:hover{background:var(--surface2)}
+.glow{background:radial-gradient(40% 40% at 25% 35%,rgba(168,199,250,.16),transparent 70%),radial-gradient(35% 35% at 75% 30%,rgba(255,216,228,.10),transparent 70%),radial-gradient(30% 30% at 60% 70%,rgba(194,231,255,.08),transparent 70%)}
+.grid{opacity:.12}
+.pill{background:var(--surface);border:0;font-weight:600}
+.pill b{background:#a8c7fa;box-shadow:0 0 0 4px rgba(168,199,250,.2)}
+h1{font-weight:700;letter-spacing:-.04em}
+h2{font-weight:700;letter-spacing:-.03em}
+.grad{background:linear-gradient(90deg,#a8c7fa,#c2e7ff 45%,#ffd8e4);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead,.final p{color:var(--muted)}
+.btn{background:var(--accent);color:var(--on-primary);border-radius:999px;padding:16px 26px;font-weight:600;box-shadow:none}
+.btn:hover{transform:none;background:#bcd4fb;box-shadow:none}
+.btn svg{background:#fff;border-radius:50%;padding:2px;width:22px;height:22px}
+.chip{background:var(--surface2);color:#e3e3e3;border:0;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.chip small{color:var(--muted)}
+.chip .ico{color:var(--accent)}
+.chip .ico.ok{color:#7fd09a}
+.light{background:var(--paper);color:#e3e3e3}
+.eyebrow{color:var(--accent);font-weight:600;letter-spacing:.02em;text-transform:none;font-size:15px}
+.sub{color:var(--muted)}
+.step{background:var(--surface);border:0;border-radius:28px;box-shadow:none}
+.step .big{color:var(--surface2)}
+.step .ic{background:var(--tonal);color:var(--on-tonal);border-radius:16px}
+.step .ic .ico{color:var(--on-tonal)}
+.step p{color:var(--muted)}
+.roll{background:var(--surface);border:0;border-radius:28px;gap:3px}
+.roll i{border-radius:4px}
+.roll i.pick{outline-color:var(--accent)}
+.arrow{color:var(--accent)}
+.post{border-radius:12px;box-shadow:none}
+.post span{background:var(--tonal);color:var(--on-tonal)}
+.flowcap{color:var(--muted)}
+.feat{background:var(--surface);color:#e3e3e3;border:0;border-radius:28px}
+.feat:nth-child(2){background:#233144}
+.feat:nth-child(3){background:var(--surface);color:#e3e3e3;border:0}
+.feat:nth-child(4){background:#28292b}
+.feat p{color:var(--muted);opacity:1}
+.tag{background:var(--surface2);color:#e3e3e3;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.feat:nth-child(2) .tag{background:rgba(168,199,250,.14)}
+.feat:nth-child(3) .tag{background:var(--surface2)}
+.tag .ico{width:14px;height:14px}
+.tag .ico.fill{fill:currentColor;stroke:none}
+footer{border-top-color:#28292b}
+.phone{box-shadow:0 0 0 1.5px #3a3b3e,0 40px 90px rgba(0,0,0,.6) !important}
 </style></head><body>
 
 <header class="hero">
@@ -451,7 +501,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
           <div class="cap">Picking the best moment…</div>
           <div class="just">${ico("check")} Just posted</div>
         </div></div>
-        <div class="chip c1">🔥 <span>Text from a <span class="v">${first.views}</span>-view TikTok</span></div>
+        <div class="chip c1">${ico("play", "fill")} <span>Text from a <span class="v">${first.views}</span>-view TikTok</span></div>
         <div class="chip c2"><span>#<span class="t">${first.tag}</span></span> <small><span class="p">${first.posts}</span> posts</small></div>
         <div class="chip c3">${ico("check", "ok")} Posted · caption and hashtags included</div>
       </div>
@@ -467,9 +517,9 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
     <h2 class="r d1">Three steps. Then it runs itself.</h2>
     <p class="sub r d2">No editing app, no scrolling for ideas, no guessing which caption will land.</p>
     <div class="steps">
-      <div class="step r"><div class="big">1</div><div class="ic">${ico("camera")}</div><h3>Connect your album</h3><p>Share a Google Photos album, or let it fill itself with every video of your pet. New footage is picked up automatically.</p></div>
+      <div class="step r"><div class="big">1</div><div class="ic">${ico("camera")}</div><h3>Pick from Google Photos</h3><p>Choose the videos you love. Rollcut only sees the ones you pick, and finds the best moment in each.</p></div>
       <div class="step r d1"><div class="big">2</div><div class="ic">${ico("sparkle")}</div><h3>Videos made for you</h3><p>Each clip is trimmed, gets text adapted from TikToks that already went viral, and three hashtags sized to get seen.</p></div>
-      <div class="step r d2"><div class="big">3</div><div class="ic">${ico("send")}</div><h3>Swipe to post</h3><p>Right opens TikTok or Instagram with the caption ready to paste. Left skips it. Every swipe makes the next round better.</p></div>
+      <div class="step r d2"><div class="big">3</div><div class="ic">${ico("send")}</div><h3>Keep or skip</h3><p>Every morning a few are ready. Keep the ones you'd post and save them, with the caption ready to paste. Every answer makes the next round better.</p></div>
     </div>
   </div></section>
 
@@ -497,13 +547,13 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
     <h2 class="r d1">Built on what already performs.</h2>
     <div class="feats">
       <div class="feat r"><h3>Proven text, not guesses</h3><p>It searches TikTok for videos like yours, reads the text on the most-viewed ones and adapts it to your clip.</p>
-        <div class="demo"><span class="tag">🔥 2.1M views</span><span class="tag">🔥 1.7M views</span><span class="tag">🔥 940K views</span></div></div>
+        <div class="demo"><span class="tag">${ico("play", "fill")} 2.1M views</span><span class="tag">${ico("play", "fill")} 1.7M views</span><span class="tag">${ico("play", "fill")} 940K views</span></div></div>
       <div class="feat r d1"><h3>Hashtags that get seen</h3><p>One big, one mid-size, one niche: the mix that gets you discovered instead of buried.</p>
         <div class="demo"><span class="tag">#travelwithdog <small>2.4M</small></span><span class="tag">#flyingwithdog <small>240K</small></span><span class="tag">#dogatairport <small>11K</small></span></div></div>
       <div class="feat r"><h3>Learns your taste</h3><p>Every swipe tells it what you like. Rejected because of the text, the clip or the cut? The next round adjusts.</p>
         <div class="demo"><span class="tag">${ico("check")} Posted</span><span class="tag">${ico("x")} The text</span><span class="tag">${ico("x")} The clip</span></div></div>
       <div class="feat r d1"><h3>Your look, every time</h3><p>Your font, your colors, your text size. Every video looks like you made it in CapCut, minus the hour.</p>
-        <div class="demo"><span class="tag" style="color:#ffe41a">Yellow</span><span class="tag">Outline</span><span class="tag">Box</span></div></div>
+        <div class="demo"><span class="tag" style="background:#f5c400;color:#111">Yellow box</span><span class="tag">Outline</span><span class="tag">Bold caps</span></div></div>
     </div>
   </div></section>
 </div>

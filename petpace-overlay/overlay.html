@@ -70,9 +70,9 @@ const STAGES = [
 ];
 const END = 18;          // second the overlay disappears
 const FPS = 30;
-const READOUT_EVERY = 0.5; // seconds between number updates, like a real monitor
-const WOBBLE_HR = 4;     // +/- bpm natural variation within a stage
-const WOBBLE_BR = 1.5;   // +/- br/min natural variation within a stage
+const READOUT_EVERY = 1.5; // seconds between small wobble updates while a stage holds
+const WOBBLE_HR = 2;     // +/- bpm natural variation within a stage
+const WOBBLE_BR = 1;     // +/- br/min natural variation within a stage
 // -----------------------------------------------------
 
 const TOTAL = END;
@@ -87,11 +87,13 @@ function valuesAt(t) {
   let i = 0;
   while (i < STAGES.length - 1 && t >= STAGES[i + 1].at) i++;
   const cur = STAGES[i], prev = STAGES[Math.max(0, i - 1)];
-  const k = i === 0 ? 1 : ease((t - cur.at) / 0.6);
+  const k = i === 0 ? 1 : ease((t - cur.at) / 1.0);
   const mix = (key) => prev[key] + (cur[key] - prev[key]) * k;
+  // wobble is sampled on a slow clock so numbers don't flicker; stage changes count smoothly
+  const w = Math.floor(t / READOUT_EVERY) * READOUT_EVERY;
   return {
-    hr: mix('hr') + noise(t, 1) * WOBBLE_HR,
-    br: mix('br') + noise(t * 0.7, 5) * WOBBLE_BR,
+    hr: mix('hr') + noise(w, 1) * WOBBLE_HR,
+    br: mix('br') + noise(w * 0.7, 5) * WOBBLE_BR,
     stress: mix('stress'),
   };
 }
@@ -109,7 +111,7 @@ function render(t) {
   const first = STAGES[0].at;
   const fade = Math.min(ease((t - first) / 0.3), ease((END - t) / 0.3));
   document.getElementById('grid').style.opacity = t < first || t >= END ? 0 : fade;
-  const shown = valuesAt(Math.max(first, Math.floor(t / READOUT_EVERY) * READOUT_EVERY));
+  const shown = valuesAt(Math.max(first, t));
   document.getElementById('hr').textContent = Math.round(shown.hr);
   document.getElementById('br').textContent = Math.round(shown.br);
   document.getElementById('st').textContent = band(valuesAt(t).stress, 35, 65, ['Low', 'Medium', 'High']);

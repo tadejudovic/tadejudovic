@@ -1822,6 +1822,9 @@ if (!paused && !store.settings().feesOpeningV2) {
 
 // Once, asked by the creator: "Where do dogs pee when they fly?" made again (its clips were deleted
 // with the old library), same lesson on today's footage.
+// The text is written for dog lovers (the "who the text is for" choice is gone from Settings).
+if (!store.settings().dogLoversV1) store.updateSettings({ dogLoversV1: true, captionAudience: "pets" });
+
 if (!paused && !store.settings().peeRedoV1) {
   store.updateSettings({ peeRedoV1: true });
   setTimeout(() => {

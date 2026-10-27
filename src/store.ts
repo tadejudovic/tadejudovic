@@ -105,6 +105,7 @@ export interface Settings {
   feesOpeningV2?: boolean;
   feesOpeningV3?: boolean;
   peeRedoV1?: boolean;
+  dogLoversV1?: boolean;
   mixV2?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;
@@ -181,7 +182,8 @@ const DEFAULT_SETTINGS: Settings = {
   fontId: "montserrat",
   textStyle: "yellowbox",
   textSize: "medium",
-  captionAudience: "mix",
+  // Who the text speaks to: dog lovers for Lex. Other creators will pick topics at onboarding.
+  captionAudience: "pets",
   cta: {
     site: "flywith.pet",
     overlay: "Plan your pet's trip / at www.flywith.pet",

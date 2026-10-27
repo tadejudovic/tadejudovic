@@ -23,7 +23,8 @@ test("the inspirational video is made even when its clip has no sound analysis",
   assert.equal(inspire.segments[0].clipId, "o1");
 });
 
-test("inspirational videos speak to everyone", () => {
+test("inspirational videos speak to everyone (with the Mix setting)", () => {
+  store.updateSettings({ captionAudience: "mix" });
   assert.equal(nextAudience("inspire"), "everyone");
 });
 

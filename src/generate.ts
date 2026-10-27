@@ -7,11 +7,11 @@ import { promoteSpares, sparesOf, waitingOf } from "./daySet.ts";
 import { momentsOf, recentlyUsedMoments } from "./moments.ts";
 import { featureOn, store, newId } from "./store.ts";
 import { heuristicPlan, stretchToTarget } from "./planner.ts";
-import { directClip, planVideos, proofreadText, withOpener, writeCaption, type DirectContext } from "./ai/director.ts";
+import { directClip, planVideos, proofreadText, trimTo, withOpener, writeCaption, type DirectContext } from "./ai/director.ts";
 import { provenCaptions, researchedHashtags, researchScene, researchStale } from "./ai/research.ts";
 import { basePath, baseKey, renderVideo } from "./media/render.ts";
 import { ingestQueue, renderQueue, PRIORITY } from "./queue.ts";
-import type { Clip, DailyMix, EduPillar, GenerateRequest, Overlay, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, StoryDraft, VideoPlan } from "./types.ts";
+import type { Clip, DailyMix, EduPillar, GenerateRequest, Overlay, Partner, Platform, PostedInfo, PostFormat, Render, ReviewFeedback, Segment, StoryDraft, VideoPlan } from "./types.ts";
 import { findClipFor } from "./ai/collabPick.ts";
 import { settingClarity } from "./ai/setting.ts";
 import { detectSubject } from "./ai/subject.ts";
@@ -1542,6 +1542,75 @@ export function headlineTopExisting(versions = ["6cf9b0f", "c0142df", "ff8ea70"]
   }
   if (n) console.log(`[layout] headline back at the top in ${n} video(s)`);
   return n;
+}
+
+export type ShotAction = "keep" | "swap" | "remove" | "never";
+
+/**
+ * Another clip for a shot, the same length: the same situation first, then Lex in the backpack /
+ * boarding / on the plane, the two of them together, recent; never a clip already in the video or
+ * one the creator rejected, and only footage with Lex in it.
+ */
+function swapFor(seg: Segment, inVideo: Set<string>, scene?: string): Segment | undefined {
+  const len = (seg.end - seg.start) / (seg.speed ?? 1);
+  const best = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
+  const pick = store
+    .clips()
+    .filter((c) => c.status === "ready" && c.kind === "video" && c.height >= c.width && !c.disliked && !c.edited && !c.duplicateOf && !inVideo.has(c.id) && c.duration >= Math.min(len, 1.5) && hasLex(c))
+    .sort(
+      (a, b) =>
+        Number(b.scene === scene) - Number(a.scene === scene) ||
+        Number(a.uses > 0) - Number(b.uses > 0) ||
+        Number(strongFootage(b)) + Number(together(b)) - Number(strongFootage(a)) - Number(together(a)) ||
+        filmedWeek(b) - filmedWeek(a) ||
+        best(b) - best(a),
+    )[0];
+  if (!pick) return undefined;
+  const m = [...(pick.ai?.moments ?? pick.moments ?? [])].sort((a, b) => b.score - a.score)[0];
+  const take = Math.min(len, pick.duration);
+  const mid = m ? (m.start + m.end) / 2 : pick.duration / 2;
+  const start = Math.max(0, Math.min(mid - take / 2, pick.duration - take));
+  inVideo.add(pick.id);
+  return { clipId: pick.id, start, end: start + take, speed: 1 };
+}
+
+/**
+ * The creator's choices on a video's shots, from the timeline: keep, swap for other footage of the
+ * same length, remove (its time goes to the shots around it, from their unused footage), or never
+ * use this clip again (swapped, and the clip is set aside for good). The text and its timing stay;
+ * the video is drawn again in place (same review, editor's notes kept).
+ */
+export function editShots(id: string, actions: ShotAction[]): Render {
+  const r = store.render(id);
+  if (!r || r.status !== "done") throw new Error("That video isn't ready.");
+  if (r.posts?.length) throw new Error("This video is already posted.");
+  const segs = r.plan.segments;
+  if (!segs.every((x) => store.clip(x.clipId)?.status === "ready")) throw new Error("Some of this video's footage is no longer in the library: use Make again instead.");
+  const len = (xs: Segment[]) => xs.reduce((a, x) => a + (x.end - x.start) / (x.speed ?? 1), 0);
+  const total = len(segs);
+  const inVideo = new Set(segs.map((x) => x.clipId));
+  const out: Segment[] = [];
+  const missing: number[] = [];
+  segs.forEach((seg, i) => {
+    const a = actions[i] ?? "keep";
+    if (a === "keep") return void out.push(seg);
+    if (a === "never") store.updateClip(seg.clipId, { disliked: true });
+    if (a === "remove") return;
+    const other = swapFor(seg, inVideo, store.clip(seg.clipId)?.scene);
+    if (other) out.push(other);
+    else missing.push(i);
+  });
+  if (!out.length) throw new Error("Keep at least one shot.");
+  // Removed shots' time: the shots around them play on into their own unused footage, so the text
+  // keeps its timing (or the video gets a little shorter when there's none).
+  const segments = len(out) < total - 0.05 ? trimTo(lengthenFootage(out, total, (cid) => store.clip(cid)?.duration ?? 0), total) : out;
+  const plan = { ...r.plan, segments, editorPass: EDITOR_ATTEMPTS };
+  const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
+  store.updateRender(fresh.id, { ...(r.review === "approved" ? { review: "approved", reviewedAt: r.reviewedAt } : {}), ...(r.editor ? { editor: r.editor } : {}) });
+  deleteRender(r.id);
+  syncClipUses(fresh.id);
+  if (missing.length) console.log(`[shots] ${id}: no other footage for shot(s) ${missing.map((i) => i + 1).join(", ")}; left out`);
+  return fresh;
 }
 
 const REMAKE_BRIEF: Record<string, (text: string, note?: string) => string> = {

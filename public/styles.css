@@ -820,3 +820,18 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(11,11,15,.08
 .sounds { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
 .sounds .sound { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .sounds .sound .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* Shot timeline in a video's details */
+.shots { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
+.shot { flex: none; width: 112px; display: grid; gap: 4px; scroll-snap-align: start; }
+.shot-img { position: relative; padding: 0; border: 0; background: none; cursor: pointer; }
+.shot-img img { width: 112px; height: 168px; object-fit: cover; border-radius: 10px; display: block; background: var(--line); }
+.shot-n { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 6px; }
+.shot-time { font-size: 12px; font-weight: 600; }
+.shot-scene { font-size: 11px; color: var(--muted, #8b8b98); text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shot-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.shot-act { border: 1px solid var(--line); background: none; border-radius: 8px; padding: 4px 0; font: inherit; font-size: 12px; cursor: pointer; color: inherit; }
+.shot-act.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.shot[data-a="remove"] img, .shot[data-a="never"] img { opacity: .35; }
+.shot[data-a="never"] .shot-act.on { background: #dc2626; border-color: #dc2626; }
+.shot[data-a="swap"] img { outline: 2px dashed var(--accent); outline-offset: -2px; }

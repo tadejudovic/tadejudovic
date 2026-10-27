@@ -1187,6 +1187,7 @@ function detailsBody(r) {
             });
           } }, "Make again"))
       : null,
+    shotsSection(r),
     soundsSection(r),
     r.editor ? h("section", { class: "d-sec" },
       h("div", { class: "d-sec-head" }, h("span", {}, "Editor's review")),
@@ -1225,6 +1226,59 @@ const soundRow = (x, note) =>
     h("a", { class: "btn small", href: x.url, target: "_blank", rel: "noopener noreferrer" }, "Open in TikTok"));
 
 /** Trending sounds that fit this video, loaded when the details open (TikTok adds the sound when posting). */
+// The video's shots in order, each with a choice: keep it, swap it for other footage, cut it, or
+// never use that clip again. Apply draws the video again with the same text.
+const SHOT_ACTIONS = [["keep", "Keep"], ["swap", "Swap"], ["remove", "Cut"], ["never", "Never use"]];
+function shotsSection(r) {
+  if (r.status !== "done" || r.posts?.length || !r.plan.segments?.length) return null;
+  const picks = [];
+  const strip = h("div", { class: "shots" }, h("span", { class: "muted" }, "Loading shots…"));
+  const apply = h("button", { class: "btn", disabled: true, onclick: (e) => {
+    if (picks.every((a) => a === "remove")) return banner("Keep at least one shot.", "error");
+    withBusy(e.currentTarget, "Starting…", async () => {
+      await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: picks } });
+      banner(`Drawing it again with your ${picks.filter((a) => a !== "keep").length} change(s). It reappears in a minute with the same text.`, "ok");
+      await refreshRenders();
+    });
+  } }, "Apply changes");
+  const count = h("span", { class: "muted" });
+  const changed = () => {
+    const n = picks.filter((a) => a !== "keep").length;
+    apply.disabled = !n;
+    count.textContent = n ? `${n} change${n > 1 ? "s" : ""}` : "";
+  };
+  api(`/api/renders/${r.id}/timeline`)
+    .then((shots) =>
+      strip.replaceChildren(
+        ...shots.map((s) => {
+          picks[s.index] = "keep";
+          const card = h("div", { class: "shot" });
+          const buttons = SHOT_ACTIONS.map(([a, label]) =>
+            h("button", { class: `shot-act${a === "keep" ? " on" : ""}`, "data-a": a, onclick: () => {
+              picks[s.index] = a;
+              card.dataset.a = a;
+              for (const b of buttons) b.classList.toggle("on", b.dataset.a === a);
+              changed();
+            } }, label));
+          card.append(
+            h("button", { class: "shot-img", title: s.summary || "", onclick: () => openClip(s.clipId) },
+              h("img", { src: s.frame, alt: "", loading: "lazy" }),
+              h("span", { class: "shot-n" }, String(s.index + 1))),
+            h("div", { class: "shot-time" }, `${s.from.toFixed(1)}–${s.to.toFixed(1)}s`),
+            s.scene ? h("div", { class: "shot-scene" }, s.scene) : null,
+            h("div", { class: "shot-acts" }, ...buttons));
+          return card;
+        }),
+      ),
+    )
+    .catch(() => strip.replaceChildren(h("span", { class: "muted" }, "Couldn't load the shots.")));
+  return h("section", { class: "d-sec" },
+    h("div", { class: "d-sec-head" }, h("span", {}, "Shots"), count),
+    h("p", { class: "d-hint" }, "Every clip in the video, in order. Swap puts other footage of the same kind in its place, Cut removes it (the shots around it fill the time), Never use swaps it and keeps that clip out of all future videos."),
+    strip,
+    apply);
+}
+
 function soundsSection(r) {
   if (r.status !== "done") return null;
   const list = h("ul", { class: "sounds" }, h("li", { class: "muted" }, "Finding sounds that fit…"));

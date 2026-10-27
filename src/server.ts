@@ -13,13 +13,14 @@ import { enqueueClip, importPicked, analyzeClip, deleteClip, ensureProxy, fastMo
 import { clearWaitingWork, forgetRunningJobs, ingestQueue, jobsFromLastCrash, markStopping } from "./queue.ts";
 import { dayClips, proposeDayVlog, vlogDays, type VlogProposal } from "./ai/vlog.ts";
 import { previewFor } from "./media/preview.ts";
+import { frameAt } from "./media/ffmpeg.ts";
 import { bandwidthStatus, countResponses, flushBandwidth, mediaStopped, playbackPaused, seedBandwidth } from "./bandwidth.ts";
 import { allSearchTopics, importSearchExport, searchTopicUsed } from "./searchDemand.ts";
 import { learnFromTikTok } from "./audience.ts";
 import { DAY_KINDS, keptToday, promoteSpares, waitingOf } from "./daySet.ts";
 import { linkWinningPosts, syncProfiles } from "./postMatch.ts";
 import { refreshSounds, soundsFor, trendingSounds } from "./sounds.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, makeCollabEducational, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, newOpening, headlineTopExisting, EDITOR_ATTEMPTS } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, makeCollabEducational, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, newOpening, editShots, type ShotAction, headlineTopExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -825,6 +826,22 @@ app.get("/media/thumb/:id", (req, res) => {
   res.sendFile(clip.thumb);
 });
 
+// One frame of a clip at a moment (a shot in a video's timeline), made once and kept.
+app.get(
+  "/media/frame/:id",
+  h(async (req, res) => {
+    const clip = store.clip(String(req.params.id));
+    if (!clip || clip.status !== "ready" || !fs.existsSync(clip.file)) return void res.sendStatus(404);
+    const t = Math.max(0, Math.min(Number(req.query.t) || 0, Math.max(0, clip.duration - 0.1)));
+    const out = path.join(config.thumbsDir, `shot-${clip.id}-${t.toFixed(1)}.jpg`);
+    if (!fs.existsSync(out)) {
+      fs.mkdirSync(config.thumbsDir, { recursive: true });
+      await frameAt(clip.file, t, out, 240);
+    }
+    res.set("Cache-Control", "private, max-age=86400").sendFile(out);
+  }),
+);
+
 app.get("/media/clip/:id", (req, res) => {
   const clip = store.clip(String(req.params.id));
   if (!clip || clip.status !== "ready") return res.sendStatus(404);
@@ -991,6 +1008,35 @@ app.post(
     const fresh = await newOpening(String(req.params.id));
     if (!fresh) return void res.status(400).json({ error: "No other footage opens clearly on the airport. Pick more videos in Settings → Google Photos." });
     res.json(fresh);
+  }),
+);
+
+// The video's shots in order, for the timeline: which clip, which part of it, when it plays.
+app.get("/api/renders/:id/timeline", (req, res) => {
+  const r = store.render(String(req.params.id));
+  if (!r) return void res.sendStatus(404);
+  let at = 0;
+  res.json(
+    r.plan.segments.map((seg, index) => {
+      const clip = store.clip(seg.clipId);
+      const seconds = (seg.end - seg.start) / (seg.speed ?? 1);
+      const shot = { index, clipId: seg.clipId, start: seg.start, end: seg.end, from: at, to: at + seconds, scene: clip?.scene, summary: clip?.ai?.summary, missing: clip?.status !== "ready", frame: `/media/frame/${seg.clipId}?t=${((seg.start + seg.end) / 2).toFixed(1)}` };
+      at += seconds;
+      return shot;
+    }),
+  );
+});
+
+app.post(
+  "/api/renders/:id/shots",
+  h(async (req, res) => {
+    const ok: ShotAction[] = ["keep", "swap", "remove", "never"];
+    const actions = Array.isArray(req.body?.actions) ? req.body.actions.map((a: unknown) => (ok.includes(a as ShotAction) ? (a as ShotAction) : "keep")) : [];
+    try {
+      res.json(editShots(String(req.params.id), actions));
+    } catch (e) {
+      res.status(400).json({ error: (e as Error).message });
+    }
   }),
 );
 

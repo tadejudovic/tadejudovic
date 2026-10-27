@@ -1162,7 +1162,13 @@ function detailsBody(r) {
     h("section", { class: "d-head" },
       headline,
       h("span", { class: "d-actions" },
-        h("button", { class: "d-link", onclick: () => { editText.hidden = !editText.hidden; if (!editText.hidden) textInput.focus(); } }, "Edit text"),
+        h("button", { class: "d-link", onclick: (e) => {
+          // On the video itself when it's on screen (the card or the review stack); a list otherwise.
+          const media = e.currentTarget.closest(".sheet-card, .stack-card")?.querySelector(".sheet-media, .stack-media");
+          if (media?.querySelector("video")) return editOnVideo(r, media);
+          editText.hidden = !editText.hidden;
+          if (!editText.hidden) textInput.focus();
+        } }, "Edit text"),
         h("button", { class: "d-link admin-only", onclick: (e) => withBusy(e.currentTarget, "Reading…", async () => {
           const res = await api(`/api/renders/${r.id}/proofread`, { method: "POST" });
           if (!res.changed) return banner("The text reads fine as it is.", "ok");
@@ -1258,6 +1264,66 @@ function detailsBody(r) {
       ),
     ) : null,
   );
+}
+
+/**
+ * Edit the video's text right on the video: it pauses on the moment each text shows, dims a little,
+ * and the text sits in its place as a box in the video's look, to type into. ‹ › go through the
+ * texts; Done re-makes the video with the new words (same places and timing). An emptied text goes.
+ */
+function editOnVideo(r, media) {
+  if (media.querySelector(".te")) return;
+  const video = media.querySelector("video");
+  const overlays = r.plan.overlays?.length ? r.plan.overlays : [{ text: r.plan.hook || r.plan.title || "", start: 0, end: 3 }];
+  const texts = overlays.map((o) => o.text);
+  const style = r.options?.textStyle ?? state.status.settings.textStyle ?? "yellowbox";
+  let i = 0;
+  video.pause();
+  const controls = video.controls;
+  video.controls = false;
+  media.classList.add("editing");
+  const box = h("div", { class: `te-box te-look-${style}`, contenteditable: "plaintext-only", spellcheck: "true" });
+  const count = h("span", { class: "te-count" });
+  const prev = h("button", { class: "te-nav", "aria-label": "Previous text", onclick: () => go(i - 1) }, "‹");
+  const next = h("button", { class: "te-nav", "aria-label": "Next text", onclick: () => go(i + 1) }, "›");
+  const keep = () => (texts[i] = box.innerText.split("\n").map((l) => l.trim()).filter(Boolean).join(" / "));
+  const place = (o) => {
+    // Where the text sits: the opening line at the top, the call to action in the middle, captions
+    // low, the rest where the plan put them.
+    const y = o.cta ? 0.5 : o.at === "caption" ? 0.7 : o.y ?? 0.17;
+    box.style.top = `${y * 100}%`;
+    box.style.left = `${(o.x ?? 0.5) * 100}%`;
+    box.style.transform = o.y === undefined && !o.cta && o.at !== "caption" ? "translate(-50%, 0)" : "translate(-50%, -50%)";
+  };
+  const go = (n) => {
+    keep();
+    i = Math.max(0, Math.min(texts.length - 1, n));
+    box.innerText = texts[i].split(" / ").join("\n");
+    place(overlays[i]);
+    try { video.currentTime = Math.max(0, (overlays[i].start ?? 0) + 0.3); } catch {}
+    count.textContent = texts.length > 1 ? `Text ${i + 1} of ${texts.length}` : "";
+    prev.disabled = i === 0;
+    next.disabled = i === texts.length - 1;
+    box.focus();
+  };
+  const close = () => { layer.remove(); media.classList.remove("editing"); video.controls = controls; };
+  const done = h("button", { class: "btn small primary", onclick: (e) => withBusy(e.currentTarget, "Making…", async () => {
+    keep();
+    const lines = texts.map((t) => t.trim()).filter(Boolean);
+    if (!lines.length) return banner("Keep at least one text.");
+    if (lines.join("\n") === overlays.map((o) => o.text).join("\n")) return close();
+    await api(`/api/renders/${r.id}/rerender`, { method: "POST", body: { overlays: lines } });
+    closeSheet();
+    await refreshRenders();
+    banner("Re-making the video with the new text. It comes back to Review when it's done.", "ok");
+  }) }, "Done");
+  const layer = h("div", { class: "te", onclick: (e) => e.stopPropagation(), onpointerdown: (e) => e.stopPropagation() },
+    h("div", { class: "te-top" }, h("button", { class: "btn small", onclick: close }, "Cancel"), count, done),
+    box,
+    texts.length > 1 ? h("div", { class: "te-bottom" }, prev, h("span", { class: "te-hint" }, "Tap the text to change it"), next) : h("div", { class: "te-bottom" }, h("span", { class: "te-hint" }, "Tap the text to change it")));
+  media.append(layer);
+  box.innerText = texts[0].split(" / ").join("\n");
+  go(0);
 }
 
 /** One trending sound: name, why or how fast it's growing, and a link to use it in TikTok. */

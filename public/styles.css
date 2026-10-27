@@ -1193,3 +1193,23 @@ input, select, textarea, .perf-input { background: var(--surface-2) !important; 
 .d-caption.editable:focus { box-shadow: 0 0 0 2px var(--primary); }
 .d-caption.editable:empty::before { content: attr(data-placeholder); color: var(--faint); }
 .d > .d-sec:first-child { border-top: 0 !important; padding-top: 14px; }
+
+/* Editing the text on the video: paused, dimmed a little, the text in its place in the video's look */
+.sheet-media, .stack-media { position: relative; container-type: inline-size; }
+.editing video { filter: brightness(.6) saturate(.8); }
+.te { position: absolute; inset: 0; z-index: 6; }
+.te-top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; z-index: 2; }
+.te-count { color: #fff; font-size: 13px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+.te-bottom { position: absolute; left: 10px; right: 10px; bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; z-index: 2; }
+.te-hint { flex: 1; text-align: center; color: #fff; font-size: 13px; font-weight: 500; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+.te-nav { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(0,0,0,.5); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; backdrop-filter: blur(8px); }
+.te-nav:disabled { opacity: .3; }
+.te-box { position: absolute; width: max-content; max-width: 84%; min-width: 30%; padding: .25em .45em; font-family: Montserrat, "Figtree", sans-serif; font-weight: 800; font-size: 5.4cqw; line-height: 1.24; text-align: center; white-space: pre-wrap; outline: none; cursor: text; box-shadow: 0 0 0 2px var(--primary), 0 0 0 6px rgba(168,199,250,.25); border-radius: 4px; }
+.te-look-yellowbox { background: #f5c400; color: #111; }
+.te-look-box { background: #fff; color: #111; }
+.te-look-blackbox { background: rgba(0,0,0,.82); color: #fff; }
+.te-look-classic, .te-look-highlight, .te-look-bold, .te-look-plain { color: #fff; -webkit-text-stroke: .1em #000; paint-order: stroke fill; }
+.te-look-bold { text-transform: uppercase; -webkit-text-stroke-width: .14em; }
+.te-look-plain { -webkit-text-stroke: 0; text-shadow: 0 .06em .12em rgba(0,0,0,.7); }
+.te-look-yellow { color: #ffe41a; -webkit-text-stroke: .06em #1a1400; paint-order: stroke fill; text-shadow: .08em .08em .06em rgba(0,0,0,.55); }
+.te-top .btn:not(.primary) { background: rgba(0,0,0,.55) !important; color: #fff !important; backdrop-filter: blur(8px); }

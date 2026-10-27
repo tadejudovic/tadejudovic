@@ -113,6 +113,11 @@
       <div class="brand-row"><span class="mark" aria-hidden="true"></span><span class="brand-name">Rollcut</span></div>
       <h1 class="settings-title">Settings</h1>
 
+      <!-- Only for admins: turn off to see the app the way everyone else does (and back). -->
+      <div class="group real-admin" hidden>
+        <label class="srow lab view-switch"><span class="lab-text"><span class="row-title">Admin view</span><span class="muted" id="view-as-note">You see everything. Turn off to see the app the way creators do.</span></span><input type="checkbox" id="view-as-admin" checked /></label>
+      </div>
+
       <div class="group admin-only">
         <button class="srow" data-open="sp-labs"><span class="row-title">🧪 Labs</span><span class="row-value" id="sum-labs">beta features</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       </div>

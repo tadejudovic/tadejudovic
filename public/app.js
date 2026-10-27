@@ -87,6 +87,24 @@ const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)
 
 // ---- Status ---------------------------------------------------------------
 
+function creatorView() {
+  try { return localStorage.getItem("rollcut.creatorView") === "1"; } catch { return false; }
+}
+function applyAdminView() {
+  const admin = state.status?.admin !== false;
+  const asCreator = admin && creatorView();
+  document.body.classList.toggle("admin", admin && !asCreator);
+  document.querySelectorAll(".real-admin").forEach((el) => (el.hidden = !admin));
+  const box = document.getElementById("view-as-admin");
+  if (box) box.checked = !asCreator;
+  const note = document.getElementById("view-as-note");
+  if (note) note.textContent = asCreator ? "Off: you see the app the way creators do. Turn on to see everything again." : "You see everything. Turn off to see the app the way creators do.";
+}
+document.getElementById("view-as-admin")?.addEventListener("change", (e) => {
+  try { localStorage.setItem("rollcut.creatorView", e.currentTarget.checked ? "0" : "1"); } catch {}
+  applyAdminView();
+});
+
 async function loadStatus() {
   const s = (state.status = await api("/api/status"));
   $("#app-version").textContent = `Version ${s.version}`;
@@ -98,7 +116,8 @@ async function loadStatus() {
   $("#paused").hidden = !s.paused;
   $("#ai-credit").hidden = !s.aiOutOfCredit;
   // Admin-only pages (Labs, research, partners, spending, diagnostics) are hidden from everyone else.
-  document.body.classList.toggle("admin", s.admin !== false);
+  // An admin can switch to the creators' view and back (remembered on this device).
+  applyAdminView();
   applyFeatures(s.settings?.features ?? {});
   $("#ai-budget").hidden = !s.claude?.enabled || !(s.spend && s.spend.usd >= s.spend.limit);
   const sp = s.spend;

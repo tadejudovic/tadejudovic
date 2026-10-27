@@ -2,6 +2,7 @@
 // Usage: NODE_PATH=$(npm root -g) node render.cjs
 //   out/lex-vitals-greenscreen.mp4  -> CapCut phone: Overlay, then Remove background > Chroma key
 //   out/lex-vitals-transparent.mov  -> CapCut desktop / Premiere / DaVinci (has real transparency)
+//   out/lex-vitals-black-screen.mp4 -> CapCut phone: Overlay, then Blend > Screen (smooth edges, no keying)
 //   out/lex-vitals-transparent.webm -> small transparent file to try in CapCut phone (keeps soft shadow)
 const { chromium } = require('playwright');
 const { execSync } = require('child_process');
@@ -37,6 +38,8 @@ async function frames(page, dir, keyable) {
   const hard = path.join(dir, 'frames-hard');
   fps = await frames(page, hard, true);
   execSync(`ffmpeg -loglevel error -y -f lavfi -i color=c=0x00ff00:s=1080x1920:r=${fps} -framerate ${fps} -i "${hard}/%05d.png" -filter_complex "[0][1]overlay=shortest=1,format=yuv420p" -c:v libx264 -crf 16 -movflags +faststart "${out}/lex-vitals-greenscreen.mp4"`);
+
+  execSync(`ffmpeg -loglevel error -y -f lavfi -i color=c=black:s=1080x1920:r=${fps} -framerate ${fps} -i "${hard}/%05d.png" -filter_complex "[0][1]overlay=shortest=1,format=yuv420p" -c:v libx264 -crf 14 -movflags +faststart "${out}/lex-vitals-black-screen.mp4"`);
 
   await browser.close();
   fs.rmSync(soft, { recursive: true, force: true });

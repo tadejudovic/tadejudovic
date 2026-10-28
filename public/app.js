@@ -69,7 +69,7 @@ const ICONS = {
   muted: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>',
   sound: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
-  swap: '<path d="M4 7h13l-3-3"/><path d="M20 17H7l3 3"/>',
+  refresh: '<path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/>',
   trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m6 7 1 13h10l1-13"/>',
   download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
 };
@@ -1382,7 +1382,7 @@ function showRemaking(media, freshId, inStack) {
 
 // The video's shots in order, like an editor's timeline, edited by hand:
 //   tap: the video above jumps to the shot, and it's selected (showing its ends);
-//   Replace / Delete under the strip act on the selected shot (tap again to undo);
+//   Regenerate / Delete under the strip act on the selected shot (tap again to undo);
 //   hold, then slide left or right: move it; pull either end of the selected shot: trim it.
 // Apply draws the video again with the same text, at the same length.
 const SHOT_PX = 40; // a second of footage, in pixels of strip
@@ -1412,7 +1412,7 @@ function shotsSection(r) {
       await refreshRenders();
     });
   } });
-  // Replace or delete the selected shot: always on screen (the first shot is selected to start).
+  // Regenerate (other footage) or delete the selected shot: always on screen (the first shot is selected to start).
   const toggle = (want) => { if (sel < 0) return; act[sel] = act[sel] === want ? "keep" : want; draw(); };
   // A card that points at the selected shot, so it's clear it's about that one shot.
   const barLabel = h("span", { class: "shot-actions-label" });
@@ -1427,7 +1427,7 @@ function shotsSection(r) {
     notch.style.left = `${Math.max(14, Math.min(bar.offsetWidth - 14, x))}px`;
   };
   strip.addEventListener("scroll", aim, { passive: true });
-  const TAG = { swap: "New footage", remove: "Deleted" };
+  const TAG = { swap: "Regenerate", remove: "Deleted" };
   const seconds = (i) => (trim[i].end - trim[i].start) / shots[i].speed;
   const draw = () => {
     for (const card of strip.children) {
@@ -1444,7 +1444,7 @@ function shotsSection(r) {
       const pos = order().indexOf(sel);
       bar.hidden = false;
       barLabel.replaceChildren(h("b", {}, `Shot ${pos + 1}`), h("small", {}, `${seconds(sel).toFixed(1)}s`));
-      replaceBtn.innerHTML = act[sel] === "swap" ? `${icon("undo")} Keep it` : `${icon("swap")} Replace shot`;
+      replaceBtn.innerHTML = act[sel] === "swap" ? `${icon("undo")} Keep it` : `${icon("refresh")} Regenerate shot`;
       deleteBtn.innerHTML = act[sel] === "remove" ? `${icon("undo")} Bring back` : `${icon("trash")} Delete shot`;
       replaceBtn.hidden = act[sel] === "remove";
       deleteBtn.hidden = act[sel] === "swap";

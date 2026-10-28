@@ -126,6 +126,8 @@ export interface Settings {
   remakeLookV2?: boolean;
   /** Set once the videos with arrows were drawn again without them. */
   noArrowsV1?: boolean;
+  /** Set once the check-in "total silence" video was made again on request. */
+  redoSilenceV1?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;
   countersResetV1?: boolean;

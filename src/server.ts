@@ -531,6 +531,15 @@ app.get("/api/renders/:id/diagnostics", (req, res) => {
     })),
     subjectBand: p.keepClear,
     hookBasedOn: p.basedOn,
+    // Where the text ideas came from: TikTok search through Apify (with view counts), or not.
+    trendResearch: ((res) => ({
+      apify: apifyEnabled(),
+      scene: p.scene,
+      source: res?.source ?? null,
+      captions: res?.captions.length ?? 0,
+      updated: res?.updatedAt ?? null,
+      error: res?.error ?? null,
+    }))(p.scene ? store.research(p.scene) : undefined),
     editorReview: r.editor ?? null,
     editorPasses: p.editorPass ?? 0,
     concept: p.concept,
@@ -2018,6 +2027,20 @@ if (!store.settings().remakeLookV2) {
     console.log(`[remake] ${r.id} made again as ${fresh.id} in the account's look (${look.textStyle})`);
   }
   if (!due.length) console.log("[remake] no waiting videos in another look");
+}
+
+// Once, asked for by the creator: the check-in "total silence" video (9c404bd1…) made again from
+// the editor's notes (tight open on Lex, a second beat, about 6 s). Needs the AI, so it waits until
+// the app is up; if it can't be made, it says why in the log.
+if (!store.settings().redoSilenceV1) {
+  store.updateSettings({ redoSilenceV1: true });
+  if (store.render("9c404bd1e81bd323")) {
+    setTimeout(() => {
+      redoFromEditor("9c404bd1e81bd323")
+        .then((fresh) => console.log(`[redo] 9c404bd1e81bd323 made again as ${fresh.id}`))
+        .catch((err) => console.warn("[redo] 9c404bd1e81bd323:", (err as Error).message));
+    }, 30_000);
+  } else console.log("[redo] 9c404bd1e81bd323 isn't there");
 }
 
 // Once: arrows are off (asked for by the creator), so the videos waiting or kept that have one are

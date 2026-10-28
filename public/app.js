@@ -860,7 +860,7 @@ async function refreshRenders() {
 // (text, caption, hashtags, source). Every decision is fed back to the AI director.
 
 const REASON_LABEL = { text: "the text", clip: "the clip", edit: "the cut", other: "" };
-const stack = { shownId: null, node: null, history: [], whyFor: null };
+const stack = { shownId: null, node: null, history: [], whyFor: null, remaking: null };
 
 // Spares are made in the background and kept out of sight until they step in.
 const inProgress = (r) => !r.standby && (r.status === "queued" || r.status === "rendering");
@@ -923,6 +923,8 @@ function renderStack() {
     $("#stack-stage").replaceChildren();
     return;
   }
+  // The card that's being made again stays (with its progress) until the new version is ready.
+  if (stack.remaking && stack.node?.isConnected) return;
   // Keep the card (and its playing video / open details) across background refreshes.
   if (r.id === stack.shownId && stack.node?.isConnected) return;
   stack.shownId = r.id;
@@ -1339,6 +1341,49 @@ const soundRow = (x, note) =>
 //   hold, then slide left or right: move it; pull either end of the selected shot: trim it.
 // Apply draws the video again with the same text, at the same length.
 const SHOT_PX = 40; // a second of footage, in pixels of strip
+/**
+ * While a video is made again with the creator's changes: the old one dims under a progress card on
+ * the video itself, then the new version takes its place (in the open card or the review stack).
+ */
+function showRemaking(media, freshId, inStack) {
+  media.querySelector("video")?.pause();
+  const pct = h("span", { class: "remake-pct" }, "Waiting for its turn…");
+  const fill = h("i");
+  media.querySelector(".remake")?.remove();
+  media.append(h("div", { class: "remake", role: "status", "aria-live": "polite" },
+    h("div", { class: "remake-in" },
+      h("span", { class: "remake-shape", "aria-hidden": "true" }),
+      h("b", {}, "Applying your changes"),
+      pct,
+      h("div", { class: "remake-bar" }, fill),
+      h("small", {}, "Same text, new cut. Usually under a minute."))));
+  media.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  if (inStack) stack.remaking = freshId;
+  const done = (f) => {
+    clearInterval(timer);
+    if (inStack) {
+      stack.remaking = null;
+      if (f?.status === "done") stack.shownId = f.id, stack.node = null;
+      refreshRenders().catch(() => {});
+    } else if (media.isConnected) {
+      if (f?.status === "done") openSheet(f);
+      else closeSheet();
+    }
+    if (f?.status !== "done") banner("Couldn't make it with those changes. Try again, or use Make again.", "error");
+  };
+  const timer = setInterval(async () => {
+    if (!media.isConnected && !inStack) return clearInterval(timer);
+    const list = await api("/api/renders").catch(() => null);
+    if (!list) return;
+    state.renders = list;
+    const f = list.find((x) => x.id === freshId);
+    if (!f || f.status === "error" || f.status === "done") return done(f);
+    const p = f.status === "rendering" ? f.progress : 0;
+    pct.textContent = f.status === "queued" ? "Waiting for its turn…" : `${Math.round(p * 100)}%`;
+    fill.style.width = `${Math.max(4, p * 100)}%`;
+  }, 1500);
+}
+
 function shotsSection(r) {
   if (r.status !== "done" || r.posts?.length || !r.plan.segments?.length) return null;
   let shots = [];
@@ -1356,8 +1401,12 @@ function shotsSection(r) {
     if (act.every((a) => a === "remove")) return banner("Keep at least one shot.", "error");
     const { trimmed } = changes();
     withBusy(e.currentTarget, "Starting…", async () => {
-      await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: act, order: order(), trims: trimmed.map((s) => ({ index: s.index, ...trim[s.index] })) } });
-      banner("Drawing it again with your changes. It reappears in a minute with the same text.", "ok");
+      const fresh = await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: act, order: order(), trims: trimmed.map((s) => ({ index: s.index, ...trim[s.index] })) } });
+      const card = strip.closest(".sheet-card, .stack-card");
+      const media = card?.querySelector(".sheet-media, .stack-media");
+      if (media) showRemaking(media, fresh.id, card.classList.contains("stack-card"));
+      else banner("Making it again with your changes. It's back in a minute with the same text.", "ok");
+      strip.closest(".shots-sec")?.classList.add("busy");
       await refreshRenders();
     });
   } });

@@ -1227,3 +1227,21 @@ input, select, textarea, .perf-input { background: var(--surface-2) !important; 
 .shots .shot.sel .trim { display: block; }
 .shot-tag { white-space: nowrap; }
 .shot img.gone { visibility: hidden; }
+
+/* Applying shot changes: the old video dims under a progress card until the new one is ready */
+.sheet-media, .stack-media { position: relative; }
+.remake { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 20px;
+  background: color-mix(in srgb, var(--md-scrim) 55%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.remake-in { width: min(280px, 100%); display: grid; justify-items: center; gap: 8px; text-align: center; padding: 24px 20px;
+  border-radius: 28px; background: var(--md-surface-container-high); color: var(--md-on-surface); }
+.remake-in b { font-size: 18px; font-weight: 800; }
+.remake-in small { color: var(--md-on-surface-variant); font-size: 13px; }
+.remake-pct { font-size: 32px; font-weight: 800; color: var(--md-primary); line-height: 1.1; }
+.remake-shape { width: 44px; height: 44px; clip-path: var(--cookie); background: var(--md-primary); animation: remake-spin 2.4s linear infinite, remake-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes remake-spin { to { rotate: 360deg; } }
+@keyframes remake-pulse { from { scale: .85; } to { scale: 1.05; } }
+.remake-bar { width: 100%; height: 8px; border-radius: 99px; background: var(--md-secondary-container); overflow: hidden; margin-top: 4px; }
+.remake-bar i { display: block; height: 100%; width: 4%; border-radius: 99px; background: var(--md-primary); transition: width .6s ease; }
+.shots-sec.busy { opacity: .45; pointer-events: none; }
+.shots-sec.busy .shot-apply { display: none; }
+@media (prefers-reduced-motion: reduce) { .remake-shape { animation: none; } }

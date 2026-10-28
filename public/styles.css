@@ -1312,3 +1312,4 @@ body.no-scroll .banner { position: fixed; left: 16px; right: 16px; top: 8px; mar
 @media (prefers-reduced-motion: reduce) { .mk-card, .mk-scan, .mk-card::before { animation: none !important; } .making-tip { opacity: 1; } }
 .mk-card.mk-1 .mk-step, .mk-card.mk-1 .mk-bar { right: 46px; text-align: left; }
 .mk-card.mk-2 .mk-step, .mk-card.mk-2 .mk-bar { left: 46px; text-align: right; }
+#making-sub:empty { display: none; }

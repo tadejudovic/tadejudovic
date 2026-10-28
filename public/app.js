@@ -3174,7 +3174,7 @@ $("#btn-resume").addEventListener("click", (e) =>
 // ---- Onboarding & activity ---------------------------------------------------
 
 // While videos are made: one card per video, showing its clip with a scan going over it and its
-// own progress, so there's something to watch.
+// place, so there's something to watch; one progress bar under them.
 function renderMakingCards(busy) {
   const wrap = $("#making-cards");
   const list = busy.length ? busy.slice(0, 3) : [null, null, null];
@@ -3186,12 +3186,11 @@ function renderMakingCards(busy) {
       return h("div", { class: `mk-card mk-${i}`, "data-id": r?.id ?? "" },
         clip ? h("img", { src: `/media/thumb/${clip}`, alt: "", onerror: (e) => e.currentTarget.remove() }) : null,
         h("span", { class: "mk-scan" }),
-        h("span", { class: "mk-bar" }, h("i")));
+        );
     }));
   }
   [...wrap.children].forEach((card, i) => {
     const r = list[i];
-    card.querySelector(".mk-bar i").style.width = `${Math.max(6, Math.round((r?.status === "rendering" ? r.progress : 0) * 100))}%`;
     card.classList.toggle("mk-live", r?.status === "rendering");
   });
 }
@@ -3222,7 +3221,7 @@ function renderMaking(planning, importing = 0) {
   $("#making-title").textContent = n ? `Making ${n} video${n === 1 ? "" : "s"}` : "Getting your videos ready";
   box.classList.toggle("indeterminate", !n || pct === 0);
   $("#making-fill").style.width = `${Math.max(4, pct)}%`;
-  $("#making-sub").textContent = n ? (pct ? `${pct}%` : "") : "Writing the text…";
+  $("#making-sub").textContent = "";
 }
 
 /** A small pill at the top that fades out on its own. */

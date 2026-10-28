@@ -1259,3 +1259,9 @@ input, select, textarea, .perf-input { background: var(--surface-2) !important; 
 .shot-actions .btn .ico { width: 18px; height: 18px; }
 .shot-actions .btn[hidden] { display: none; }
 .shot-actions .shot-delete.on, .shot-actions .shot-replace.on { background: var(--md-primary) !important; color: var(--md-on-primary) !important; }
+
+/* Messages stay in view over an open video */
+.banner { z-index: 80; }
+body.no-scroll .banner { position: fixed; left: 16px; right: 16px; top: 8px; margin: 0 auto; }
+.shot-error { margin: 8px 0 0; font-size: 14px; font-weight: 600; color: var(--md-error); }
+.shot-error[hidden] { display: none; }

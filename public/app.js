@@ -1402,8 +1402,10 @@ function shotsSection(r) {
   const apply = h("button", { class: "btn primary shot-apply", hidden: true, onclick: (e) => {
     if (act.every((a) => a === "remove")) return banner("Keep at least one shot.", "error");
     const { trimmed } = changes();
+    applyError.hidden = true;
     withBusy(e.currentTarget, "Starting…", async () => {
-      const fresh = await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: act, order: order(), trims: trimmed.map((s) => ({ index: s.index, ...trim[s.index] })) } });
+      const fresh = await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: act, order: order(), trims: trimmed.map((s) => ({ index: s.index, ...trim[s.index] })) } })
+        .catch((err) => { applyError.textContent = err.message; applyError.hidden = false; throw err; });
       const card = strip.closest(".sheet-card, .stack-card");
       const media = card?.querySelector(".sheet-media, .stack-media");
       if (media) showRemaking(media, fresh.id, card.classList.contains("stack-card"));
@@ -1427,6 +1429,8 @@ function shotsSection(r) {
     notch.style.left = `${Math.max(14, Math.min(bar.offsetWidth - 14, x))}px`;
   };
   strip.addEventListener("scroll", aim, { passive: true });
+  // Why Apply didn't work, right under it (the page's banner can be out of view behind the open video).
+  const applyError = h("p", { class: "shot-error", role: "alert", hidden: true });
   const TAG = { swap: "Regenerate", remove: "Deleted" };
   const seconds = (i) => (trim[i].end - trim[i].start) / shots[i].speed;
   const draw = () => {
@@ -1437,8 +1441,9 @@ function shotsSection(r) {
       card.style.width = `${Math.max(36, seconds(i) * SHOT_PX)}px`;
       card.querySelector(".shot-time").textContent = `${seconds(i).toFixed(1)}s`;
       const tag = card.querySelector(".shot-tag");
-      tag.textContent = TAG[act[i]] ?? "";
-      tag.hidden = !TAG[act[i]];
+      const label = TAG[act[i]] ?? (shots[i].missing ? "Footage gone" : "");
+      tag.textContent = label;
+      tag.hidden = !label;
     }
     if (sel >= 0) {
       const pos = order().indexOf(sel);
@@ -1558,7 +1563,8 @@ function shotsSection(r) {
     strip,
     bar,
     h("p", { class: "shot-hint" }, "Tap a shot to pick it · hold and slide to move it · pull its ends to trim"),
-    apply);
+    apply,
+    applyError);
 }
 
 function soundsSection(r) {

@@ -60,3 +60,20 @@ test("shots can be moved and trimmed, and the video keeps its length", () => {
     plan: { format: "fun", overlays, hook: "x", segments: [{ clipId: "m1", start: 0, end: 2, speed: 1 }, { clipId: "m2", start: 2, end: 4, speed: 1 }] } } as any);
   assert.deepEqual(editShots("v5", [], { order: [0, 0] }).plan.segments.map((x: any) => x.clipId), ["m1", "m2"]);
 });
+
+test("a shot whose footage left the library can be regenerated or deleted, not kept", () => {
+  clip("g1", "beach");
+  clip("g2", "beach");
+  clip("g3", "beach");
+  clip("g4", "beach");
+  store.updateClip("g2", { status: "archived" } as any);
+  const overlays = [{ text: "x", start: 0, end: 4 }];
+  const make = (id: string) => store.addRender({ id, createdAt: new Date().toISOString(), status: "done", progress: 1, review: "pending", options: {} as any,
+    plan: { format: "fun", overlays, hook: "x", segments: [{ clipId: "g1", start: 0, end: 2, speed: 1 }, { clipId: "g2", start: 0, end: 2, speed: 1 }] } } as any);
+  make("w1");
+  assert.throws(() => editShots("w1", ["swap", "keep"]), /Shot 2's footage is no longer in your library/);
+  const fresh = editShots("w1", ["keep", "swap"]);
+  assert.ok(!fresh.plan.segments.some((x: any) => x.clipId === "g2"), "the gone footage is replaced");
+  make("w2");
+  assert.ok(editShots("w2", ["keep", "remove"]).plan.segments.every((x: any) => x.clipId !== "g2"));
+});

@@ -1589,7 +1589,13 @@ export function editShots(
   const r = store.render(id);
   if (!r || r.status !== "done") throw new Error("That video isn't ready.");
   if (r.posts?.length) throw new Error("This video is already posted.");
-  if (!r.plan.segments.every((x) => store.clip(x.clipId)?.status === "ready")) throw new Error("Some of this video's footage is no longer in the library: use Make again instead.");
+  // Only the shots that stay need their footage; a shot whose clip left the library can be
+  // regenerated (other footage) or deleted.
+  const gone = r.plan.segments.findIndex((x, i) => (actions[i] ?? "keep") === "keep" && store.clip(x.clipId)?.status !== "ready");
+  if (gone >= 0) {
+    const pos = Array.isArray(order) && order.includes(gone) ? order.indexOf(gone) : gone;
+    throw new Error(`Shot ${pos + 1}'s footage is no longer in your library: regenerate or delete that shot.`);
+  }
   // Trimmed shots: the creator pulled an end in or out, within the clip (at least half a second).
   const segs = r.plan.segments.map((seg, i) => {
     const t = trims.find((x) => x.index === i);

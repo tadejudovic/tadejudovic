@@ -84,8 +84,9 @@ const local = (i: number) => {
 const photoUrl = (i: number, w: number, h: number) => local(i) ?? U(PHOTOS[i][0], w, h);
 const photoBg = (i: number, w = 240) => `url(${photoUrl(i, w, w)}) center/cover, ${PHOTOS[i][1]}`;
 
-/** The tab icon: an amber tile with a play mark, the same on every page. */
-export const FAVICON = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%2211%22 fill=%22%23F5A300%22/%3E%3Cpath d=%22M12.5 10.5v11l9-5.5z%22 fill=%22%23452B00%22/%3E%3C/svg%3E";
+/** The logo, a winking face: the tab icon (fills its square) and the mark next to the name. */
+export const FAVICON = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20100%20100%22%3E%3Crect%20width=%22100%22%20height=%22100%22%20rx=%2226%22%20fill=%22%23F5A300%22/%3E%3Cellipse%20cx=%2236%22%20cy=%2240%22%20rx=%226.5%22%20ry=%228%22%20fill=%22%232B1A00%22/%3E%3Cpath%20d=%22M57%2041Q64%2034%2071%2041%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%227%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M30%2058Q50%2078%2070%2058%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%228.5%22%20stroke-linecap=%22round%22/%3E%3C/svg%3E";
+export const LOGO_MARK = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%226%206%2088%2088%22%3E%3Crect%20x=%226%22%20y=%226%22%20width=%2288%22%20height=%2288%22%20rx=%2232%22%20fill=%22%23F5A300%22/%3E%3Cellipse%20cx=%2236%22%20cy=%2240%22%20rx=%226.5%22%20ry=%228%22%20fill=%22%232B1A00%22/%3E%3Cpath%20d=%22M57%2041Q64%2034%2071%2041%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%227%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M30%2058Q50%2078%2070%2058%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%228.5%22%20stroke-linecap=%22round%22/%3E%3C/svg%3E";
 
 export function landingHtml(opts: { signInUrl: string; google: boolean }): string {
   const first = STORIES[0];
@@ -410,7 +411,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
   --ink:var(--md-on-surface);--paper:var(--md-surface);--muted:var(--md-on-surface-variant);--accent:var(--md-primary)}
 body{background:var(--md-surface);color:var(--md-on-surface);font-family:"Google Sans Flex","Google Sans",Figtree,Roboto,system-ui,sans-serif;font-variation-settings:"ROND" 100}
 .logo{font-weight:800;letter-spacing:-.02em}
-.logo i{border-radius:0;clip-path:var(--cookie);background:var(--md-primary)}
+.logo i{border-radius:0;clip-path:none;background:url("${LOGO_MARK}") center/contain no-repeat}
 .signin{border:0;background:var(--md-secondary-container);color:var(--md-on-secondary-container);font-weight:700;transition:border-radius .25s var(--spring)}
 .signin:hover{background:var(--md-secondary-container);filter:brightness(.96)}
 .signin:active{border-radius:12px}

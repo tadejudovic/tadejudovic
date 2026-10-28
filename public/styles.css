@@ -998,7 +998,8 @@ h1, h2, h3, .settings-title, .section-title, .sp-head h2, .d-title { font-family
 a, .d-link, .link { color: var(--md-primary); text-decoration: none; font-weight: 700; }
 .d-link:hover { text-decoration: underline; }
 .brand-row { font-weight: 800; font-size: 20px; color: var(--md-on-surface); }
-.mark { width: 26px; height: 26px; border-radius: 0; clip-path: var(--cookie); background: var(--md-primary); }
+/* the logo: a winking face */
+.mark { width: 28px; height: 28px; border-radius: 0; clip-path: none; background: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%226%206%2088%2088%22%3E%3Crect%20x=%226%22%20y=%226%22%20width=%2288%22%20height=%2288%22%20rx=%2232%22%20fill=%22%23F5A300%22/%3E%3Cellipse%20cx=%2236%22%20cy=%2240%22%20rx=%226.5%22%20ry=%228%22%20fill=%22%232B1A00%22/%3E%3Cpath%20d=%22M57%2041Q64%2034%2071%2041%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%227%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M30%2058Q50%2078%2070%2058%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%228.5%22%20stroke-linecap=%22round%22/%3E%3C/svg%3E") center / contain no-repeat; }
 
 /* buttons: filled primary for the main action, tonal for the rest; corners tighten when pressed */
 .btn { border: 0 !important; border-radius: 999px; background: var(--md-secondary-container); color: var(--md-on-secondary-container); font-weight: 700; box-shadow: none; min-height: 44px; padding: 0 20px; transition: border-radius .25s var(--spring), background .15s; }

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { NextFunction, Request, Response } from "express";
 import { config } from "./config.ts";
-import { FAVICON, landingHtml } from "./landing.ts";
+import { FAVICON, LOGO_MARK, landingHtml } from "./landing.ts";
 
 /**
  * Sign-in gate: Google sign-in is the only way in. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and
@@ -137,7 +137,7 @@ body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--
 body::before{content:"";position:fixed;width:520px;height:520px;right:-160px;top:-160px;border-radius:42%;background:var(--md-tertiary-container);pointer-events:none}
 form{position:relative;background:var(--md-surface-container-high);border-radius:32px;padding:32px 28px;width:100%;max-width:360px;display:grid;gap:14px}
 .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:20px;letter-spacing:-.02em}
-.brand i{width:26px;height:26px;border-radius:50%;background:var(--md-primary)}
+.brand i{width:26px;height:26px;background:url("${LOGO_MARK}") center/contain no-repeat}
 h1{margin:6px 0 0;font-size:30px;font-weight:800;letter-spacing:-.02em}
 p{margin:0;color:var(--md-on-surface-variant);font-size:14px}.err{color:var(--md-error)}
 button{font:inherit;font-weight:700;border:0;border-radius:999px;padding:15px;background:var(--md-primary);color:var(--md-on-primary);cursor:pointer;transition:border-radius .25s cubic-bezier(.34,1.4,.64,1)}

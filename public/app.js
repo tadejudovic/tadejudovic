@@ -3173,6 +3173,51 @@ $("#btn-resume").addEventListener("click", (e) =>
 
 // ---- Onboarding & activity ---------------------------------------------------
 
+// While videos are made: one card per video, showing its clip with a scan going over it and the
+// step it's at, so there's something to watch; and a short tip about posting that changes.
+const MAKING_TIPS = [
+  "Post when your followers are online. TikTok and Instagram show you when, in their analytics.",
+  "The first second decides if people keep watching. Rollcut puts the text up front for that.",
+  "Posting a little every day beats a lot once a week.",
+  "Reply to the first comments: it tells the app people care, and it shows the video to more of them.",
+  "Keep the caption Rollcut wrote. It's written to be searched for.",
+  "Your yes and no teach Rollcut what you like. The next round gets closer.",
+  "Real moments do better than perfect ones. Your camera roll is full of them.",
+];
+const makingStep = (r) =>
+  r.status === "queued" ? "Waiting its turn" : r.progress < 0.3 ? "Cutting the best moments" : r.progress < 0.7 ? "Adding the text" : r.progress < 0.97 ? "Final touches" : "Checking it over";
+function renderMakingCards(busy) {
+  const wrap = $("#making-cards");
+  const list = busy.length ? busy.slice(0, 3) : [null, null, null];
+  const ids = list.map((r) => r?.id ?? "planning").join(",");
+  if (wrap.dataset.ids !== ids) {
+    wrap.dataset.ids = ids;
+    wrap.replaceChildren(...list.map((r, i) => {
+      const clip = r?.plan?.segments?.[0]?.clipId;
+      return h("div", { class: `mk-card mk-${i}`, "data-id": r?.id ?? "" },
+        clip ? h("img", { src: `/media/thumb/${clip}`, alt: "", onerror: (e) => e.currentTarget.remove() }) : null,
+        h("span", { class: "mk-scan" }),
+        h("span", { class: "mk-step" }),
+        h("span", { class: "mk-bar" }, h("i")));
+    }));
+  }
+  [...wrap.children].forEach((card, i) => {
+    const r = list[i];
+    card.querySelector(".mk-step").textContent = r ? makingStep(r) : "Writing the text";
+    card.querySelector(".mk-bar i").style.width = `${Math.max(6, Math.round((r?.status === "rendering" ? r.progress : 0) * 100))}%`;
+    card.classList.toggle("mk-live", r?.status === "rendering");
+  });
+  const tip = $("#making-tip");
+  const n = Math.floor(Date.now() / 7000) % MAKING_TIPS.length;
+  if (tip.dataset.n !== String(n)) {
+    tip.dataset.n = String(n);
+    tip.classList.remove("in");
+    tip.offsetWidth; // restart the fade
+    tip.textContent = MAKING_TIPS[n];
+    tip.classList.add("in");
+  }
+}
+
 /** A single progress bar for the round being made; the videos themselves stay hidden until done. */
 function renderMaking(planning, importing = 0) {
   const busy = state.renders.filter(inProgress);
@@ -3187,6 +3232,8 @@ function renderMaking(planning, importing = 0) {
     const doneToday = state.clips.filter((c) => c.status !== "importing" && c.status !== "analyzing" && new Date(c.importedAt).toDateString() === today).length;
     const total = doneToday + importing;
     const pctImport = total ? Math.round((doneToday / total) * 100) : 0;
+    $("#making-cards").replaceChildren(), ($("#making-cards").dataset.ids = "");
+    $("#making-tip").textContent = "";
     $("#making-title").textContent = `Importing clips: ${doneToday} of ${total} done`;
     box.classList.toggle("indeterminate", pctImport === 0);
     $("#making-fill").style.width = `${Math.max(4, pctImport)}%`;
@@ -3194,6 +3241,7 @@ function renderMaking(planning, importing = 0) {
     return;
   }
   const pct = n ? Math.round((busy.reduce((sum, r) => sum + (r.status === "rendering" ? r.progress : 0), 0) / n) * 100) : 0;
+  renderMakingCards(busy);
   $("#making-title").textContent = n ? `Making ${n} new video${n === 1 ? "" : "s"}…` : "Getting the next videos ready…";
   box.classList.toggle("indeterminate", !n || pct === 0);
   $("#making-fill").style.width = `${Math.max(4, pct)}%`;

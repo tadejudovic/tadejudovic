@@ -614,7 +614,8 @@ async function finalize(
               const bandPx = plan.keepClear ? Math.max(0, Math.min(b, plan.keepClear.bottom * H) - Math.max(t, plan.keepClear.top * H)) : 0;
               const band = knowFaces ? bandPx * 0.2 : bandPx * 4;
               // Clear of other text with real room around it, so two boxes never read as one stack.
-              const textHit = others.some((p) => p.top < b + 60 && t - 60 < p.bottom) ? 10_000 : 0;
+              // Text on text makes both unreadable: worse than covering part of a face.
+              const textHit = others.some((p) => p.top < b + 60 && t - 60 < p.bottom) ? 100_000 : 0;
               const sameAsBefore = prev !== undefined && Math.abs(cy - prev) < 0.12 ? 5_000 : 0;
               const unsafe = t < H * SAFE.top || b > H * SAFE.bottom ? 20_000 : 0;
               const s = faceHit + band + textHit + sameAsBefore + unsafe + Math.abs(cy - y) * 200 + (cx === o.x ? 0 : 800) + (1 - k) * 3_000;
@@ -651,7 +652,12 @@ async function finalize(
           const d = draw(c / H);
           return onFaces(o, d.left - 12, d.top - boxPad, d.width + 24, d.height + 2 * boxPad) === 0;
         };
-        const to = ok(below) ? below : ok(above) ? above : undefined;
+        // Neither is off Lex and faces: still off the other text (unreadable on top of it), on
+        // whichever side covers them less and stays inside the frame.
+        const inside = (c: number) => c + height / 2 + boxPad <= H * SAFE.bottom && c - height / 2 - boxPad >= H * SAFE.top;
+        const cover = (c: number) => { const d = draw(c / H); return onFaces(o, d.left - 12, d.top - boxPad, d.width + 24, d.height + 2 * boxPad); };
+        const fallback = [below, above].filter(inside).sort((a, b) => cover(a) - cover(b))[0];
+        const to = ok(below) ? below : ok(above) ? above : fallback;
         if (to !== undefined) {
           y = to / H;
           ({ filters: f, height, top: drawnTop } = draw(y));

@@ -465,7 +465,8 @@ async function finalize(
   tmp: string,
 ) {
   // Placed points (educational) show one at a time: each goes when the next one comes.
-  const overlays = overlaysFor(plan, duration).map((o) => ({ ...o }));
+  // Arrows are off for now (the creator: they don't point well yet): a point is placed like any other.
+  const overlays = overlaysFor(plan, duration).map(({ pointTo: _arrow, ...o }) => ({ ...o }) as Overlay);
   const points = overlays.filter((o) => o.y !== undefined).sort((a, b) => a.start - b.start);
   // Pairs (myth → fact, mistake → instead, don't → do) read as one: the first stays on screen, top
   // left, while the second appears opposite it, bottom right.

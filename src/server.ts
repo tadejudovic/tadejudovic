@@ -2020,6 +2020,20 @@ if (!store.settings().remakeLookV2) {
   if (!due.length) console.log("[remake] no waiting videos in another look");
 }
 
+// Once: arrows are off (asked for by the creator), so the videos waiting or kept that have one are
+// drawn again without it. Same words, clips and look; a kept video stays kept. Posted ones stay.
+if (!store.settings().noArrowsV1) {
+  store.updateSettings({ noArrowsV1: true });
+  const due = store.renders().filter((r) => r.status === "done" && !r.posts?.length && r.review !== "rejected" && r.plan.overlays?.some((o) => o.pointTo) && r.plan.segments.every((x) => store.clip(x.clipId)?.status === "ready"));
+  for (const r of due) {
+    const plan = { ...r.plan, overlays: r.plan.overlays!.map(({ pointTo: _arrow, ...o }) => o), editorPass: EDITOR_ATTEMPTS };
+    const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
+    if (r.review === "approved") store.updateRender(fresh.id, { review: "approved", reviewedAt: r.reviewedAt, ...(r.downloaded ? { downloaded: r.downloaded } : {}) });
+    deleteRender(r.id);
+  }
+  console.log(`[arrows] ${due.length} video(s) drawn again without arrows`);
+}
+
 // Once: the call to action (flywith.pet) centered in videos waiting or kept.
 // Once: educational videos waiting in Review open on the strongest footage (asked for by the creator).
 if (!paused && !store.settings().openerV1) {

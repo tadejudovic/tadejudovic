@@ -124,6 +124,8 @@ export interface Settings {
   remakeWeighInV1?: boolean;
   /** Set once the waiting videos in another look were made again in the account's look. */
   remakeLookV2?: boolean;
+  /** Set once the videos with arrows were drawn again without them. */
+  noArrowsV1?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;
   countersResetV1?: boolean;

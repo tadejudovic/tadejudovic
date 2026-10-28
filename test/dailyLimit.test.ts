@@ -21,3 +21,9 @@ test("only new videos made today count toward the daily limit", () => {
   add("c", new Date());
   assert.equal(videosLeftToday(), 0);
 });
+
+test("videos that failed to be made don't use up the day's limit", () => {
+  const before = videosMadeToday();
+  store.addRender({ id: "failed", createdAt: new Date().toISOString(), plan: {} as any, options: {} as any, status: "error", progress: 0, review: "pending" } as any);
+  assert.equal(videosMadeToday(), before);
+});

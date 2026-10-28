@@ -71,6 +71,7 @@ const ICONS = {
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
   refresh: '<path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/>',
   trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m6 7 1 13h10l1-13"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
 };
 function icon(name) {
@@ -1380,9 +1381,35 @@ function showRemaking(media, freshId, inStack) {
   }, 1500);
 }
 
+/**
+ * Choose footage for a shot from the library: the creator's ready videos, the same place first,
+ * then the newest. Tap one to put it in the shot (its best moment, at the shot's length).
+ */
+function pickClip(shot, inVideo, onPick) {
+  // Escape closes the picker only, not the video under it.
+  const close = () => { picker.remove(); window.removeEventListener("keydown", esc, true); };
+  const esc = (e) => e.key === "Escape" && (e.stopImmediatePropagation(), close());
+  const scene = state.clips.find((c) => c.id === shot.clipId)?.scene;
+  const clips = state.clips
+    .filter((c) => c.status === "ready" && c.kind === "video" && !inVideo.has(c.id))
+    .sort((a, b) => Number(b.scene === scene) - Number(a.scene === scene) || String(b.capturedAt ?? b.importedAt).localeCompare(String(a.capturedAt ?? a.importedAt)));
+  const tile = (c) => h("button", { class: "pick-tile", type: "button", "aria-label": c.ai?.summary || c.filename, onclick: () => { close(); onPick(c); } },
+    h("img", { src: `/media/thumb/${c.id}`, alt: "", loading: "lazy" }),
+    h("span", { class: "pick-time" }, fmt(c.duration)),
+    c.scene === scene && scene ? h("span", { class: "pick-same" }, "Same place") : null);
+  const picker = h("div", { class: "picker", role: "dialog", "aria-label": "Pick a clip", onclick: (e) => e.target === picker && close() },
+    h("div", { class: "picker-card" },
+      h("div", { class: "picker-head" }, h("b", {}, "Pick a clip for this shot"), h("button", { class: "sheet-close", type: "button", "aria-label": "Close", onclick: close }, "✕")),
+      clips.length
+        ? h("div", { class: "pick-grid" }, ...clips.map(tile))
+        : h("p", { class: "muted" }, "No other videos in your library yet. Add some from Google Photos in Settings.")));
+  document.body.append(picker);
+  window.addEventListener("keydown", esc, true);
+}
+
 // The video's shots in order, like an editor's timeline, edited by hand:
 //   tap: the video above jumps to the shot, and it's selected (showing its ends);
-//   Regenerate / Delete under the strip act on the selected shot (tap again to undo);
+//   Regenerate / Pick a clip / Delete under the strip act on the selected shot (tap again to undo);
 //   hold, then slide left or right: move it; pull either end of the selected shot: trim it.
 // Apply draws the video again with the same text, at the same length.
 const SHOT_PX = 40; // a second of footage, in pixels of strip
@@ -1404,7 +1431,7 @@ function shotsSection(r) {
     const { trimmed } = changes();
     applyError.hidden = true;
     withBusy(e.currentTarget, "Starting…", async () => {
-      const fresh = await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: act, order: order(), trims: trimmed.map((s) => ({ index: s.index, ...trim[s.index] })) } })
+      const fresh = await api(`/api/renders/${r.id}/shots`, { method: "POST", body: { actions: act.map((a) => (a === "pick" ? "keep" : a)), picks: act.flatMap((a, i) => (a === "pick" && pick[i] ? [{ index: i, clipId: pick[i].id }] : [])), order: order(), trims: trimmed.map((s) => ({ index: s.index, ...trim[s.index] })) } })
         .catch((err) => { applyError.textContent = err.message; applyError.hidden = false; throw err; });
       const card = strip.closest(".sheet-card, .stack-card");
       const media = card?.querySelector(".sheet-media, .stack-media");
@@ -1421,7 +1448,14 @@ function shotsSection(r) {
   const notch = h("span", { class: "shot-actions-notch", "aria-hidden": "true" });
   const replaceBtn = h("button", { class: "btn small shot-replace", type: "button", onclick: () => toggle("swap") });
   const deleteBtn = h("button", { class: "btn small shot-delete", type: "button", onclick: () => toggle("remove") });
-  const bar = h("div", { class: "shot-actions", hidden: true }, notch, barLabel, replaceBtn, deleteBtn);
+  // Or the creator chooses the footage themselves, from their library.
+  const pick = [];
+  const pickBtn = h("button", { class: "btn small shot-pick", type: "button", onclick: () => {
+    if (sel < 0) return;
+    if (act[sel] === "pick") { act[sel] = "keep"; pick[sel] = undefined; return draw(); }
+    pickClip(shots[sel], new Set(shots.map((x) => x.clipId)), (clip) => { act[sel] = "pick"; pick[sel] = clip; draw(); });
+  } });
+  const bar = h("div", { class: "shot-actions", hidden: true }, notch, barLabel, h("div", { class: "shot-actions-btns" }, replaceBtn, pickBtn, deleteBtn));
   const aim = () => {
     const card = strip.querySelector(`.shot[data-i="${sel}"]`);
     if (!card || bar.hidden) return;
@@ -1431,7 +1465,7 @@ function shotsSection(r) {
   strip.addEventListener("scroll", aim, { passive: true });
   // Why Apply didn't work, right under it (the page's banner can be out of view behind the open video).
   const applyError = h("p", { class: "shot-error", role: "alert", hidden: true });
-  const TAG = { swap: "Regenerate", remove: "Deleted" };
+  const TAG = { swap: "Regenerate", remove: "Deleted", pick: "Your pick" };
   const seconds = (i) => (trim[i].end - trim[i].start) / shots[i].speed;
   const draw = () => {
     for (const card of strip.children) {
@@ -1441,6 +1475,9 @@ function shotsSection(r) {
       card.style.width = `${Math.max(36, seconds(i) * SHOT_PX)}px`;
       card.querySelector(".shot-time").textContent = `${seconds(i).toFixed(1)}s`;
       const tag = card.querySelector(".shot-tag");
+      const img = card.querySelector("img");
+      const want = act[i] === "pick" && pick[i] ? `/media/thumb/${pick[i].id}` : shots[i].frame;
+      if (img.getAttribute("src") !== want) img.classList.remove("gone"), img.setAttribute("src", want);
       const label = TAG[act[i]] ?? (shots[i].missing ? "Footage gone" : "");
       tag.textContent = label;
       tag.hidden = !label;
@@ -1449,10 +1486,13 @@ function shotsSection(r) {
       const pos = order().indexOf(sel);
       bar.hidden = false;
       barLabel.replaceChildren(h("b", {}, `Shot ${pos + 1}`), h("small", {}, `${seconds(sel).toFixed(1)}s`));
-      replaceBtn.innerHTML = act[sel] === "swap" ? `${icon("undo")} Keep it` : `${icon("refresh")} Regenerate shot`;
-      deleteBtn.innerHTML = act[sel] === "remove" ? `${icon("undo")} Bring back` : `${icon("trash")} Delete shot`;
-      replaceBtn.hidden = act[sel] === "remove";
-      deleteBtn.hidden = act[sel] === "swap";
+      replaceBtn.innerHTML = act[sel] === "swap" ? `${icon("undo")} Keep it` : `${icon("refresh")} Regenerate`;
+      pickBtn.innerHTML = act[sel] === "pick" ? `${icon("undo")} Undo pick` : `${icon("grid")} Pick a clip`;
+      deleteBtn.innerHTML = act[sel] === "remove" ? `${icon("undo")} Bring back` : `${icon("trash")} Delete`;
+      replaceBtn.hidden = act[sel] === "remove" || act[sel] === "pick";
+      pickBtn.hidden = act[sel] === "remove" || act[sel] === "swap";
+      deleteBtn.hidden = act[sel] === "swap" || act[sel] === "pick";
+      pickBtn.classList.toggle("on", act[sel] === "pick");
       replaceBtn.classList.toggle("on", act[sel] === "swap");
       deleteBtn.classList.toggle("on", act[sel] === "remove");
       requestAnimationFrame(aim);

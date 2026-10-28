@@ -77,3 +77,18 @@ test("a shot whose footage left the library can be regenerated or deleted, not k
   make("w2");
   assert.ok(editShots("w2", ["keep", "remove"]).plan.segments.every((x: any) => x.clipId !== "g2"));
 });
+
+test("a shot can take a clip the creator picked from the library", () => {
+  clip("p1", "beach");
+  clip("p2", "beach");
+  clip("mine", "hotel room");
+  const overlays = [{ text: "x", start: 0, end: 4 }];
+  store.addRender({ id: "k1", createdAt: new Date().toISOString(), status: "done", progress: 1, review: "pending", options: {} as any,
+    plan: { format: "fun", overlays, hook: "x", segments: [{ clipId: "p1", start: 0, end: 2, speed: 1 }, { clipId: "p2", start: 0, end: 2, speed: 1 }] } } as any);
+  const fresh = editShots("k1", ["keep", "keep"], { picks: [{ index: 1, clipId: "mine" }] });
+  const segs = fresh.plan.segments;
+  assert.equal(segs[0].clipId, "p1");
+  assert.equal(segs[1].clipId, "mine");
+  assert.ok(Math.abs(segs[1].end - segs[1].start - 2) < 0.01, "the picked clip fills the shot's length");
+  assert.ok(segs[1].start <= 3 && segs[1].end >= 4, "around its best moment");
+});

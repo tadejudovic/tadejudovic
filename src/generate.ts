@@ -1567,12 +1567,17 @@ function swapFor(seg: Segment, inVideo: Set<string>, scene?: string): Segment | 
         best(b) - best(a),
     )[0];
   if (!pick) return undefined;
-  const m = [...(pick.ai?.moments ?? pick.moments ?? [])].sort((a, b) => b.score - a.score)[0];
-  const take = Math.min(len, pick.duration);
-  const mid = m ? (m.start + m.end) / 2 : pick.duration / 2;
-  const start = Math.max(0, Math.min(mid - take / 2, pick.duration - take));
   inVideo.add(pick.id);
-  return { clipId: pick.id, start, end: start + take, speed: 1 };
+  return shotFrom(pick, len);
+}
+
+/** A shot of this length from a clip, around its best moment. */
+function shotFrom(clip: Clip, len: number): Segment {
+  const m = [...(clip.ai?.moments ?? clip.moments ?? [])].sort((a, b) => b.score - a.score)[0];
+  const take = Math.min(len, clip.duration);
+  const mid = m ? (m.start + m.end) / 2 : clip.duration / 2;
+  const start = Math.max(0, Math.min(mid - take / 2, clip.duration - take));
+  return { clipId: clip.id, start, end: start + take, speed: 1 };
 }
 
 /**
@@ -1584,14 +1589,19 @@ function swapFor(seg: Segment, inVideo: Set<string>, scene?: string): Segment | 
 export function editShots(
   id: string,
   actions: ShotAction[],
-  { order, trims = [] }: { order?: number[]; trims?: { index: number; start: number; end: number }[] } = {},
+  { order, trims = [], picks = [] }: { order?: number[]; trims?: { index: number; start: number; end: number }[]; picks?: { index: number; clipId: string }[] } = {},
 ): Render {
   const r = store.render(id);
   if (!r || r.status !== "done") throw new Error("That video isn't ready.");
   if (r.posts?.length) throw new Error("This video is already posted.");
   // Only the shots that stay need their footage; a shot whose clip left the library can be
   // regenerated (other footage) or deleted.
-  const gone = r.plan.segments.findIndex((x, i) => (actions[i] ?? "keep") === "keep" && store.clip(x.clipId)?.status !== "ready");
+  // A clip the creator picked from the library for a shot (ready, and a video).
+  const picked = (i: number) => {
+    const c = store.clip(picks.find((x) => x.index === i)?.clipId ?? "");
+    return c?.status === "ready" && c.kind === "video" ? c : undefined;
+  };
+  const gone = r.plan.segments.findIndex((x, i) => (actions[i] ?? "keep") === "keep" && !picked(i) && store.clip(x.clipId)?.status !== "ready");
   if (gone >= 0) {
     const pos = Array.isArray(order) && order.includes(gone) ? order.indexOf(gone) : gone;
     throw new Error(`Shot ${pos + 1}'s footage is no longer in your library: regenerate or delete that shot.`);
@@ -1615,6 +1625,8 @@ export function editShots(
   for (const i of sequence) {
     const seg = segs[i];
     const a = actions[i] ?? "keep";
+    const own = picked(i);
+    if (own) { out.push(shotFrom(own, (seg.end - seg.start) / (seg.speed ?? 1))); inVideo.add(own.id); continue; }
     if (a === "keep") { out.push(seg); continue; }
     if (a === "never") store.updateClip(seg.clipId, { disliked: true });
     if (a === "remove") continue;

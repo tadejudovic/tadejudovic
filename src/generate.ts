@@ -886,6 +886,13 @@ export function queueRender(
   batch?: string,
   { countUse = true, standby = false } = {},
 ): Render {
+  // A video made again (Make again, the editor's remakes, shot edits) takes the account's current
+  // look, unless the creator picked this video's look by hand.
+  if (!options.lookPicked) {
+    const { textStyle, textSize, fontId } = store.settings();
+    options = { ...options, textStyle, textSize, fontId };
+  }
+  planned = { ...planned, segments: noReplays(planned.segments) };
   const render = store.addRender({
     ...(standby ? { standby: true } : {}),
     id: newId(),
@@ -1569,6 +1576,24 @@ function swapFor(seg: Segment, inVideo: Set<string>, scene?: string): Segment | 
   if (!pick) return undefined;
   inVideo.add(pick.id);
   return shotFrom(pick, len);
+}
+
+/**
+ * Footage never plays twice: a shot that overlaps an earlier shot of the same clip starts where that
+ * one ends (or goes, if nothing is left of it), and the time lost is spread over the other shots.
+ */
+export function noReplays(segments: Segment[]): Segment[] {
+  const len = (xs: Segment[]) => xs.reduce((a, x) => a + (x.end - x.start) / (x.speed ?? 1), 0);
+  const out: Segment[] = [];
+  let changed = false;
+  for (const seg of segments) {
+    let start = seg.start;
+    for (const p of out) if (p.clipId === seg.clipId && p.start < seg.end && start < p.end) start = Math.max(start, p.end);
+    if (start !== seg.start) changed = true;
+    if (seg.end - start >= 0.3) out.push({ ...seg, start });
+  }
+  if (!changed || !out.length) return segments;
+  return lengthenFootage(out, len(segments), (cid) => store.clip(cid)?.duration ?? 0);
 }
 
 /** A shot of this length from a clip, around its best moment. */

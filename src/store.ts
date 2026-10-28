@@ -120,6 +120,8 @@ export interface Settings {
   mixV2?: boolean;
   /** Set once the text style was put back to the yellow box (the creator's default look). */
   yellowboxV1?: boolean;
+  /** Set once the airline weigh-in video was made again on request. */
+  remakeWeighInV1?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;
   countersResetV1?: boolean;

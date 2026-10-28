@@ -92,3 +92,18 @@ test("a shot can take a clip the creator picked from the library", () => {
   assert.ok(Math.abs(segs[1].end - segs[1].start - 2) < 0.01, "the picked clip fills the shot's length");
   assert.ok(segs[1].start <= 3 && segs[1].end >= 4, "around its best moment");
 });
+
+test("a queued video never replays footage and takes the account's look unless one was picked", async () => {
+  const { queueRender, noReplays } = await import("../src/generate.ts");
+  clip("r1", "beach");
+  clip("r2", "beach");
+  const segs = noReplays([{ clipId: "r1", start: 0, end: 3, speed: 1 }, { clipId: "r1", start: 2, end: 6, speed: 1 }, { clipId: "r2", start: 0, end: 2, speed: 1 }] as any);
+  assert.ok(segs[1].start >= 3, "the second piece starts after the first");
+  assert.ok(Math.abs(segs.reduce((a: number, x: any) => a + x.end - x.start, 0) - 9) < 0.05, "same length");
+  store.updateSettings({ textStyle: "yellowbox" } as any);
+  const plan = { format: "fun", hook: "x", overlays: [], segments: [{ clipId: "r2", start: 0, end: 2, speed: 1 }] } as any;
+  const a = queueRender(plan, { keepOriginalAudio: true, textStyle: "blackbox", fontId: "montserrat" } as any);
+  assert.equal(a.options.textStyle, "yellowbox");
+  const b = queueRender(plan, { keepOriginalAudio: true, textStyle: "blackbox", fontId: "montserrat", lookPicked: true } as any);
+  assert.equal(b.options.textStyle, "blackbox");
+});

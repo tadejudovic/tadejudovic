@@ -347,6 +347,8 @@ export interface RenderOptions {
   /** Size of the text on the video; older videos without it render at "medium". */
   textSize?: TextSize;
   fontId: string;
+  /** The creator picked this video's look by hand; otherwise a re-made video takes the account's look. */
+  lookPicked?: boolean;
 }
 
 export type TextStyle = "yellowbox" | "yellow" | "classic" | "box" | "plain" | "blackbox" | "bold" | "highlight";

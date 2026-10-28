@@ -190,7 +190,7 @@ export async function makeFirstVideo(look: { textStyle?: TextStyle } = {}): Prom
     useAi: true,
     pickFromPool: true,
     clipIds: best ? [best.id] : undefined,
-    options: { keepOriginalAudio: true, textStyle: look.textStyle ?? s.textStyle, textSize: s.textSize, fontId: s.fontId },
+    options: { keepOriginalAudio: true, textStyle: look.textStyle ?? s.textStyle, textSize: s.textSize, fontId: s.fontId, ...(look.textStyle ? { lookPicked: true } : {}) },
   };
   const { plans } = await plan(req);
   if (!plans.length) throw new Error("No clips are ready yet.");

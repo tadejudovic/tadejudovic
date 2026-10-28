@@ -1468,7 +1468,9 @@ app.post("/api/renders/:id/rerender", (req, res) => {
     store.updateRender(r.id, { review: "pending" });
     syncClipUses(r.id);
   }
-  const options = { ...r.options, ...parseOptions({ ...r.options, ...(b.options ?? {}) }) };
+  // A look set here by hand stays this video's look (later re-makes keep it).
+  const picked = ["textStyle", "textSize", "fontId"].some((k) => b.options?.[k] !== undefined);
+  const options = { ...r.options, ...parseOptions({ ...r.options, ...(b.options ?? {}) }), ...(picked ? { lookPicked: true } : {}) };
   // Keep the video's music unless a different track was picked.
   if (!b.options?.musicId) options.musicFile = r.options.musicFile;
   // A corrected video comes back to Review for a fresh yes or no, even if it was in Ready.
@@ -1994,6 +1996,27 @@ if (!store.settings().countersResetV1) {
 if (!store.settings().mixV2) store.updateSettings({ mixV2: true, dailyMix: { fun: 1, educational: 1, inspirational: 1 } });
 // The creator's look is the yellow box: set back once (it had been switched to another style).
 if (!store.settings().yellowboxV1) store.updateSettings({ yellowboxV1: true, textStyle: "yellowbox" });
+
+// Once, asked for by the creator: the airline weigh-in video (3a303b7d…), made again with the fixed
+// text layout, shots of at most a few seconds each, and the yellow box. Its words and clips stay;
+// it goes to Review. If it's gone, its latest version is used; if none is left, nothing happens.
+if (!store.settings().remakeWeighInV1) {
+  store.updateSettings({ remakeWeighInV1: true });
+  const first = "3a303b7d0f25d227";
+  let r = store.render(first) ?? store.renders().find((x) => x.plan.remakeOf === first);
+  while (r?.remadeAs && r.remadeAs !== "pending" && store.render(r.remadeAs)) r = store.render(r.remadeAs);
+  if (r && r.plan.segments.every((x) => store.clip(x.clipId)?.status === "ready")) {
+    const len = (xs: { start: number; end: number; speed?: number }[]) => xs.reduce((a, x) => a + (x.end - x.start) / (x.speed ?? 1), 0);
+    const total = len(r.plan.segments);
+    const cut = r.plan.segments.map((x) => ({ ...x, end: Math.min(x.end, x.start + 3.5 * (x.speed ?? 1)) }));
+    const segments = lengthenFootage(cut, total, (cid) => store.clip(cid)?.duration ?? 0);
+    const { fontId, textSize } = store.settings();
+    const fresh = queueRender(healPlan({ ...r.plan, segments, editorPass: EDITOR_ATTEMPTS }, store.settings().cta?.site), { ...r.options, textStyle: "yellowbox", textSize, fontId }, r.batch, { countUse: false });
+    // The old version goes (unless it's posted), so Review shows just the new one.
+    if (!r.posts?.length) deleteRender(r.id);
+    console.log(`[remake] ${r.id} made again as ${fresh.id} (yellow box, fixed layout)`);
+  } else console.log(`[remake] the weigh-in video isn't there (or its clips are gone); nothing made`);
+}
 
 // Once: the call to action (flywith.pet) centered in videos waiting or kept.
 // Once: educational videos waiting in Review open on the strongest footage (asked for by the creator).

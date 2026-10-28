@@ -105,8 +105,10 @@ export function lengthenFootage(segments: Segment[], seconds: number, clipDurati
     return len(out.slice(a, b + 1));
   };
   // First every shot runs on a little (none past MAX_SHOT_SECONDS of one shot), the last ones first;
-  // only if that isn't enough does a shot run on longer (a long same-shot stretch loses viewers).
-  for (const cap of [MAX_SHOT_SECONDS, Infinity]) {
+  // a long same-shot stretch loses viewers.
+  // Then, if the clips run short, the limit goes up a second at a time, so the extra time is still
+  // shared out instead of going to one shot.
+  for (const cap of [MAX_SHOT_SECONDS, ...[1, 2, 3, 4, 5, 6].map((k) => MAX_SHOT_SECONDS + k), Infinity]) {
     for (let i = out.length - 1; i >= 0 && len(out) < seconds - 0.05; i--) {
       const s = out[i];
       // Up to where this clip is used next in the video (never into footage shown elsewhere).

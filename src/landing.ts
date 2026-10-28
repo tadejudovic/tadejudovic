@@ -84,6 +84,9 @@ const local = (i: number) => {
 const photoUrl = (i: number, w: number, h: number) => local(i) ?? U(PHOTOS[i][0], w, h);
 const photoBg = (i: number, w = 240) => `url(${photoUrl(i, w, w)}) center/cover, ${PHOTOS[i][1]}`;
 
+/** The tab icon: an amber tile with a play mark, the same on every page. */
+export const FAVICON = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%2211%22 fill=%22%23F5A300%22/%3E%3Cpath d=%22M12.5 10.5v11l9-5.5z%22 fill=%22%23452B00%22/%3E%3C/svg%3E";
+
 export function landingHtml(opts: { signInUrl: string; google: boolean }): string {
   const first = STORIES[0];
   const heroBg = (tile: number) => `url(${photoUrl(tile, 720, 1520)}) center/cover, ${PHOTOS[tile][1]}`;
@@ -112,7 +115,7 @@ export function landingHtml(opts: { signInUrl: string; google: boolean }): strin
 <meta name="description" content="Rollcut turns the videos already on your phone into ready-to-post TikToks, with text based on videos that got millions of views. You just swipe.">
 <meta property="og:title" content="Rollcut · your camera roll, turned into TikToks">
 <meta property="og:description" content="Ready-to-post videos from your camera roll, every day. You just swipe.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fe2c55%22/%3E%3Cstop offset=%221%22 stop-color=%22%23ffb020%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22url(%23g)%22/%3E%3Cpath d=%22M12 10v12l10-6z%22 fill=%22%23fff%22/%3E%3C/svg%3E">
+<link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Google+Sans+Flex:opsz,wght,ROND@6..144,400..900,100&display=swap" rel="stylesheet">
 <style>

@@ -1213,7 +1213,7 @@ input, select, textarea, .perf-input { background: var(--surface-2) !important; 
 .shots-sec { position: relative; }
 .shot-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 .shots { overflow-y: visible; padding: 8px 12px; margin: 0 -12px; }
-.shots .shot { touch-action: pan-x; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform .18s ease, opacity .18s ease, width .08s linear; cursor: pointer; overflow: visible; }
+.shots .shot { touch-action: pan-x pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform .18s ease, opacity .18s ease, width .08s linear; cursor: pointer; overflow: visible; }
 .shots .shot img { pointer-events: none; border-radius: inherit; }
 .shots .shot.lifted { z-index: 3; transition: none; box-shadow: 0 10px 24px rgba(0,0,0,.5); }
 .shots .shot[data-a="remove"] { opacity: .3; }
@@ -1245,3 +1245,13 @@ input, select, textarea, .perf-input { background: var(--surface-2) !important; 
 .shots-sec.busy { opacity: .45; pointer-events: none; }
 .shots-sec.busy .shot-apply { display: none; }
 @media (prefers-reduced-motion: reduce) { .remake-shape { animation: none; } }
+
+/* The selected shot's actions, under the strip */
+.shot-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.shot-actions[hidden] { display: none; }
+.shot-actions-label { flex: 1; font-weight: 800; color: var(--md-on-surface); padding: 0 !important; margin: 0 !important; background: none !important; }
+.shot-actions .btn { display: inline-flex; align-items: center; gap: 6px; background: var(--md-secondary-container) !important; color: var(--md-on-secondary-container) !important; border: 0 !important; }
+.shot-actions .shot-delete:not(.on) { color: var(--md-error) !important; }
+.shot-actions .btn .ico { width: 18px; height: 18px; }
+.shot-actions .btn[hidden] { display: none; }
+.shot-actions .shot-delete.on, .shot-actions .shot-replace.on { background: var(--md-primary) !important; color: var(--md-on-primary) !important; }

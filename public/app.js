@@ -69,6 +69,8 @@ const ICONS = {
   muted: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>',
   sound: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  swap: '<path d="M4 7h13l-3-3"/><path d="M20 17H7l3 3"/>',
+  trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m6 7 1 13h10l1-13"/>',
   download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
 };
 function icon(name) {
@@ -1335,12 +1337,6 @@ const soundRow = (x, note) =>
     h("a", { class: "btn small", href: x.url, target: "_blank", rel: "noopener noreferrer" }, "Open in TikTok"));
 
 /** Trending sounds that fit this video, loaded when the details open (TikTok adds the sound when posting). */
-// The video's shots in order, like an editor's timeline, edited by hand:
-//   tap: the video above jumps to the shot (and it's selected, showing its ends);
-//   drag up: delete it; drag down: other footage instead (again: undo);
-//   hold, then slide left or right: move it; pull either end of the selected shot: trim it.
-// Apply draws the video again with the same text, at the same length.
-const SHOT_PX = 40; // a second of footage, in pixels of strip
 /**
  * While a video is made again with the creator's changes: the old one dims under a progress card on
  * the video itself, then the new version takes its place (in the open card or the review stack).
@@ -1384,6 +1380,12 @@ function showRemaking(media, freshId, inStack) {
   }, 1500);
 }
 
+// The video's shots in order, like an editor's timeline, edited by hand:
+//   tap: the video above jumps to the shot, and it's selected (showing its ends);
+//   Replace / Delete under the strip act on the selected shot (tap again to undo);
+//   hold, then slide left or right: move it; pull either end of the selected shot: trim it.
+// Apply draws the video again with the same text, at the same length.
+const SHOT_PX = 40; // a second of footage, in pixels of strip
 function shotsSection(r) {
   if (r.status !== "done" || r.posts?.length || !r.plan.segments?.length) return null;
   let shots = [];
@@ -1410,6 +1412,12 @@ function shotsSection(r) {
       await refreshRenders();
     });
   } });
+  // Replace or delete the selected shot: always on screen (the first shot is selected to start).
+  const toggle = (want) => { if (sel < 0) return; act[sel] = act[sel] === want ? "keep" : want; draw(); };
+  const barLabel = h("span", { class: "shot-actions-label" });
+  const replaceBtn = h("button", { class: "btn small shot-replace", type: "button", onclick: () => toggle("swap") });
+  const deleteBtn = h("button", { class: "btn small shot-delete", type: "button", onclick: () => toggle("remove") });
+  const bar = h("div", { class: "shot-actions", hidden: true }, barLabel, replaceBtn, deleteBtn);
   const TAG = { swap: "New footage", remove: "Deleted" };
   const seconds = (i) => (trim[i].end - trim[i].start) / shots[i].speed;
   const draw = () => {
@@ -1422,6 +1430,17 @@ function shotsSection(r) {
       const tag = card.querySelector(".shot-tag");
       tag.textContent = TAG[act[i]] ?? "";
       tag.hidden = !TAG[act[i]];
+    }
+    if (sel >= 0) {
+      const pos = order().indexOf(sel);
+      bar.hidden = false;
+      barLabel.textContent = `Shot ${pos + 1}`;
+      replaceBtn.innerHTML = act[sel] === "swap" ? `${icon("undo")} Keep this footage` : `${icon("swap")} Replace`;
+      deleteBtn.innerHTML = act[sel] === "remove" ? `${icon("undo")} Bring back` : `${icon("trash")} Delete`;
+      replaceBtn.hidden = act[sel] === "remove";
+      deleteBtn.hidden = act[sel] === "swap";
+      replaceBtn.classList.toggle("on", act[sel] === "swap");
+      deleteBtn.classList.toggle("on", act[sel] === "remove");
     }
     const { n } = changes();
     apply.hidden = !n;
@@ -1446,11 +1465,7 @@ function shotsSection(r) {
       if (e.pointerId !== id) return;
       const dx = e.clientX - x0, dy = e.clientY - y0;
       if (!mode && Math.abs(dx) > 8) { clearTimeout(timer); id = null; return; } // a swipe: the strip scrolls
-      if (!mode && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { mode = "vertical"; clearTimeout(timer); card.setPointerCapture(id); }
-      if (mode === "vertical") {
-        card.style.transform = `translateY(${dy}px)`;
-        card.style.opacity = String(Math.max(0.3, 1 - Math.abs(dy) / 150));
-      }
+      if (!mode && Math.abs(dy) > 10) { clearTimeout(timer); id = null; return; } // the page scrolls
       if (mode === "move") {
         // Past the middle of a neighbour: it trades places, and the card keeps following the finger.
         const off = dx - shift;
@@ -1467,15 +1482,9 @@ function shotsSection(r) {
       if (e.pointerId !== id) return;
       clearTimeout(timer);
       id = null;
-      const dy = e.clientY - y0;
-      card.style.transform = card.style.opacity = "";
+      card.style.transform = "";
       card.classList.remove("lifted");
-      if (mode === "vertical" && Math.abs(dy) > 50) {
-        const want = dy < 0 ? "remove" : "swap";
-        act[i] = act[i] === want ? "keep" : want;
-        navigator.vibrate?.(15);
-      } else if (!mode && e.type === "pointerup") {
-        if (act[i] === "remove") act[i] = "keep"; // tapping a deleted shot brings it back
+      if (!mode && e.type === "pointerup") {
         sel = i;
         seek(i);
       }
@@ -1507,6 +1516,7 @@ function shotsSection(r) {
     .then((list) => {
       shots = list;
       for (const s of list) { act[s.index] = "keep"; trim[s.index] = { start: s.start, end: s.end }; }
+      sel = list.length ? 0 : -1;
       strip.replaceChildren(
         ...list.map((s) => {
           const card = h("div", { class: "shot", role: "option", tabindex: "0", "data-i": String(s.index), "aria-label": `Shot ${s.index + 1}` },
@@ -1536,7 +1546,8 @@ function shotsSection(r) {
   return h("section", { class: "d-sec shots-sec" },
     h("div", { class: "d-sec-head" }, h("span", {}, "Shots")),
     strip,
-    h("p", { class: "shot-hint" }, "Drag up to delete · down for other footage · hold to move · pull the ends to trim"),
+    bar,
+    h("p", { class: "shot-hint" }, "Tap a shot to pick it · hold and slide to move it · pull its ends to trim"),
     apply);
 }
 

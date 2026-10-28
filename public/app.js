@@ -1414,10 +1414,19 @@ function shotsSection(r) {
   } });
   // Replace or delete the selected shot: always on screen (the first shot is selected to start).
   const toggle = (want) => { if (sel < 0) return; act[sel] = act[sel] === want ? "keep" : want; draw(); };
+  // A card that points at the selected shot, so it's clear it's about that one shot.
   const barLabel = h("span", { class: "shot-actions-label" });
+  const notch = h("span", { class: "shot-actions-notch", "aria-hidden": "true" });
   const replaceBtn = h("button", { class: "btn small shot-replace", type: "button", onclick: () => toggle("swap") });
   const deleteBtn = h("button", { class: "btn small shot-delete", type: "button", onclick: () => toggle("remove") });
-  const bar = h("div", { class: "shot-actions", hidden: true }, barLabel, replaceBtn, deleteBtn);
+  const bar = h("div", { class: "shot-actions", hidden: true }, notch, barLabel, replaceBtn, deleteBtn);
+  const aim = () => {
+    const card = strip.querySelector(`.shot[data-i="${sel}"]`);
+    if (!card || bar.hidden) return;
+    const x = card.getBoundingClientRect().left + card.offsetWidth / 2 - bar.getBoundingClientRect().left;
+    notch.style.left = `${Math.max(14, Math.min(bar.offsetWidth - 14, x))}px`;
+  };
+  strip.addEventListener("scroll", aim, { passive: true });
   const TAG = { swap: "New footage", remove: "Deleted" };
   const seconds = (i) => (trim[i].end - trim[i].start) / shots[i].speed;
   const draw = () => {
@@ -1434,13 +1443,14 @@ function shotsSection(r) {
     if (sel >= 0) {
       const pos = order().indexOf(sel);
       bar.hidden = false;
-      barLabel.textContent = `Shot ${pos + 1}`;
-      replaceBtn.innerHTML = act[sel] === "swap" ? `${icon("undo")} Keep this footage` : `${icon("swap")} Replace`;
-      deleteBtn.innerHTML = act[sel] === "remove" ? `${icon("undo")} Bring back` : `${icon("trash")} Delete`;
+      barLabel.replaceChildren(h("b", {}, `Shot ${pos + 1}`), h("small", {}, `${seconds(sel).toFixed(1)}s`));
+      replaceBtn.innerHTML = act[sel] === "swap" ? `${icon("undo")} Keep it` : `${icon("swap")} Replace shot`;
+      deleteBtn.innerHTML = act[sel] === "remove" ? `${icon("undo")} Bring back` : `${icon("trash")} Delete shot`;
       replaceBtn.hidden = act[sel] === "remove";
       deleteBtn.hidden = act[sel] === "swap";
       replaceBtn.classList.toggle("on", act[sel] === "swap");
       deleteBtn.classList.toggle("on", act[sel] === "remove");
+      requestAnimationFrame(aim);
     }
     const { n } = changes();
     apply.hidden = !n;

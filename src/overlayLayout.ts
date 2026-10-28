@@ -97,15 +97,30 @@ export function spreadPoints(overlays: Overlay[]): Overlay[] {
 export function lengthenFootage(segments: Segment[], seconds: number, clipDuration: (id: string) => number): Segment[] {
   const len = (xs: Segment[]) => xs.reduce((a, s) => a + (s.end - s.start) / (s.speed ?? 1), 0);
   const out = segments.map((s) => ({ ...s }));
-  for (let i = out.length - 1; i >= 0 && len(out) < seconds - 0.05; i--) {
-    const s = out[i];
-    // Up to where this clip is used next in the video (never into footage shown elsewhere).
-    const nextUse = Math.min(clipDuration(s.clipId), ...out.filter((x) => x !== s && x.clipId === s.clipId && x.start >= s.end - 0.05).map((x) => x.start));
-    const room = Math.max(0, nextUse - s.end);
-    s.end += Math.min(room, (seconds - len(out)) * (s.speed ?? 1));
+  // Seconds the same footage is on screen in one go: this shot and the shots of the same clip right next to it.
+  const run = (i: number) => {
+    let a = i, b = i;
+    while (a > 0 && out[a - 1].clipId === out[i].clipId) a--;
+    while (b < out.length - 1 && out[b + 1].clipId === out[i].clipId) b++;
+    return len(out.slice(a, b + 1));
+  };
+  // First every shot runs on a little (none past MAX_SHOT_SECONDS of one shot), the last ones first;
+  // only if that isn't enough does a shot run on longer (a long same-shot stretch loses viewers).
+  for (const cap of [MAX_SHOT_SECONDS, Infinity]) {
+    for (let i = out.length - 1; i >= 0 && len(out) < seconds - 0.05; i--) {
+      const s = out[i];
+      // Up to where this clip is used next in the video (never into footage shown elsewhere).
+      const nextUse = Math.min(clipDuration(s.clipId), ...out.filter((x) => x !== s && x.clipId === s.clipId && x.start >= s.end - 0.05).map((x) => x.start));
+      const room = Math.max(0, nextUse - s.end);
+      const headroom = Math.max(0, cap - run(i)) * (s.speed ?? 1);
+      s.end += Math.min(room, headroom, (seconds - len(out)) * (s.speed ?? 1));
+    }
   }
   return out;
 }
+
+/** The longest the same shot should stay on screen in one go when footage is stretched to fit. */
+export const MAX_SHOT_SECONDS = 3.5;
 
 /**
  * Footage is never replayed (the creator's rule: the same clip shows up once in a video), so this

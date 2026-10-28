@@ -118,6 +118,8 @@ export interface Settings {
   peeRedoV1?: boolean;
   dogLoversV1?: boolean;
   mixV2?: boolean;
+  /** Set once the text style was put back to the yellow box (the creator's default look). */
+  yellowboxV1?: boolean;
   /** The day's counters start here (a reset during the day); local midnight otherwise. */
   countFrom?: string;
   countersResetV1?: boolean;

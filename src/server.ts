@@ -1992,6 +1992,8 @@ if (!store.settings().countersResetV1) {
 
 // Once: every day one educational, one fun and one inspirational video, and no more.
 if (!store.settings().mixV2) store.updateSettings({ mixV2: true, dailyMix: { fun: 1, educational: 1, inspirational: 1 } });
+// The creator's look is the yellow box: set back once (it had been switched to another style).
+if (!store.settings().yellowboxV1) store.updateSettings({ yellowboxV1: true, textStyle: "yellowbox" });
 
 // Once: the call to action (flywith.pet) centered in videos waiting or kept.
 // Once: educational videos waiting in Review open on the strongest footage (asked for by the creator).

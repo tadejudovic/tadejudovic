@@ -100,3 +100,14 @@ test("a re-made video is brought up to today's rules, keeping its words", async 
   assert.ok(Math.abs(o[4].start - (total - 3)) < 1e-6); // call to action: the last 3s
   assert.equal(new Set(o.slice(1, 4).map((p) => `${p.x},${p.y}`)).size, 3); // three different spots
 });
+
+test("stretched footage is spread over the shots instead of one shot running on", () => {
+  const segs = lengthenFootage(
+    [{ clipId: "a", start: 0, end: 2, speed: 1 }, { clipId: "b", start: 0, end: 2, speed: 1 }, { clipId: "c", start: 0, end: 2, speed: 1 }],
+    9,
+    () => 20,
+  );
+  const lens = segs.map((s) => s.end - s.start);
+  assert.ok(Math.abs(lens.reduce((x, y) => x + y, 0) - 9) < 1e-9);
+  assert.ok(lens.every((l) => l <= 3.5 + 1e-9), `no shot past 3.5 s: ${lens}`);
+});

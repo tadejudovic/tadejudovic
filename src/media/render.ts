@@ -537,20 +537,31 @@ async function finalize(
     let px = smaller.has(o.at ?? "") && !headers.has(o) ? Math.round(textPx(options) * 0.82) : textPx(options);
     const boxPad = Math.round(px * 0.38) + 10;
     const enable = `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`;
-    // The call to action: centered in the middle of the frame, two even lines, a little larger, at
-    // the height (around the middle) that covers the least of a face.
+    // The call to action: centered, two even lines, a little larger, around the middle of the frame,
+    // but never on Lex or a face: it goes as far up or down the safe zone as it takes, then a little
+    // smaller, before it would cover them.
     if (isCta(o)) {
-      const size = Math.round(textPx(options) * 1.05);
-      const pad = Math.round(size * 0.38) + 10;
+      const base = Math.round(textPx(options) * 1.05);
+      let size = base;
+      const pad = () => Math.round(size * 0.38) + 10;
       const draw = (y: number) => textFilters(o.text, { yFrac: y, size, maxChars: charsFor(size, 30), style: options.textStyle, font, enable, tmp, key: `ov${i}` });
-      let best: { y: number; s: number } | undefined;
-      for (const cy of [0.5, 0.44, 0.56, 0.38, 0.62]) {
-        const d = draw(cy);
-        const s = onFaces(o, d.left - 12, d.top - pad, d.width + 24, d.height + 2 * pad) + Math.abs(cy - 0.5) * 20_000;
-        if (!best || s < best.s) best = { y: cy, s };
+      let best: { y: number; s: number; size: number } | undefined;
+      for (const k of [1, 0.88, 0.76]) {
+        size = Math.round(base * k);
+        for (const cy of [0.5, 0.44, 0.56, 0.38, 0.62, 0.32, 0.68, 0.26, 0.74, 0.2, 0.8]) {
+          const d = draw(cy);
+          const t = d.top - pad(), b = d.top + d.height + pad();
+          const unsafe = t < H * SAFE.top || b > H * SAFE.bottom ? 1e9 : 0;
+          const face = onFaces(o, d.left - 12, t, d.width + 24, b - t);
+          const s = unsafe + (face > 0 ? 1e7 + face : 0) + Math.abs(cy - 0.5) * 20_000 + (1 - k) * 50_000;
+          if (!best || s < best.s) best = { y: cy, s, size };
+        }
+        if (best && best.s < 1e7) break; // clear of faces at this size
       }
+      size = best!.size;
       const d = draw(best!.y);
-      placed.push({ o, top: d.top - pad, bottom: d.top + d.height + pad, end: o.end });
+      const padNow = pad();
+      placed.push({ o, top: d.top - padNow, bottom: d.top + d.height + padNow, end: o.end });
       filters.push(...d.filters);
       continue;
     }
@@ -602,7 +613,8 @@ async function finalize(
               const faceHit = face > 0 ? 50_000 + face / 50 : 0;
               const bandPx = plan.keepClear ? Math.max(0, Math.min(b, plan.keepClear.bottom * H) - Math.max(t, plan.keepClear.top * H)) : 0;
               const band = knowFaces ? bandPx * 0.2 : bandPx * 4;
-              const textHit = others.some((p) => p.top < b + 20 && t - 20 < p.bottom) ? 10_000 : 0;
+              // Clear of other text with real room around it, so two boxes never read as one stack.
+              const textHit = others.some((p) => p.top < b + 60 && t - 60 < p.bottom) ? 10_000 : 0;
               const sameAsBefore = prev !== undefined && Math.abs(cy - prev) < 0.12 ? 5_000 : 0;
               const unsafe = t < H * SAFE.top || b > H * SAFE.bottom ? 20_000 : 0;
               const s = faceHit + band + textHit + sameAsBefore + unsafe + Math.abs(cy - y) * 200 + (cx === o.x ? 0 : 800) + (1 - k) * 3_000;

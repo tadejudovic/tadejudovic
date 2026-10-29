@@ -61,6 +61,8 @@ export interface Clip {
   tagError?: string;
   /** The same video was already imported (e.g. it's in two albums) as this clip: never picked automatically. */
   duplicateOf?: string;
+  /** A fingerprint of the file as it arrived (its size and its first and last megabyte), to catch the same video brought in again. */
+  fingerprint?: string;
 }
 
 /** A caption/overlay that is known to have done well on TikTok for a situation. */
@@ -92,6 +94,8 @@ export interface SceneResearch {
   scene: string;
   updatedAt?: string;
   error?: string;
+  /** When the last search failed (it's tried again a few hours later). */
+  errorAt?: string;
   /** Three hashtags picked from the top videos by post count (one big, one mid, one small). */
   hashtags?: PickedHashtag[];
   /** Why hashtags couldn't be picked, if they couldn't. */

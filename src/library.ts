@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.ts";
@@ -118,12 +119,58 @@ export function importPicked(items: PickedMediaItem[]) {
   });
 }
 
+/** The file's size and a hash of its first and last megabyte: the same video gives the same one. */
+export function fingerprintOf(file: string): string | undefined {
+  try {
+    const size = fs.statSync(file).size;
+    const fd = fs.openSync(file, "r");
+    try {
+      const n = Math.min(size, 1 << 20);
+      const head = Buffer.alloc(n);
+      const tail = Buffer.alloc(n);
+      fs.readSync(fd, head, 0, n, 0);
+      fs.readSync(fd, tail, 0, n, Math.max(0, size - n));
+      return `${size}:${crypto.createHash("sha1").update(head).update(tail).digest("hex")}`;
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The same video already in the library, however it came in (an upload, Google Photos, an album):
+ * the same file, or the same moment of filming and the same length.
+ */
+function sameVideo(clip: Clip, fingerprint: string | undefined, duration: number): Clip | undefined {
+  const at = clip.capturedAt ? Date.parse(clip.capturedAt) : NaN;
+  return store.clips().find(
+    (c) =>
+      c.id !== clip.id && c.status !== "error" && !c.duplicateOf &&
+      ((fingerprint !== undefined && c.fingerprint === fingerprint) ||
+        (Number.isFinite(at) && !!c.capturedAt && Math.abs(Date.parse(c.capturedAt) - at) < 1500 && Math.abs(c.duration - duration) < 0.2)),
+  );
+}
+
 export async function analyzeClip(id: string) {
   const clip = store.clip(id);
   if (!clip) return;
   store.updateClip(id, { status: "analyzing", error: undefined });
+  const fingerprint = clip.fingerprint ?? fingerprintOf(clip.file);
+  if (fingerprint) store.updateClip(id, { fingerprint });
   let info = await probe(clip.file);
   if (!info.hasVideo) throw new Error("No video stream found in this file.");
+  // Already in the library: kept as a record (so it isn't brought in or paid for again), not analyzed.
+  // Only for a clip that's just come in (never one looked at again, or already used in a video).
+  const isNew = !clip.ai && !clip.uses && !store.renders().some((r) => r.plan.segments.some((x) => x.clipId === id));
+  const twin = isNew ? sameVideo(clip, fingerprint, info.duration) : undefined;
+  if (twin) {
+    removeClipFiles(clip);
+    store.updateClip(id, { status: "archived", duplicateOf: twin.id, duration: info.duration, archivedAt: new Date().toISOString() });
+    console.log(`[library] ${clip.filename} is already in the library (${twin.filename}); skipped`);
+    return;
+  }
 
   let file = clip.file;
   let kind: Clip["kind"] = "video";

@@ -33,7 +33,7 @@ export function afterReview() {
 import { ingestQueue } from "./queue.ts";
 import { archiveUnusable, ARCHIVE_AFTER_DAYS, freeDiskSpace, queueMissingAiLooks } from "./library.ts";
 import { aiAvailable } from "./ai/budget.ts";
-import { researchScene, researchStale } from "./ai/research.ts";
+import { researchFailedRecently, researchScene, researchStale } from "./ai/research.ts";
 import type { RenderOptions, VideoPlan } from "./types.ts";
 
 /**
@@ -162,7 +162,8 @@ async function runDue({ afterReview = false } = {}) {
   // after the round so it never delays videos.
   if (config.claude.enabled && !batchRunning && !researching) {
     const waiting = new Set(store.clips().filter((c) => c.status === "ready" && c.uses === 0 && c.scene).map((c) => c.scene!));
-    const next = store.settings().scenes.find((sc) => waiting.has(sc) && researchStale(sc) && !store.research(sc)?.error);
+    // A situation whose search failed is tried again a few hours later (it used to be skipped for good).
+    const next = store.settings().scenes.find((sc) => waiting.has(sc) && researchStale(sc) && !researchFailedRecently(sc));
     if (next) {
       researching = true;
       await researchScene(next)

@@ -14,6 +14,13 @@ import type { PickedHashtag, ProvenCaption, SceneResearch } from "../types.ts";
  */
 
 export const RESEARCH_MAX_AGE_MS = 14 * 86400_000;
+/** A search that failed (Apify not connected yet, out of credit, a timeout) is tried again after this. */
+export const RESEARCH_RETRY_MS = 6 * 3600_000;
+/** Whether a situation's last search failed recently (then it isn't tried again just yet). */
+export const researchFailedRecently = (scene: string) => {
+  const r = store.research(scene);
+  return !!r?.error && Date.now() - (Date.parse(r.errorAt ?? "") || 0) < RESEARCH_RETRY_MS;
+};
 
 export function researchStale(scene: string): boolean {
   const r = store.research(scene);
@@ -62,13 +69,13 @@ async function doResearch(scene: string): Promise<SceneResearch> {
       });
     } catch (err) {
       if (err instanceof BudgetExceeded) throw err;
-      store.setResearch({ scene, source: previous?.source, hashtags: previous?.hashtags, updatedAt: previous?.updatedAt, error: (err as Error).message, captions: previous?.captions ?? [] });
+      store.setResearch({ scene, source: previous?.source, hashtags: previous?.hashtags, updatedAt: previous?.updatedAt, error: (err as Error).message, errorAt: new Date().toISOString(), captions: previous?.captions ?? [] });
       throw err;
     }
   }
   // Caption ideas come only from TikTok itself (via Apify), never from general web pages.
   const error = "Connect Apify (APIFY_TOKEN on Render) to find captions on TikTok.";
-  store.setResearch({ scene, source: previous?.source, hashtags: previous?.hashtags, updatedAt: previous?.updatedAt, error, captions: previous?.captions ?? [] });
+  store.setResearch({ scene, source: previous?.source, hashtags: previous?.hashtags, updatedAt: previous?.updatedAt, error, errorAt: new Date().toISOString(), captions: previous?.captions ?? [] });
   throw new Error(error);
 }
 

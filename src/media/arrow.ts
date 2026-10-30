@@ -115,3 +115,30 @@ export function writeArrow(file: string, width: number, height: number, from: Pt
   fs.writeFileSync(file, png(width, height, rgba));
   return true;
 }
+
+/** A black check mark inside the square at (x, y) of `size` px, as a transparent full-frame PNG. */
+export function writeCheck(file: string, width: number, height: number, x: number, y: number, size: number): void {
+  const rgba = Buffer.alloc(width * height * 4);
+  const r = Math.max(2, size * 0.08);
+  const pts = [
+    { x: x + size * 0.24, y: y + size * 0.52 },
+    { x: x + size * 0.42, y: y + size * 0.7 },
+    { x: x + size * 0.77, y: y + size * 0.31 },
+  ];
+  for (let k = 0; k < pts.length - 1; k++) {
+    const a = pts[k], b = pts[k + 1];
+    const steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y));
+    for (let s = 0; s <= steps; s++) {
+      const cx = a.x + ((b.x - a.x) * s) / steps;
+      const cy = a.y + ((b.y - a.y) * s) / steps;
+      for (let py = Math.floor(cy - r); py <= Math.ceil(cy + r); py++)
+        for (let px = Math.floor(cx - r); px <= Math.ceil(cx + r); px++) {
+          if (px < 0 || py < 0 || px >= width || py >= height || (px - cx) ** 2 + (py - cy) ** 2 > r * r) continue;
+          const i = (py * width + px) * 4;
+          rgba[i] = rgba[i + 1] = rgba[i + 2] = 17;
+          rgba[i + 3] = 255;
+        }
+    }
+  }
+  fs.writeFileSync(file, png(width, height, rgba));
+}

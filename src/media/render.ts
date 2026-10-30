@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import opentype from "opentype.js";
-import { writeArrow } from "./arrow.ts";
+import { writeArrow, writeCheck } from "./arrow.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { config, canDecode4K } from "../config.ts";
@@ -292,6 +292,92 @@ export function pointFilters(num: string, text: string, opts: TextOpts & { boxW:
   return { filters, height: lines.length * lineH, top, left, width: w };
 }
 
+/** A tip's text without its number or label ("1. ", "#2 ", "Tip: ", "Step 3: "). */
+export function tipText(text: string): string {
+  return screenText(text).replace(/^\s*(#\s*\d{1,2}|\d{1,2}\s*[.):]|tip\s*\d{0,2}\s*[:–-]|step\s*\d{1,2}\s*[:–-])\s*/i, "");
+}
+
+export interface ChecklistRow { text: string; start: number; end: number }
+
+/**
+ * The educational checklist: every tip of the video as a row, left-aligned, one under the other.
+ * The tip being read is a yellow row with a black number tab; the ones read already stay, dimmed,
+ * crossed out and ticked; the ones still to come show only their number. `listEnd` is when the
+ * list goes. Returns the filters, the ticks to lay over (squares in px, with when they show) and
+ * the list's height.
+ */
+export function checklistFilters(
+  rows: ChecklistRow[],
+  o: { top: number; size: number; font: string; tmp: string; listEnd: number },
+): { filters: string[]; ticks: { x: number; y: number; size: number; start: number; end: number }[]; height: number; width: number; left: number } {
+  const { size, font } = o;
+  const padX = Math.round(size * 0.42);
+  const padY = Math.round(size * 0.3);
+  const badge = Math.round(size * 1.05);
+  const gap = Math.round(size * 0.36);
+  const rowGap = Math.round(size * 0.26);
+  const lineH = Math.round(size * 1.24);
+  const left = Math.round(W * SAFE.left);
+  const maxTextW = SAFE_W - padX * 2 - badge - gap;
+  const listStart = Math.min(...rows.map((r) => r.start));
+  const filters: string[] = [];
+  const ticks: { x: number; y: number; size: number; start: number; end: number }[] = [];
+  const between = (a: number, b: number) => `enable='between(t,${a.toFixed(2)},${b.toFixed(2)})'`;
+  const write = (name: string, s: string) => {
+    const file = path.join(o.tmp, `ck-${name}.txt`);
+    fs.writeFileSync(file, s);
+    return `textfile='${esc(file)}'`;
+  };
+  let y = o.top;
+  let width = 0;
+  rows.forEach((r, i) => {
+    const lines = fitLines(r.text, maxTextW, size, font, charsFor(size, 24));
+    const textW = Math.round(Math.max(...lines.map((l) => textWidth(font, l, size))));
+    const h = Math.max(badge, Math.round((lines.length - 1) * lineH + size * 1.08)) + padY * 2;
+    const w = padX * 2 + badge + gap + textW;
+    width = Math.max(width, w);
+    const bx = left + padX;
+    const by = y + Math.round((h - badge) / 2);
+    const tx = bx + badge + gap;
+    const ty = y + Math.round((h - (lines.length - 1) * lineH - size * 1.08) / 2);
+    const num = String(i + 1);
+    const text = (color: string, when: string) =>
+      lines.map((l, k) => [`drawtext=fontfile='${esc(font)}'`, write(`${i}-${k}`, l), "expansion=none", `fontsize=${size}`, `fontcolor=${color}`, `x=${tx}`, `y=${ty + k * lineH}`, when].join(":"));
+    const number = (color: string, when: string) =>
+      [`drawtext=fontfile='${esc(font)}'`, write(`${i}-n`, num), "expansion=none", `fontsize=${Math.round(size * 0.78)}`, `fontcolor=${color}`, `x=${bx + badge / 2}-text_w/2`, `y=${by + badge / 2}-text_h/2`, when].join(":");
+    // Still to come: just its number, in an outlined square on a small dark tab.
+    if (r.start > listStart + 0.01) {
+      const when = between(listStart, r.start);
+      filters.push(
+        `drawbox=x=${left}:y=${y}:w=${padX * 2 + badge}:h=${h}:color=black@0.45:t=fill:${when}`,
+        `drawbox=x=${bx}:y=${by}:w=${badge}:h=${badge}:color=white@0.9:t=${Math.max(3, Math.round(size * 0.07))}:${when}`,
+        number("white", when),
+      );
+    }
+    // Being read: the yellow row, the number on a black tab.
+    const now = between(r.start, r.end);
+    filters.push(
+      `drawbox=x=${left}:y=${y}:w=${w}:h=${h}:color=0xF5C400@1:t=fill:${now}`,
+      `drawbox=x=${bx}:y=${by}:w=${badge}:h=${badge}:color=0x111111@1:t=fill:${now}`,
+      number("0xF5C400", now),
+      ...text("0x111111", now),
+    );
+    // Read: dimmed on a dark tab, ticked, crossed out in yellow.
+    if (o.listEnd > r.end + 0.01) {
+      const done = between(r.end, o.listEnd);
+      filters.push(
+        `drawbox=x=${left}:y=${y}:w=${w}:h=${h}:color=black@0.45:t=fill:${done}`,
+        `drawbox=x=${bx}:y=${by}:w=${badge}:h=${badge}:color=0xF5C400@1:t=fill:${done}`,
+        ...text("white@0.7", done),
+        ...lines.map((l, k) => `drawbox=x=${tx}:y=${ty + k * lineH + Math.round(size * 0.5)}:w=${Math.round(textWidth(font, l, size))}:h=${Math.max(3, Math.round(size * 0.08))}:color=0xF5C400@1:t=fill:${done}`),
+      );
+      ticks.push({ x: bx, y: by, size: badge, start: r.end, end: o.listEnd });
+    }
+    y += h + rowGap;
+  });
+  return { filters, ticks, height: y - rowGap - o.top, width, left };
+}
+
 /**
  * Where a text box of `height` (plus padding) can go so it stays off the subject (the dog, faces):
  * its top, moved above or below the subject's band if it would cover it. Returns `top` unchanged
@@ -499,6 +585,11 @@ async function finalize(
     }
   }
   for (let i = 0; i < points.length - 1; i++) if (!paired.has(points[i]) && points[i].end > points[i + 1].start) points[i].end = points[i + 1].start;
+  // Educational lists get the educational look: the question pinned in the yellow box, and every
+  // tip on one checklist that ticks off as the video goes (lessons in pairs, like myth → fact, keep theirs).
+  const checklist = plan.format === "tips" && points.length >= 2 && !paired.size &&
+    points.every((o) => !/^(MYTH|MISTAKE|DON'T|FACT|TRUTH|REALITY|INSTEAD|DO|ANSWER)$/.test(labelOf(o) ?? ""));
+  if (checklist) options = { ...options, textStyle: "yellowbox" };
   // Nothing flashes by: a line too short to read stays up at least 1.5s (within the video).
   for (const o of overlays) if (o.y === undefined && o.end - o.start < 1.5) o.end = Math.min(duration + 1, o.start + 1.5);
   // The opening headline is pinned, in every video: the same box in the same place at the top of the
@@ -551,6 +642,7 @@ async function finalize(
   }
   for (const i of order) {
     const o = overlays[i];
+    if (checklist && o.y !== undefined) continue;
     let px = smaller.has(o.at ?? "") && !headers.has(o) ? Math.round(textPx(options) * 0.82) : textPx(options);
     const boxPad = Math.round(px * 0.38) + 10;
     const enable = `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`;
@@ -761,6 +853,34 @@ async function finalize(
     }
     filters.push(...f);
     placed.push({ o, top: drawnTop - boxPad, bottom: drawnTop + height + boxPad, end: o.end });
+  }
+  if (checklist) {
+    // A size up from placed points: the list is the lesson, it has to read at a glance on a phone.
+    const size = Math.round(textPx(options) * 1.05);
+    const rows = points.map((o) => ({ text: tipText(o.text), start: o.start, end: o.end }));
+    const listEnd = Math.min(duration, Math.max(...points.map((o) => o.end)));
+    const draw = (top: number) => checklistFilters(rows, { top, size, font, tmp, listEnd });
+    // As low as it fits (the face and the dog usually fill the middle), clear of other text on
+    // screen and of faces while it's up.
+    const first = draw(0);
+    const lowest = Math.round(H * SAFE.bottom - first.height);
+    const highest = Math.round(H * SAFE.top);
+    const others = placed.filter((p) => p.o.start < listEnd && rows[0].start < p.end);
+    let best: { top: number; s: number } | undefined;
+    for (let top = lowest; top >= highest; top -= 24) {
+      const b = top + first.height;
+      const textHit = others.some((p) => p.top < b + 30 && top - 30 < p.bottom) ? 1e7 : 0;
+      const face = points.reduce((a, o) => a + onFaces(o, first.left, top, first.width, first.height), 0);
+      const s = textHit + face + (lowest - top) * 2;
+      if (!best || s < best.s) best = { top, s };
+    }
+    const list = draw(best?.top ?? lowest);
+    filters.push(...list.filters);
+    list.ticks.forEach((t, k) => {
+      const file = path.join(tmp, `tick${k}.png`);
+      writeCheck(file, W, H, t.x, t.y, t.size);
+      arrows.push({ file, start: t.start, end: t.end });
+    });
   }
   const music = options.musicFile && fs.existsSync(options.musicFile);
   const fadeAt = Math.max(0, duration - 1).toFixed(2);

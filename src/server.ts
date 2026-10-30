@@ -30,12 +30,12 @@ import { healPlan, layoutPoints, lengthenFootage, readingSeconds } from "./overl
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { apifyEnabled, platformOf } from "./ai/tiktokSearch.ts";
-import { researchTopics, topicBank, topicBankStale } from "./topicBank.ts";
+import { startTopicResearch, topicBank, topicBankStale, topicResearchStatus } from "./topicBank.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
 import { sendLanding, gateEnabled, googleCallback, googleLogin, googleStart, listenHost, lockedOut, loginPage, logout, requireAuth, signedInAs, isAdmin } from "./auth.ts";
-import { aiOutOfCredit, monthlyLimit, spendThisMonth } from "./ai/budget.ts";
+import { aiAvailable, aiOutOfCredit, monthlyLimit, spendThisMonth } from "./ai/budget.ts";
 import { TEXT_STYLES } from "./types.ts";
 import { makeFirstVideo, onboardingState, saveTopics, startTrial, suggestTopics, topicsIfNone } from "./onboarding.ts";
 import type { Clip, GenerateRequest, RejectReason, Render, RenderOptions, StoryDraft, TemplateId, VideoPlan } from "./types.ts";
@@ -1065,19 +1065,14 @@ app.post(
 
 app.get("/api/topics", (_req, res) => {
   const bank = topicBank();
-  res.json({ at: bank?.at ?? null, stale: topicBankStale(), ideas: bank?.ideas ?? [] });
+  res.json({ at: bank?.at ?? null, stale: topicBankStale(), ideas: bank?.ideas ?? [], ...topicResearchStatus() });
 });
-app.post(
-  "/api/topics/refresh",
-  h(async (_req, res) => {
-    try {
-      const bank = await researchTopics();
-      res.json({ at: bank.at, ideas: bank.ideas });
-    } catch (e) {
-      res.status(400).json({ error: (e as Error).message });
-    }
-  }),
-);
+// Starts the research in the background (it takes a few minutes); the page follows it through GET.
+app.post("/api/topics/refresh", (_req, res) => {
+  if (!config.claude.enabled || !aiAvailable()) return void res.status(400).json({ error: "The AI is off or out of credit, so topics can't be researched right now." });
+  startTopicResearch();
+  res.json(topicResearchStatus());
+});
 
 // ---- Onboarding: how it works, Google Photos, topics from the footage, the look, the free trial ----
 

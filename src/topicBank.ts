@@ -81,6 +81,31 @@ const BANK_MAX_AGE_MS = 7 * 86400_000;
 /** A topic isn't used again for this long. */
 const REUSE_AFTER_MS = 45 * 86400_000;
 
+/** The research pass running now (one at a time), and the last one's error, for the app to show. */
+let running: Promise<TopicBank> | null = null;
+let runningSince: string | null = null;
+let lastError: { message: string; at: string } | null = null;
+export const topicResearchStatus = () => ({ running: !!running, since: runningSince, error: lastError });
+
+/** Start a research pass in the background (or join the one running); errors are kept for the app. */
+export function startTopicResearch(): Promise<TopicBank> {
+  if (running) return running;
+  runningSince = new Date().toISOString();
+  lastError = null;
+  running = researchTopics()
+    .catch((err) => {
+      lastError = { message: (err as Error).message, at: new Date().toISOString() };
+      console.warn("[topics]", (err as Error).message);
+      throw err;
+    })
+    .finally(() => {
+      running = null;
+      runningSince = null;
+    });
+  running.catch(() => {});
+  return running;
+}
+
 export function topicBank(): TopicBank | undefined {
   return store.settings().topicBank;
 }
@@ -207,7 +232,7 @@ export async function researchTopics(): Promise<TopicBank> {
       },
     ],
     schema: SCHEMA,
-    effort: "high",
+    effort: "medium",
   });
   const ideas: TopicIdea[] = r.ideas
     .filter((x) => x.title?.trim())

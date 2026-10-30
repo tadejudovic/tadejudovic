@@ -219,7 +219,17 @@ async function loadTopics() {
   const list = $("#topics-list");
   const t = await api("/api/topics").catch(() => null);
   if (!t) return list.replaceChildren(h("p", { class: "muted" }, "Couldn't load the topics."));
-  $("#topics-at").textContent = t.at ? `Researched ${new Date(t.at).toLocaleDateString()}${t.stale ? " · due again" : ""}` : "Not researched yet";
+  // While a pass runs (a few minutes): say so and check again; its error, if any, right here.
+  const btn = $("#topics-refresh");
+  btn.disabled = !!t.running;
+  btn.textContent = t.running ? "Researching…" : "Research now";
+  $("#topics-error").hidden = !t.error;
+  $("#topics-error").textContent = t.error ? `The last research didn't work: ${t.error.message}` : "";
+  clearTimeout(loadTopics.t);
+  if (t.running) loadTopics.t = setTimeout(() => !$("#sp-topics").hidden && loadTopics(), 5000);
+  $("#topics-at").textContent = t.running
+    ? `Researching every source now, started ${new Date(t.since).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Takes a few minutes; you can leave this page.`
+    : t.at ? `Researched ${new Date(t.at).toLocaleDateString()}${t.stale ? " · due again" : ""}` : "Not researched yet";
   list.replaceChildren(...Object.entries(TOPIC_KIND).map(([kind, label]) => {
     const tb = (x) => (x.reach ?? x.demand) * (x.frequency ?? 3);
     const ideas = t.ideas.filter((x) => x.kind === kind).sort((a, b) => tb(b) - tb(a) || b.demand - a.demand);
@@ -233,12 +243,15 @@ async function loadTopics() {
         h("span", { class: "topic-src" }, `From: ${x.sources.join(", ")}`))));
   }));
 }
-$("#topics-refresh").addEventListener("click", (e) =>
-  withBusy(e.currentTarget, "Researching… (a minute or two)", async () => {
-    await api("/api/topics/refresh", { method: "POST" });
-    await loadTopics();
-    banner("Topics researched again.", "ok");
-  }));
+$("#topics-refresh").addEventListener("click", async () => {
+  const r = await api("/api/topics/refresh", { method: "POST" }).catch((err) => ({ error: { message: err.message } }));
+  if (r?.error && !r.running) {
+    $("#topics-error").hidden = false;
+    $("#topics-error").textContent = `Couldn't start the research: ${r.error.message}`;
+    return;
+  }
+  loadTopics();
+});
 
 // ---- What people search (TikTok search analytics → educational topics) -----------------
 

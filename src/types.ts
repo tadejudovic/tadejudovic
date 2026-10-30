@@ -159,6 +159,8 @@ export interface Segment {
 }
 
 export interface VideoPlan {
+  /** The researched idea this video is about (topic bank): what, for whom, from which sources. */
+  topicIdea?: { id: string; title: string; audience: "owners" | "considering" | "everyone"; specificity: "broad" | "specific"; pillar?: EduPillar; sources: string[]; trend?: string };
   template: TemplateId;
   title: string;
   hook: string;

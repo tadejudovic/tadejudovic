@@ -1,4 +1,5 @@
 import { lengthenFootage, spreadPoints, timePoints } from "../overlayLayout.ts";
+import { topicText } from "../topicBank.ts";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { assertBudget, noteAiError, recordUsage } from "./budget.ts";
@@ -697,6 +698,8 @@ export interface DirectContext {
   format?: PostFormat;
   /** For an educational video: the follower question it answers, with the creator's answer. */
   faq?: { q: string; a?: string };
+  /** The researched idea this video is about (topic bank). */
+  topicIdea?: import("../topicBank.ts").TopicIdea;
   /** Educational: this video's theme, and the topics already covered (never repeated). */
   pillar?: EduPillar;
   /** Educational: the angle within the theme (e.g. "the bag"). */
@@ -1255,6 +1258,7 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       (clip.note ? `\nThe creator's note about this footage: "${clip.note}"` : "") +
       (clip.ai?.summary ? `\nEarlier read of the clip: ${clip.ai.summary}` : "") +
       (ctx.brief ? `\nCreator's direction for today: ${ctx.brief}` : "") +
+      (ctx.topicIdea && !ctx.collab ? topicText(ctx.topicIdea, ctx.petName) : "") +
       `\n\nThe creator's audience loves seeing the two of them together: when part of the clip shows the creator ` +
       `and ${ctx.petName} together in the shot (a selfie, holding him, a cuddle), use that part.` +
       `\n\nStart from the footage: work out what is actually happening, where, and what ${ctx.petName} is feeling or ` +

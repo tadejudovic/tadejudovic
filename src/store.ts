@@ -160,6 +160,8 @@ export interface Settings {
   soundPostsSeen?: string[];
   /** What people type into Google and YouTube search (autocomplete), refreshed weekly. */
   suggestTopics?: SearchTopic[];
+  /** What the videos talk about: ideas researched from every source (see topicBank.ts). */
+  topicBank?: import("./topicBank.ts").TopicBank;
   suggestTopicsAt?: string;
   /** Every Keyword Planner search added so far (exports add up; the newest numbers win). */
   keywordQueries?: { query: string; clicks: number; impressions: number }[];
@@ -438,6 +440,7 @@ export const store = {
   },
 
   research: (scene: string) => db.research[scene],
+  researchAll: () => Object.values(db.research),
   allResearch: () => db.research,
   setResearch(r: SceneResearch) {
     db.research[r.scene] = r;

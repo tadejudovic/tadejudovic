@@ -34,6 +34,7 @@ import { ingestQueue } from "./queue.ts";
 import { archiveUnusable, ARCHIVE_AFTER_DAYS, freeDiskSpace, queueMissingAiLooks } from "./library.ts";
 import { aiAvailable } from "./ai/budget.ts";
 import { researchFailedRecently, researchScene, researchStale } from "./ai/research.ts";
+import { researchTopics, topicBankStale } from "./topicBank.ts";
 import type { RenderOptions, VideoPlan } from "./types.ts";
 
 /**
@@ -62,6 +63,8 @@ let lastSuggest = 0;
 let lastSounds = 0;
 let lastAudience = 0;
 let researching = false;
+let researchingTopics = false;
+let lastTopicTry = 0;
 let lastRelook = Date.now(); // startup already queues them
 const TOP_UP_EVERY_MS = 2 * 60_000;
 /** Why the last automatic round couldn't be made (shown in the app instead of an endless spinner). */
@@ -157,6 +160,14 @@ async function runDue({ afterReview = false } = {}) {
       for (const { kind } of toMake()) noteKindIssue(kind, (err as Error).message);
       throw err;
     }
+  }
+  // The topic bank: researched again once a week, or when a search export or the comments change.
+  if (config.claude.enabled && aiAvailable() && !batchRunning && !researchingTopics && topicBankStale() && Date.now() - lastTopicTry > 6 * 3600_000) {
+    researchingTopics = true;
+    lastTopicTry = Date.now();
+    void researchTopics()
+      .catch((err) => console.warn("[topics]", (err as Error).message))
+      .finally(() => (researchingTopics = false));
   }
   // Keep caption research fresh for situations that have clips waiting, one situation per tick,
   // after the round so it never delays videos.

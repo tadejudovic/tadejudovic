@@ -30,6 +30,7 @@ import { healPlan, layoutPoints, lengthenFootage, readingSeconds } from "./overl
 import { DailyLimitReached, dailyLimit, videosLeftToday, videosMadeToday } from "./dailyLimit.ts";
 import { afterReview, awaitingReview, lastRoundError, localDate, roundStage, runDailyBatch, setPaused, startScheduler } from "./scheduler.ts";
 import { apifyEnabled, platformOf } from "./ai/tiktokSearch.ts";
+import { researchTopics, topicBank, topicBankStale } from "./topicBank.ts";
 import { addCreatorCaption, provenCaptions, removeCaption, researchScene } from "./ai/research.ts";
 import { listFonts, saveCustomFont, fontPath, FONTS } from "./fonts.ts";
 import { addExample, deleteExample, reanalyzeExample } from "./examples.ts";
@@ -61,7 +62,7 @@ app.use(requireAuth);
 // What only admins change (the rest of the app is what rolls out): Labs features, research,
 // partners, story and vlog tools, making videos by hand, wiping videos. Reading stays open so the
 // app loads the same for everyone; the admin-only pages are hidden from the others.
-const ADMIN_WRITES = /^\/api\/(albums|audience|examples|partners|scenes|search-demand|story|vlog|voice|themes|plan|generate|reset|videos\/(clear|refresh-design)|posts\/winners|renders\/[^/]+\/collab)(\/|$)/;
+const ADMIN_WRITES = /^\/api\/(topics|albums|audience|examples|partners|scenes|search-demand|story|vlog|voice|themes|plan|generate|reset|videos\/(clear|refresh-design)|posts\/winners|renders\/[^/]+\/collab)(\/|$)/;
 const ADMIN_READS = /^\/api\/(diagnostics|renders\/[^/]+\/diagnostics)(\/|$)/;
 app.use((req, res, next) => {
   const admin = ADMIN_READS.test(req.path) || (req.method !== "GET" && ADMIN_WRITES.test(req.path));
@@ -115,6 +116,7 @@ app.get("/api/diagnostics", (_req, res) => {
     paused,
     aiEnabled: config.claude.enabled,
     tiktokSearch: apifyEnabled(),
+    topicIdeas: store.settings().topicBank?.ideas.length ?? 0,
     research: store.settings().scenes.map((scene) => {
       const r = store.research(scene);
       return r && { scene, source: r.source, updatedAt: r.updatedAt, error: r.error, captions: r.captions.length, hashtags: r.hashtags, hashtagNote: r.hashtagNote };
@@ -192,6 +194,7 @@ app.get("/api/status", (req, res) => {
     spend: { ...spendThisMonth(), limit: monthlyLimit() },
     memoryMb,
     tiktokSearch: apifyEnabled(),
+    topicIdeas: store.settings().topicBank?.ideas.length ?? 0,
     videosToday: { made: videosMadeToday(), limit: dailyLimit() },
     awaitingReview: awaitingReview(),
     lastRoundError,
@@ -531,6 +534,8 @@ app.get("/api/renders/:id/diagnostics", (req, res) => {
     })),
     subjectBand: p.keepClear,
     hookBasedOn: p.basedOn,
+    // The researched idea it's about: what, for whom, and from which sources (and trend).
+    topic: p.topicIdea ?? null,
     // Where the text ideas came from: TikTok search through Apify (with view counts), or not.
     trendResearch: ((res) => ({
       apify: apifyEnabled(),
@@ -1053,6 +1058,24 @@ app.post(
     const fresh = await newOpening(String(req.params.id));
     if (!fresh) return void res.status(400).json({ error: "No other footage opens clearly on the airport. Pick more videos in Settings → Google Photos." });
     res.json(fresh);
+  }),
+);
+
+// ---- Topic bank: what the videos talk about, researched from every source ----
+
+app.get("/api/topics", (_req, res) => {
+  const bank = topicBank();
+  res.json({ at: bank?.at ?? null, stale: topicBankStale(), ideas: bank?.ideas ?? [] });
+});
+app.post(
+  "/api/topics/refresh",
+  h(async (_req, res) => {
+    try {
+      const bank = await researchTopics();
+      res.json({ at: bank.at, ideas: bank.ideas });
+    } catch (e) {
+      res.status(400).json({ error: (e as Error).message });
+    }
   }),
 );
 

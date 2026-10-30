@@ -208,7 +208,36 @@ function openSubpage(id) {
   document.body.classList.add("no-scroll");
   if (id === "sp-vlog") loadVlogDays();
   if (id === "sp-search") loadSearchTopics(), refreshSoundsList();
+  if (id === "sp-topics") loadTopics();
 }
+
+// ---- Topic research (admin): the ideas the videos take, from every source ---------------
+
+const TOPIC_KIND = { tips: "Educational", fun: "Fun", inspire: "Inspirational" };
+const TOPIC_AUDIENCE = { owners: "Dog owners", considering: "Considering a dog", everyone: "Everyone" };
+async function loadTopics() {
+  const list = $("#topics-list");
+  const t = await api("/api/topics").catch(() => null);
+  if (!t) return list.replaceChildren(h("p", { class: "muted" }, "Couldn't load the topics."));
+  $("#topics-at").textContent = t.at ? `Researched ${new Date(t.at).toLocaleDateString()}${t.stale ? " · due again" : ""}` : "Not researched yet";
+  list.replaceChildren(...Object.entries(TOPIC_KIND).map(([kind, label]) => {
+    const ideas = t.ideas.filter((x) => x.kind === kind).sort((a, b) => b.demand - a.demand);
+    return h("section", { class: "topic-kind" },
+      h("h3", { class: "theme-h" }, `${label} · ${ideas.length}`),
+      ...ideas.map((x) => h("div", { class: "topic-idea" },
+        h("b", {}, x.title),
+        h("span", { class: "topic-meta" },
+          [TOPIC_AUDIENCE[x.audience], x.specificity, x.pillar ? THEME_LABEL[x.pillar] : "", `demand ${x.demand}/5`, x.clipIds.length ? `${x.clipIds.length} clip${x.clipIds.length > 1 ? "s" : ""} fit` : "no clip yet"].filter(Boolean).join(" · ")),
+        x.trend ? h("span", { class: "topic-trend" }, `Trend: ${x.trend}`) : null,
+        h("span", { class: "topic-src" }, `From: ${x.sources.join(", ")}`))));
+  }));
+}
+$("#topics-refresh").addEventListener("click", (e) =>
+  withBusy(e.currentTarget, "Researching… (a minute or two)", async () => {
+    await api("/api/topics/refresh", { method: "POST" });
+    await loadTopics();
+    banner("Topics researched again.", "ok");
+  }));
 
 // ---- What people search (TikTok search analytics → educational topics) -----------------
 
@@ -463,6 +492,7 @@ function renderSummaries() {
   const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
   const searchN = (s.settings?.searchTopics?.length ?? 0) + (s.settings?.keywordTopics?.length ?? 0);
   set("sum-search", searchN ? `${searchN} topics` : "add export");
+  set("sum-topics", s.topicIdeas ? `${s.topicIdeas} ideas` : "not yet");
   const n = state.albumCount ?? 0;
   set("sum-album", n ? `${n} album${n === 1 ? "" : "s"}` : "Not connected");
   const ready = state.clips.filter((c) => c.status === "ready").length;

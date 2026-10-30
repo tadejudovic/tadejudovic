@@ -146,6 +146,7 @@
         <button class="srow" data-open="sp-examples"><span class="row-title">Videos that worked</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-story"><span class="row-title">Story video</span><span class="row-value">from your words</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-vlog"><span class="row-title">Day vlog</span><span class="row-value">one day, start to finish</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="srow admin-only" data-open="sp-topics"><span class="row-title">Topic research</span><span class="row-value" id="sum-topics"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-search"><span class="row-title">What people search</span><span class="row-value" id="sum-search"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-faq"><span class="row-title">Questions people ask</span><span class="row-value" id="sum-faq"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="srow" data-open="sp-partners"><span class="row-title">Brand partners</span><span class="row-value" id="sum-partners"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
@@ -358,6 +359,14 @@ Type / to add a scene, e.g. /Lex inside airplane, then keep writing what you'll 
         </div>
       </div>
 
+      <div class="subpage" id="sp-topics" hidden>
+        <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>Topic research</h2></header>
+        <div class="sp-body">
+          <p class="hint lead">What the videos talk about, researched once a week from everything we have: TikTok and Google searches, autocomplete, followers' questions and comments, flywith.pet's priority routes, Lex's trips, what's trending, and your unused footage. Each idea is matched to the clips that fit it; every new video takes the next one, keeping dog owners, people considering a dog and everyone in balance, and never repeating a topic within 45 days.</p>
+          <div class="inline-form"><span class="muted" id="topics-at"></span><button class="btn primary" type="button" id="topics-refresh">Research now</button></div>
+          <div id="topics-list"></div>
+        </div>
+      </div>
       <div class="subpage" id="sp-search" hidden>
         <header class="sp-head"><button class="sp-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><h2>What people search</h2></header>
         <div class="sp-body">

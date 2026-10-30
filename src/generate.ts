@@ -26,6 +26,7 @@ import { previewFor, removePreview } from "./media/preview.ts";
 import { parseShots, planFromDraft, planStory, planVoiceDraft } from "./ai/story.ts";
 import { run, probe, blurOf } from "./media/ffmpeg.ts";
 import { apifyEnabled, fetchPostStats } from "./ai/tiktokSearch.ts";
+import { pickTopic } from "./topicBank.ts";
 
 function applyHashtags(p: VideoPlan, scene: string | undefined) {
   const info = researchedHashtags(scene);
@@ -735,13 +736,18 @@ export async function plan(
       return p;
     });
     const covered = coveredTopics();
+    const topicsThisRound = new Set<string>();
     const askedThisRound = new Set<string>();
     const searchedThisRound = new Set<string>();
     const plans = await mapLimit(chosen, 2, async (clip, i) => {
       if (aiOn) {
         try {
           const kind = kinds[i] ?? "fun";
-          const pillar = pillars[i];
+          // The researched idea for this video (topic bank), matched to this clip where it can be; its
+          // theme and audience lead.
+          const idea = pickTopic(kind, clip, topicsThisRound);
+          if (idea) topicsThisRound.add(idea.id);
+          const pillar = idea?.pillar ?? pillars[i];
           // What people search for in this theme comes first; a follower question only joins in when the
           // creator wrote their answer to it (it's the source of specifics).
           const search = kind === "tips" ? searchTopicsFor(pillar).filter((t) => !searchedThisRound.has(t.topic)) : [];
@@ -752,8 +758,9 @@ export async function plan(
           const direction: DirectContext = {
             ...ctx,
             proven: provenCaptions(clip.scene),
-            audience: kind === "tips" ? (captionAudience === "pets" ? "pets" : "everyone") : audiences[i],
+            audience: kind === "tips" ? (captionAudience === "pets" ? "pets" : "everyone") : idea ? (idea.audience === "owners" ? "pets" : "everyone") : audiences[i],
             format: kind,
+            ...(idea ? { topicIdea: idea } : {}),
             // Too short for the video? Combined with other clips of the moment instead of replayed.
             extraClips: extrasFor(clip, kind),
             ...(outside.has(clip.id)
@@ -778,6 +785,7 @@ export async function plan(
             if (again && basicChecks(again, clip.place).length < problems.length) p = again;
           }
           p.checks = basicChecks(p, clip.place);
+          if (idea) p.topicIdea = { id: idea.id, title: idea.title, audience: idea.audience, specificity: idea.specificity, pillar: idea.pillar, sources: idea.sources, trend: idea.trend };
           if (outside.has(clip.id)) p.outside = true;
           applyHashtags(p, clip.scene);
           ctx.recentOverlays.unshift(p.hook);

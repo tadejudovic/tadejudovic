@@ -221,13 +221,14 @@ async function loadTopics() {
   if (!t) return list.replaceChildren(h("p", { class: "muted" }, "Couldn't load the topics."));
   $("#topics-at").textContent = t.at ? `Researched ${new Date(t.at).toLocaleDateString()}${t.stale ? " · due again" : ""}` : "Not researched yet";
   list.replaceChildren(...Object.entries(TOPIC_KIND).map(([kind, label]) => {
-    const ideas = t.ideas.filter((x) => x.kind === kind).sort((a, b) => b.demand - a.demand);
+    const tb = (x) => (x.reach ?? x.demand) * (x.frequency ?? 3);
+    const ideas = t.ideas.filter((x) => x.kind === kind).sort((a, b) => tb(b) - tb(a) || b.demand - a.demand);
     return h("section", { class: "topic-kind" },
       h("h3", { class: "theme-h" }, `${label} · ${ideas.length}`),
       ...ideas.map((x) => h("div", { class: "topic-idea" },
         h("b", {}, x.title),
         h("span", { class: "topic-meta" },
-          [TOPIC_AUDIENCE[x.audience], x.specificity, x.pillar ? THEME_LABEL[x.pillar] : "", `demand ${x.demand}/5`, x.clipIds.length ? `${x.clipIds.length} clip${x.clipIds.length > 1 ? "s" : ""} fit` : "no clip yet"].filter(Boolean).join(" · ")),
+          [TOPIC_AUDIENCE[x.audience], x.specificity, x.pillar ? THEME_LABEL[x.pillar] : "", `demand ${x.demand}/5`, x.reach ? `reach ${x.reach} × often ${x.frequency}` : "", x.clipIds.length ? `${x.clipIds.length} clip${x.clipIds.length > 1 ? "s" : ""} fit` : "no clip yet"].filter(Boolean).join(" · ")),
         x.trend ? h("span", { class: "topic-trend" }, `Trend: ${x.trend}`) : null,
         h("span", { class: "topic-src" }, `From: ${x.sources.join(", ")}`))));
   }));

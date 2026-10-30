@@ -41,3 +41,11 @@ test("the research reads every source, and a new search export makes the bank st
   store.updateSettings({ keywordTopicsAt: new Date(Date.now() + 1000).toISOString() } as any);
   assert.equal(topicBankStale(), true);
 });
+
+test("the toothbrush test: an everyday problem for many beats a rare one with the same demand", () => {
+  store.updateSettings({ topicBank: { at: new Date().toISOString(), ideas: [
+    idea("rare", { kind: "inspire", demand: 4, reach: 2, frequency: 1 }),
+    idea("daily", { kind: "inspire", demand: 4, reach: 5, frequency: 5 }),
+  ] } } as any);
+  assert.equal(pickTopic("inspire", undefined)!.id, "daily");
+});

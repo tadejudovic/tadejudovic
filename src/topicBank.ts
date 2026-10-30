@@ -40,6 +40,10 @@ export interface TopicIdea {
   sources: string[];
   /** How much people want it, 1 (niche) to 5 (huge), from the numbers in the sources. */
   demand: number;
+  /** The toothbrush test: how many people it touches (1 few … 5 nearly everyone in the audience)… */
+  reach?: number;
+  /** …and how often it touches them (1 once in a lifetime, 3 every trip, 5 every day or several times a day). */
+  frequency?: number;
   /** The trend, format or sound it rides on, when there is one. */
   trend?: string;
   /** Clips from the library that fit it (footage first). */
@@ -140,7 +144,7 @@ const SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["title", "kind", "audience", "specificity", "sources", "demand", "clipIds"],
+        required: ["title", "kind", "audience", "specificity", "sources", "demand", "reach", "frequency", "clipIds"],
         properties: {
           title: { type: "string" },
           kind: { type: "string", enum: ["tips", "fun", "inspire"] },
@@ -149,6 +153,8 @@ const SCHEMA = {
           specificity: { type: "string", enum: ["broad", "specific"] },
           sources: { type: "array", items: { type: "string" } },
           demand: { type: "integer", minimum: 1, maximum: 5 },
+          reach: { type: "integer", minimum: 1, maximum: 5 },
+          frequency: { type: "integer", minimum: 1, maximum: 5 },
           trend: { type: "string" },
           clipIds: { type: "array", items: { type: "string" } },
           hook: { type: "string" },
@@ -180,6 +186,12 @@ export async function researchTopics(): Promise<TopicBank> {
           `wondering if a dog fits their travelling life (honest costs, effort, which dogs suit it, what life is really like), ` +
           `and 35% EVERYONE, including people who will never have a dog (curiosity like "where do dogs pee on an 11-hour ` +
           `flight", the human side of travel, feelings anyone has).\n` +
+          `- THE TOOTHBRUSH TEST comes first: favour the problems that touch the most people, most often (every day, ` +
+          `several times a day), over rare ones. A walk, a meal, being left alone, the potty routine, the daily carry, ` +
+          `the everyday moment anyone recognizes beat a once-a-year customs form. Rate each idea's reach (1 few … 5 nearly ` +
+          `everyone in its audience) and frequency (1 once in a lifetime, 3 every trip, 5 daily or several times a day). ` +
+          `Travel-specific ideas still belong, but tie them to the everyday side where you can (the daily routine on the road, ` +
+          `the carrier as everyday gear) and keep the rare-but-searched ones (country rules) for the specific half.\n` +
           `- BREADTH AND DEPTH: half broad (a guide anyone in the audience needs), half specific (one airline, one route, ` +
           `one rule, one moment). Use the flywith.pet routes and the search data for the specific ones.\n` +
           `- VARIETY: no two ideas about the same thing; spread the educational ones over Flights (airline), Trips ` +
@@ -205,6 +217,8 @@ export async function researchTopics(): Promise<TopicBank> {
       title: x.title.trim().slice(0, 160),
       pillar: x.kind === "tips" ? (x.pillar as EduPillar | undefined) : undefined,
       demand: Math.max(1, Math.min(5, Math.round(x.demand || 1))),
+      reach: Math.max(1, Math.min(5, Math.round(x.reach || 1))),
+      frequency: Math.max(1, Math.min(5, Math.round(x.frequency || 1))),
       clipIds: [...new Set(x.clipIds ?? [])].filter((id) => onHand.has(id)).slice(0, 4),
       sources: (x.sources ?? []).slice(0, 6),
     }));
@@ -248,7 +262,8 @@ export function pickTopic(kind: PostFormat, clip: Clip | undefined, skip = new S
   const lastPillars = recent.slice(0, 2).map((r) => r.plan.topicIdea?.pillar);
   const ready = (id: string) => store.clip(id)?.status === "ready" && !store.clip(id)?.uses;
   const score = (x: TopicIdea) =>
-    x.demand * 0.6 +
+    toothbrush(x) * 0.25 +
+    x.demand * 0.4 +
     (clip && x.clipIds.includes(clip.id) ? 3 : 0) +
     (clip?.scene && x.clipIds.some((id) => store.clip(id)?.scene === clip.scene) ? 0.8 : 0) +
     (x.clipIds.some(ready) ? 0.5 : 0) +
@@ -259,6 +274,9 @@ export function pickTopic(kind: PostFormat, clip: Clip | undefined, skip = new S
     (used.has(x.id) ? -5 : 0);
   return [...pool].sort((a, b) => score(b) - score(a))[0];
 }
+
+/** The toothbrush score: how many people it touches times how often (1 … 25). */
+export const toothbrush = (x: Pick<TopicIdea, "reach" | "frequency" | "demand">) => (x.reach ?? x.demand) * (x.frequency ?? 3);
 
 /** How the idea reads to the director. */
 export function topicText(x: TopicIdea, petName: string): string {

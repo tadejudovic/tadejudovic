@@ -1313,3 +1313,8 @@ body.no-scroll .banner { position: fixed; left: 16px; right: 16px; top: 8px; mar
 .mk-card.mk-1 .mk-step, .mk-card.mk-1 .mk-bar { right: 46px; text-align: left; }
 .mk-card.mk-2 .mk-step, .mk-card.mk-2 .mk-bar { left: 46px; text-align: right; }
 #making-sub:empty { display: none; }
+
+/* Cinematic look: clean white with a soft shadow, the key word in an elegant italic serif */
+.look-preview.cinematic { background: linear-gradient(160deg, #3a3326, #14110c); }
+.look-preview.cinematic span { color: #fff; font-family: Montserrat, sans-serif; font-weight: 800; text-shadow: 0 2px 6px rgba(0,0,0,.55); }
+.look-preview.cinematic .kw { font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400; font-size: 1.25em; }

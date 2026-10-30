@@ -93,7 +93,7 @@ const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)
 // The text looks, most used first (the box, outline, MrBeast and Hormozi looks dominate shorts).
 const TEXT_STYLES = [
   ["yellowbox", "Yellow box"], ["box", "White box"], ["blackbox", "Black box"], ["classic", "Outline"],
-  ["bold", "Bold caps"], ["highlight", "Highlight"], ["yellow", "Yellow"], ["plain", "Plain"],
+  ["bold", "Bold caps"], ["highlight", "Highlight"], ["cinematic", "Cinematic"], ["yellow", "Yellow"], ["plain", "Plain"],
 ];
 /** A tile per look, each showing two words in it; picking one calls `onPick(value)`. */
 function styleTiles(name, current, onPick) {

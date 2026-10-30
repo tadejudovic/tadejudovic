@@ -1596,6 +1596,21 @@ export function noReplays(segments: Segment[]): Segment[] {
   return lengthenFootage(out, len(segments), (cid) => store.clip(cid)?.duration ?? 0);
 }
 
+/**
+ * Shots whose clip is no longer in the library get other footage of the same kind, so a video can
+ * still be redrawn (a text edit, a new look). The video keeps its length. Undefined when no footage
+ * is left at all.
+ */
+export function replaceGoneFootage(segments: Segment[], scene?: string): Segment[] | undefined {
+  const ok = (s: Segment) => store.clip(s.clipId)?.status === "ready";
+  if (segments.every(ok)) return segments;
+  const len = (xs: Segment[]) => xs.reduce((a, x) => a + (x.end - x.start) / (x.speed ?? 1), 0);
+  const inVideo = new Set(segments.filter(ok).map((s) => s.clipId));
+  const out = segments.flatMap((s) => (ok(s) ? [s] : [swapFor(s, inVideo, store.clip(s.clipId)?.scene ?? scene)].filter((x): x is Segment => !!x)));
+  if (!out.length) return undefined;
+  return lengthenFootage(out, len(segments), (cid) => store.clip(cid)?.duration ?? 0);
+}
+
 /** A shot of this length from a clip, around its best moment. */
 function shotFrom(clip: Clip, len: number): Segment {
   const m = [...(clip.ai?.moments ?? clip.moments ?? [])].sort((a, b) => b.score - a.score)[0];

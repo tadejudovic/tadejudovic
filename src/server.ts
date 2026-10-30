@@ -20,7 +20,7 @@ import { learnFromTikTok } from "./audience.ts";
 import { DAY_KINDS, keptToday, promoteSpares, waitingOf } from "./daySet.ts";
 import { linkWinningPosts, syncProfiles } from "./postMatch.ts";
 import { refreshSounds, soundsFor, trendingSounds } from "./sounds.ts";
-import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, makeCollabEducational, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, newOpening, editShots, type ShotAction, headlineTopExisting, EDITOR_ATTEMPTS } from "./generate.ts";
+import { plan, queueRender, deleteRender, pickBySituation, isPortrait, onTopic, retryRender, syncClipUses, makeCollabVersion, makeCollabFromLibrary, makeCollabEducational, regenerateCaption, refreshPostStats, makeStoryVideo, makeDayVlog, createVoiceDraft, saveLineRecording, setLineClip, renderDraft, speakDraft, createVoice, removeVoice, reviewFeedback, madeTodayByKind, outsideClips, refreshDesigns, addCtaToExisting, zigzagExisting, remakeRejected, redoFromEditor, inspireIssue, kindIssues, numberTabsExisting, ctaCenterExisting, openerExisting, newOpening, editShots, replaceGoneFootage, type ShotAction, headlineTopExisting, EDITOR_ATTEMPTS } from "./generate.ts";
 import { addAlbum, forgetItem, freeDiskBytes, importPause, markDuplicates, scanSince, setRecentDays, syncAlbum } from "./albums.ts";
 import { voiceCloningEnabled } from "./voice/elevenlabs.ts";
 import { proofreadText } from "./ai/director.ts";
@@ -1439,11 +1439,13 @@ app.post(
 app.post("/api/renders/:id/rerender", (req, res) => {
   const r = store.render(String(req.params.id));
   if (!r) return res.sendStatus(404);
-  if (!r.plan.segments.every((s) => store.clip(s.clipId))) return res.status(400).json({ error: "A source clip was deleted." });
+  // Shots whose clip left the library get other footage of the same kind, so the edit still goes through.
+  const kept = replaceGoneFootage(r.plan.segments, r.plan.scene);
+  if (!kept) return res.status(400).json({ error: "This video's footage is no longer in your library, and there's no other footage to put in its place." });
   const b = req.body ?? {};
   // Overlay edits arrive as the lines of text, one per piece of text on the video.
   const texts: string[] | undefined = Array.isArray(b.overlays) ? b.overlays.map((t: unknown) => String(t).trim()).filter(Boolean) : undefined;
-  let segments = r.plan.segments;
+  let segments = kept;
   let overlays = r.plan.overlays;
   if (texts?.length) {
     const old = r.plan.overlays ?? [];

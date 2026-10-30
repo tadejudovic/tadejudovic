@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config, canDecode4K } from "../config.ts";
 import { run, frameAt, probe } from "./ffmpeg.ts";
-import { fontPath } from "../fonts.ts";
+import { CINEMATIC_ACCENT_FONT_ID, fontPath } from "../fonts.ts";
 import { facesDuring } from "../ai/faces.ts";
 
 /** How faces are found (swappable in tests). */
@@ -93,6 +93,9 @@ interface TextOpts {
  * One drawtext filter per line so every line is centered. Text goes through
  * files (textfile=) so quotes, colons and % never need filter escaping.
  */
+/** The italic serif font file for the cinematic look's key word (set per video before drawing). */
+let cinematicAccent: string | undefined;
+
 export function textFilters(text: string, opts: TextOpts): { filters: string[]; height: number; top: number; left: number; width: number } {
   // The MrBeast look is all capitals.
   const clean = opts.style === "bold" ? screenText(text).toUpperCase() : screenText(text);
@@ -142,17 +145,24 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
     highlight: "fontcolor=white:borderw=7:bordercolor=black@0.95:shadowcolor=black@0.45:shadowx=0:shadowy=4",
     classic: "fontcolor=white:borderw=7:bordercolor=black@0.95:shadowcolor=black@0.45:shadowx=0:shadowy=4",
     plain: "fontcolor=white:shadowcolor=black@0.7:shadowx=0:shadowy=3",
+    // Cinematic: clean white with a soft shadow; the key word in an elegant italic serif, a size up.
+    cinematic: "fontcolor=white:shadowcolor=black@0.55:shadowx=0:shadowy=4",
     // CapCut's yellow preset: yellow fill, thin dark outline, drop shadow down and to the right.
     yellow: "fontcolor=0xFFE41A:borderw=4:bordercolor=0x1A1400@0.95:shadowcolor=black@0.55:shadowx=5:shadowy=5",
   }[opts.style as string] ?? "";
-  // The highlight look draws each line in pieces so the key word can be yellow.
-  const key = opts.style === "highlight" ? keyWord(clean) : undefined;
+  // The highlight look draws each line in pieces so the key word can be yellow; the cinematic one so
+  // the key word can be in the italic serif.
+  const cine = opts.style === "cinematic" && cinematicAccent ? cinematicAccent : undefined;
+  const key = opts.style === "highlight" || cine ? keyWord(clean) : undefined;
+  const accentSize = Math.round(opts.size * 1.22);
   const filters = lines.flatMap((line, i) => {
     const y = top + i * lineH;
-    const draw = (s: string, x: string, color?: string, n = "") => {
+    const draw = (s: string, x: string, color?: string, n = "", accent = false) => {
       const file = path.join(opts.tmp, `${opts.key}-${i}${n}.txt`);
       fs.writeFileSync(file, s);
-      return [`drawtext=fontfile='${esc(opts.font)}'`, `textfile='${esc(file)}'`, "expansion=none", `fontsize=${opts.size}`, color ? style.replace("fontcolor=white", `fontcolor=${color}`) : style, `x=${x}`, `y=${y}`, opts.enable ? `enable='${opts.enable}'` : ""]
+      // The accent word sits on the same baseline, so it's raised by the extra size.
+      const yy = accent ? y - Math.round((accentSize - opts.size) * 0.78) : y;
+      return [`drawtext=fontfile='${esc(accent && cine ? cine : opts.font)}'`, `textfile='${esc(file)}'`, "expansion=none", `fontsize=${accent ? accentSize : opts.size}`, color ? style.replace("fontcolor=white", `fontcolor=${color}`) : style, `x=${x}`, `y=${yy}`, opts.enable ? `enable='${opts.enable}'` : ""]
         .filter(Boolean)
         .join(":");
     };
@@ -162,10 +172,15 @@ export function textFilters(text: string, opts: TextOpts): { filters: string[]; 
     const words = line.split(" ");
     const before = words.slice(0, at).join(" ");
     const after = words.slice(at + 1).join(" ");
-    const x0 = Math.round(cx - textWidth(opts.font, line, opts.size) / 2);
-    const xw = x0 + (before ? Math.round(textWidth(opts.font, `${before} `, opts.size)) : 0);
-    const xa = xw + Math.round(textWidth(opts.font, `${words[at]} `, opts.size));
-    return [before ? draw(before, String(x0), undefined, "a") : "", draw(words[at], String(xw), "0xFFD60A", "b"), after ? draw(after, String(xa), undefined, "c") : ""].filter(Boolean);
+    // The key word's width in its own font (the italic serif for the cinematic look).
+    const wordW = cine ? textWidth(cine, words[at], accentSize) : textWidth(opts.font, words[at], opts.size);
+    const space = textWidth(opts.font, " ", opts.size);
+    const beforeW = before ? textWidth(opts.font, before, opts.size) + space : 0;
+    const lineW = beforeW + wordW + (after ? space + textWidth(opts.font, after, opts.size) : 0);
+    const x0 = Math.round(cx - lineW / 2);
+    const xw = x0 + Math.round(beforeW);
+    const xa = xw + Math.round(wordW + space);
+    return [before ? draw(before, String(x0), undefined, "a") : "", draw(words[at], String(xw), cine ? undefined : "0xFFD60A", "b", !!cine), after ? draw(after, String(xa), undefined, "c") : ""].filter(Boolean);
   });
   const textW = Math.round(Math.max(...lines.map((l) => textWidth(opts.font, l, opts.size))));
   return { filters, height: lines.length * lineH, top, left: Math.round(cx - textW / 2), width: textW };
@@ -348,6 +363,7 @@ export async function renderVideo(
     }
   }
   const font = await fontPath(options.fontId);
+  cinematicAccent = options.textStyle === "cinematic" ? (await fontPath(CINEMATIC_ACCENT_FONT_ID)) ?? undefined : undefined;
   if (!font) throw new Error("No font available for on-screen text. Pick a font or set FONT_FILE.");
   const steps = plan.segments.length + 2;
   try {

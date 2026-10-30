@@ -49,9 +49,18 @@ export const FONTS: FontDef[] = [
   { id: "lobster", name: "Lobster", query: "Lobster", family: "Lobster", weight: 400, vibe: "Bold retro script" },
   { id: "playfair-display", name: "Playfair Display", query: "Playfair+Display:wght@800", family: "Playfair Display", weight: 800, vibe: "Elegant serif, editorial" },
   { id: "dm-serif-display", name: "DM Serif Display", query: "DM+Serif+Display", family: "DM Serif Display", weight: 400, vibe: "Classy high-contrast serif" },
+  // Cinematic: the elegant italic serifs and tall condensed capitals of film-style edits.
+  { id: "instrument-serif", name: "Instrument Serif Italic", query: "Instrument+Serif:ital@1", family: "Instrument Serif", weight: 400, vibe: "Cinematic: the elegant italic of film-style edits" },
+  { id: "playfair-italic", name: "Playfair Display Italic", query: "Playfair+Display:ital,wght@1,700", family: "Playfair Display", weight: 700, vibe: "Cinematic: bold editorial italic" },
+  { id: "cormorant-italic", name: "Cormorant Italic", query: "Cormorant+Garamond:ital,wght@1,700", family: "Cormorant Garamond", weight: 700, vibe: "Cinematic: soft, romantic italic" },
+  { id: "bodoni-italic", name: "Bodoni Moda Italic", query: "Bodoni+Moda:ital,wght@1,700", family: "Bodoni Moda", weight: 700, vibe: "Cinematic: high-fashion italic" },
+  { id: "cinzel", name: "Cinzel", query: "Cinzel:wght@700", family: "Cinzel", weight: 700, vibe: "Cinematic: movie-poster capitals" },
+  { id: "league-gothic", name: "League Gothic", query: "League+Gothic", family: "League Gothic", weight: 400, vibe: "Cinematic: tall condensed title capitals" },
 ];
 
 export const DEFAULT_FONT_ID = "montserrat";
+/** The italic serif the Cinematic look writes its key word in. */
+export const CINEMATIC_ACCENT_FONT_ID = "instrument-serif";
 const fontsDir = path.join(config.dataDir, "fonts");
 const customDir = path.join(fontsDir, "custom");
 fs.mkdirSync(customDir, { recursive: true });

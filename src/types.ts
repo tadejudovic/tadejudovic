@@ -355,8 +355,8 @@ export interface RenderOptions {
   lookPicked?: boolean;
 }
 
-export type TextStyle = "yellowbox" | "yellow" | "classic" | "box" | "plain" | "blackbox" | "bold" | "highlight";
-export const TEXT_STYLES: TextStyle[] = ["yellowbox", "box", "blackbox", "classic", "bold", "highlight", "yellow", "plain"];
+export type TextStyle = "yellowbox" | "yellow" | "classic" | "box" | "plain" | "blackbox" | "bold" | "highlight" | "cinematic";
+export const TEXT_STYLES: TextStyle[] = ["yellowbox", "box", "blackbox", "classic", "bold", "highlight", "cinematic", "yellow", "plain"];
 export type TextSize = "small" | "medium" | "large";
 /** Who the on-screen text is written for. */
 export type CaptionAudience = "pets" | "mix" | "everyone";

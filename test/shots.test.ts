@@ -107,3 +107,13 @@ test("a queued video never replays footage and takes the account's look unless o
   const b = queueRender(plan, { keepOriginalAudio: true, textStyle: "blackbox", fontId: "montserrat", lookPicked: true } as any);
   assert.equal(b.options.textStyle, "blackbox");
 });
+
+test("a video whose footage left the library can still be redrawn, with other footage", async () => {
+  const { replaceGoneFootage } = await import("../src/generate.ts");
+  clip("z1", "inside airplane");
+  clip("z2", "inside airplane");
+  store.updateClip("z1", { status: "archived" } as any);
+  const segs = replaceGoneFootage([{ clipId: "z1", start: 0, end: 4, speed: 1 }] as any, "inside airplane")!;
+  assert.ok(segs.length && segs.every((x: any) => x.clipId !== "z1"), "the gone clip is replaced");
+  assert.ok(Math.abs(segs.reduce((a: number, x: any) => a + x.end - x.start, 0) - 4) < 0.05, "same length");
+});

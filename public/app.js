@@ -1405,7 +1405,7 @@ function playSequence(media, seq, overlays) {
     const total = offset(cut.length);
     text.replaceChildren(...overlays
       .filter((o) => o.start <= t && t < (o.end >= total - 0.05 ? total + 1 : o.end))
-      .map((o, i) => h("span", { class: `lp-text${o.y === undefined ? " top" : ""}`, style: o.y === undefined ? {} : { top: `${o.y * 100}%`, left: `${(o.x ?? 0.5) * 100}%` } },
+      .map((o, i) => h("div", { class: `lp-text${o.y === undefined ? " top" : ""}`, style: o.y === undefined ? {} : { top: `${o.y * 100}%`, left: `${(o.x ?? 0.5) * 100}%` } },
         ...String(o.text).split(" / ").flatMap((line, j) => (j ? [h("br"), line] : [line])))));
     badge.textContent = cut[k].regenerate ? "Preview · this shot gets new footage" : "Preview of your changes";
   };

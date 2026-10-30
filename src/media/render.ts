@@ -292,6 +292,90 @@ export function pointFilters(num: string, text: string, opts: TextOpts & { boxW:
   return { filters, height: lines.length * lineH, top, left, width: w };
 }
 
+/** A tip's text without its number or label ("1. ", "#2 ", "Tip: ", "Step 3: "). */
+export function tipText(text: string): string {
+  return screenText(text).replace(/^\s*(#\s*\d{1,2}|\d{1,2}\s*[.):]|tip\s*\d{0,2}\s*[:–-]|step\s*\d{1,2}\s*[:–-])\s*/i, "");
+}
+
+export interface ChecklistRow { text: string; start: number; end: number }
+
+/** How long the wheel takes to turn to the next tip (s). */
+const TURN = 0.4;
+
+/**
+ * The educational tip wheel, like the iPhone's scroll picker: a fixed yellow band holds the tip
+ * being read; the one before and the one after sit faded and smaller above and below it, and the
+ * wheel turns (eased) to bring each next tip into the band. Older and later tips are out of sight,
+ * so the list never fills the screen. `top` is the top of the wheel; returns its filters and size.
+ */
+export function tipWheelFilters(
+  rows: ChecklistRow[],
+  o: { top: number; size: number; font: string; tmp: string; listEnd: number },
+): { filters: string[]; height: number; width: number; left: number } {
+  const { size, font } = o;
+  const padX = Math.round(size * 0.42);
+  const padY = Math.round(size * 0.3);
+  const badge = Math.round(size * 1.05);
+  const gap = Math.round(size * 0.36);
+  const lineH = Math.round(size * 1.24);
+  const left = Math.round(W * SAFE.left);
+  const small = Math.round(size * 0.8);
+  const maxTextW = SAFE_W - padX * 2 - badge - gap;
+  const linesOf = rows.map((r) => fitLines(r.text, maxTextW, size, font, charsFor(size, 24)));
+  const most = Math.max(...linesOf.map((l) => l.length));
+  const bandH = Math.max(badge, Math.round((most - 1) * lineH + size * 1.08)) + padY * 2;
+  const bandW = Math.min(SAFE_W, padX * 2 + badge + gap + Math.round(Math.max(...linesOf.flat().map((l) => textWidth(font, l, size)))));
+  // The neighbours: one line each, a size down, shrunk further if a long tip wouldn't fit.
+  const neighbour = rows.map((r, i) => {
+    const t = `${i + 1}  ${r.text}`;
+    let px = small;
+    while (px > size * 0.5 && textWidth(font, t, px) > SAFE_W) px--;
+    return { t, px };
+  });
+  const step = Math.round(bandH / 2 + gap + small * 0.75);
+  const height = bandH + 2 * (step - bandH / 2 + small * 0.6);
+  const center = Math.round(o.top + height / 2);
+  const bandTop = Math.round(center - bandH / 2);
+  const listStart = Math.min(...rows.map((r) => r.start));
+  const shown = `enable='between(t,${listStart.toFixed(2)},${o.listEnd.toFixed(2)})'`;
+  // Where the wheel is: 0 on the first tip, turning (eased) by one at each next tip's start.
+  const u = (s: number) => `clip((t-${s.toFixed(2)})/${TURN},0,1)`;
+  const wheel = rows.slice(1).map((r) => { const v = u(r.start); return `${v}*${v}*(3-2*${v})`; }).join("+") || "0";
+  const write = (name: string, s: string) => {
+    const file = path.join(o.tmp, `ck-${name}.txt`);
+    fs.writeFileSync(file, s);
+    return `textfile='${esc(file)}'`;
+  };
+  const filters = [
+    `drawbox=x=${left}:y=${bandTop}:w=${bandW}:h=${bandH}:color=0xF5C400@1:t=fill:${shown}`,
+    `drawbox=x=${left + padX}:y=${center - Math.round(badge / 2)}:w=${badge}:h=${badge}:color=0x111111@1:t=fill:${shown}`,
+  ];
+  rows.forEach((_r, i) => {
+    const pos = `(${i}-(${wheel}))`;
+    // In the band: full size, black on yellow, gone as soon as it leaves it.
+    const inBand = `clip(1-abs${pos}*2.5,0,1)`;
+    // Beside the band: smaller, white, fading out past the next place.
+    const beside = `clip(abs${pos}*2.5,0,1)*clip((1.6-abs${pos})*2,0,1)*0.85`;
+    const lines = linesOf[i];
+    const block = (lines.length - 1) * lineH + size * 1.08;
+    lines.forEach((l, k) => filters.push([
+      `drawtext=fontfile='${esc(font)}'`, write(`${i}-${k}`, l), "expansion=none", `fontsize=${size}`, "fontcolor=0x111111",
+      `x=${left + padX + badge + gap}`, `y='${center}-${Math.round(block / 2)}+${k * lineH}+${pos}*${step}'`, `alpha='${inBand}'`, shown,
+    ].join(":")));
+    filters.push([
+      `drawtext=fontfile='${esc(font)}'`, write(`${i}-n`, String(i + 1)), "expansion=none", `fontsize=${Math.round(size * 0.78)}`, "fontcolor=0xF5C400",
+      `x=${left + padX + Math.round(badge / 2)}-text_w/2`, `y='${center}-text_h/2+${pos}*${step}'`, `alpha='${inBand}'`, shown,
+    ].join(":"));
+    const n = neighbour[i];
+    filters.push([
+      `drawtext=fontfile='${esc(font)}'`, write(`${i}-s`, n.t), "expansion=none", `fontsize=${n.px}`, "fontcolor=white",
+      "borderw=2:bordercolor=black@0.35:shadowcolor=black@0.7:shadowx=0:shadowy=3",
+      `x=${left + padX}`, `y='${center}-${Math.round(n.px * 0.54)}+${pos}*${step}'`, `alpha='${beside}'`, shown,
+    ].join(":"));
+  });
+  return { filters, height: Math.round(height), width: bandW, left };
+}
+
 /**
  * Where a text box of `height` (plus padding) can go so it stays off the subject (the dog, faces):
  * its top, moved above or below the subject's band if it would cover it. Returns `top` unchanged
@@ -499,9 +583,11 @@ async function finalize(
     }
   }
   for (let i = 0; i < points.length - 1; i++) if (!paired.has(points[i]) && points[i].end > points[i + 1].start) points[i].end = points[i + 1].start;
-  // Educational videos have their own look, whatever the account's: the question pinned in the
-  // yellow box, each tip in its yellow box with the number on a black tab, in a different spot.
-  if (plan.format === "tips" && points.length) options = { ...options, textStyle: "yellowbox" };
+  // Educational lists get the educational look: the question pinned in the yellow box, and the
+  // tips on a wheel that turns to each next one (lessons in pairs, like myth → fact, keep theirs).
+  const wheel = plan.format === "tips" && points.length >= 2 && !paired.size &&
+    points.every((o) => !/^(MYTH|MISTAKE|DON'T|FACT|TRUTH|REALITY|INSTEAD|DO|ANSWER)$/.test(labelOf(o) ?? ""));
+  if (wheel) options = { ...options, textStyle: "yellowbox" };
   // Nothing flashes by: a line too short to read stays up at least 1.5s (within the video).
   for (const o of overlays) if (o.y === undefined && o.end - o.start < 1.5) o.end = Math.min(duration + 1, o.start + 1.5);
   // The opening headline is pinned, in every video: the same box in the same place at the top of the
@@ -554,6 +640,7 @@ async function finalize(
   }
   for (const i of order) {
     const o = overlays[i];
+    if (wheel && o.y !== undefined) continue;
     let px = smaller.has(o.at ?? "") && !headers.has(o) ? Math.round(textPx(options) * 0.82) : textPx(options);
     const boxPad = Math.round(px * 0.38) + 10;
     const enable = `between(t,${o.start.toFixed(2)},${o.end.toFixed(2)})`;
@@ -764,6 +851,29 @@ async function finalize(
     }
     filters.push(...f);
     placed.push({ o, top: drawnTop - boxPad, bottom: drawnTop + height + boxPad, end: o.end });
+  }
+  if (wheel) {
+    // A size up from placed points: the list is the lesson, it has to read at a glance on a phone.
+    const size = Math.round(textPx(options) * 1.05);
+    const rows = points.map((o) => ({ text: tipText(o.text), start: o.start, end: o.end }));
+    const listEnd = Math.min(duration, Math.max(...points.map((o) => o.end)));
+    const draw = (top: number) => tipWheelFilters(rows, { top, size, font, tmp, listEnd });
+    // As low as it fits (the face and the dog usually fill the middle), clear of other text on
+    // screen and of faces while it's up.
+    const first = draw(0);
+    const lowest = Math.round(H * SAFE.bottom - first.height);
+    const highest = Math.round(H * SAFE.top);
+    const others = placed.filter((p) => p.o.start < listEnd && rows[0].start < p.end);
+    let best: { top: number; s: number } | undefined;
+    for (let top = lowest; top >= highest; top -= 24) {
+      const b = top + first.height;
+      const textHit = others.some((p) => p.top < b + 30 && top - 30 < p.bottom) ? 1e7 : 0;
+      const face = points.reduce((a, o) => a + onFaces(o, first.left, top, first.width, first.height), 0);
+      const s = textHit + face + (lowest - top) * 2;
+      if (!best || s < best.s) best = { top, s };
+    }
+    const list = draw(best?.top ?? lowest);
+    filters.push(...list.filters);
   }
   const music = options.musicFile && fs.existsSync(options.musicFile);
   const fadeAt = Math.max(0, duration - 1).toFixed(2);

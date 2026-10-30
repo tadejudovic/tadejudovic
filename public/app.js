@@ -240,7 +240,9 @@ async function loadTopics() {
         h("span", { class: "topic-meta" },
           [TOPIC_AUDIENCE[x.audience], x.specificity, x.pillar ? THEME_LABEL[x.pillar] : "", `demand ${x.demand}/5`, x.reach ? `reach ${x.reach} × often ${x.frequency}` : "", x.clipIds.length ? `${x.clipIds.length} clip${x.clipIds.length > 1 ? "s" : ""} fit` : "no clip yet"].filter(Boolean).join(" · ")),
         x.trend ? h("span", { class: "topic-trend" }, `Trend: ${x.trend}`) : null,
-        h("span", { class: "topic-src" }, `From: ${x.sources.join(", ")}`))));
+        h("span", { class: "topic-src" }, `From: ${x.sources.join(", ")}`),
+        // The exact lines of data behind it (checked to be real), with their numbers and links.
+        x.evidence?.length ? h("ul", { class: "topic-evidence" }, ...x.evidence.map((e) => h("li", {}, `${e.source}: ${e.line}`))) : null)));
   }));
 }
 $("#topics-refresh").addEventListener("click", async () => {

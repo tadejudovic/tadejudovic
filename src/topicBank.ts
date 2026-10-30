@@ -36,8 +36,11 @@ export interface TopicIdea {
   /** Educational: Flights, Trips or Tricks. */
   pillar?: EduPillar;
   specificity: "broad" | "specific";
-  /** Which sources it comes from ("tiktok search", "keyword planner", "comments", "flywith routes", "trend", …). */
+  /** Which sources it comes from ("tiktok search", "keyword planner", "comments", "flywith routes", "trending posts", …):
+   * only the ones its evidence was found in, or "our judgment" when none was. */
   sources: string[];
+  /** The exact lines of the source data it's based on, checked to be real (with their numbers and links). */
+  evidence?: { source: string; line: string }[];
   /** How much people want it, 1 (niche) to 5 (huge), from the numbers in the sources. */
   demand: number;
   /** The toothbrush test: how many people it touches (1 few … 5 nearly everyone in the audience)… */
@@ -127,36 +130,69 @@ function footageOnHand(): Clip[] {
     .sort((a, b) => String(b.capturedAt ?? b.importedAt).localeCompare(String(a.capturedAt ?? a.importedAt)));
 }
 
-const listTopics = (label: string, ts: SearchTopic[] | undefined, unit: string, n = 30) =>
-  ts?.length
-    ? `\n${label} (most first):\n` +
-      [...ts].sort((a, b) => b.impressions - a.impressions).slice(0, n).map((t) => `- ${t.topic} [${t.pillar}] ${t.impressions.toLocaleString("en")} ${unit}; e.g. ${t.queries.slice(0, 3).join(" | ")}`).join("\n")
-    : `\n${label}: none loaded yet.`;
+/** One kind of source, and its lines (each a fact with its numbers, quotable as evidence). */
+export interface SourceSection {
+  /** The short name an idea's sources show ("tiktok search", "keyword planner", …). */
+  name: string;
+  title: string;
+  lines: string[];
+}
 
-/** Everything the research pass reads, as text. */
-export function sourcesText(): string {
+const topicLines = (ts: SearchTopic[] | undefined, unit: string, n = 30) =>
+  [...(ts ?? [])].sort((a, b) => b.impressions - a.impressions).slice(0, n).map((t) => `${t.topic} [${t.pillar}]: ${t.impressions.toLocaleString("en")} ${unit}; searches like ${t.queries.slice(0, 3).map((q) => `"${q}"`).join(", ")}`);
+
+/** Everything the research pass reads, by source. */
+export function sourceSections(): SourceSection[] {
   const s = store.settings();
-  const research = store.researchAll();
-  const proven = research
-    .flatMap((r) => r.captions.filter((c) => (c.views ?? 0) > 0).map((c) => ({ scene: r.scene, text: c.original || c.text, views: c.views ?? 0 })))
+  const proven = store
+    .researchAll()
+    .flatMap((r) => r.captions.filter((c) => (c.views ?? 0) > 0).map((c) => ({ scene: r.scene, text: c.original || c.text, views: c.views ?? 0, url: c.url })))
     .sort((a, b) => b.views - a.views)
     .slice(0, 25);
-  const sounds = trendingSounds(10);
-  const clips = footageOnHand().slice(0, 70);
   const questions = s.audience?.questions ?? [];
   return [
-    listTopics("WHAT PEOPLE SEARCH ON TIKTOK (this account's search analytics)", s.searchTopics, "impressions"),
-    listTopics("WHAT PEOPLE SEARCH ON GOOGLE (Keyword Planner, everyone)", s.keywordTopics, "searches a month"),
-    listTopics("WHAT PEOPLE TYPE (search autocomplete)", s.suggestTopics, "weight", 25),
-    `\nFOLLOWERS' QUESTIONS (the creator's FAQ):\n` + (s.faq?.length ? s.faq.slice(0, 30).map((f) => `- ${f.q}${f.a ? ` (answer: ${f.a.slice(0, 160)})` : ""}`).join("\n") : "none"),
-    `\nQUESTIONS IN THE COMMENTS on the creator's TikToks (most liked first):\n` + (questions.length ? [...questions].sort((a, b) => b.likes - a.likes).slice(0, 25).map((q) => `- ${q.text} (${q.likes} likes)`).join("\n") : "none read yet"),
-    `\nFLYWITH.PET PRIORITY ROUTES (where people most need help; tier 1 first):\n` + FLYWITH_ROUTES.map((r) => `- tier ${r.tier}: ${r.route}: ${r.why}`).join("\n"),
-    `\nTRIPS ${s.petName.toUpperCase()} ACTUALLY MADE (from the footage, most recent first): ${travelRoutes(10).join("; ") || "none known"}`,
-    `\nTRENDING NOW: sounds being picked up fast on travel/dog TikTok:\n` + (sounds.length ? sounds.map((x) => `- "${x.name}"${x.author ? ` by ${x.author}` : ""}: ${x.recent} new posts in 3 days (${x.growth.toFixed(1)}x faster)`).join("\n") : "none read yet"),
-    `\nTRENDING NOW: the most-viewed TikTok captions found for our situations:\n` + (proven.length ? proven.map((p) => `- [${p.scene}] "${p.text.slice(0, 120)}" ${p.views.toLocaleString("en")} views`).join("\n") : "none found yet"),
+    { name: "tiktok search", title: "WHAT PEOPLE SEARCH ON TIKTOK (this account's search analytics, most first)", lines: topicLines(s.searchTopics, "impressions") },
+    { name: "keyword planner", title: "WHAT PEOPLE SEARCH ON GOOGLE (Keyword Planner, everyone, most first)", lines: topicLines(s.keywordTopics, "searches a month") },
+    { name: "autocomplete", title: "WHAT PEOPLE TYPE (Google and YouTube autocomplete; ranks, not volumes)", lines: topicLines(s.suggestTopics, "rank points", 25) },
+    { name: "faq", title: "FOLLOWERS' QUESTIONS (the creator's FAQ)", lines: (s.faq ?? []).slice(0, 30).map((f) => `${f.q}${f.a ? ` (answer: ${f.a.slice(0, 160)})` : ""}`) },
+    { name: "comments", title: "QUESTIONS IN THE COMMENTS on the creator's TikToks (most liked first)", lines: [...questions].sort((a, b) => b.likes - a.likes).slice(0, 25).map((q) => `${q.text} (${q.likes} likes)`) },
+    { name: "flywith routes", title: "FLYWITH.PET PRIORITY ROUTES (where people most need help; tier 1 first)", lines: FLYWITH_ROUTES.map((r) => `tier ${r.tier}: ${r.route}: ${r.why}`) },
+    { name: "lex's trips", title: `TRIPS ${s.petName.toUpperCase()} ACTUALLY MADE (from the footage, most recent first)`, lines: travelRoutes(10) },
+    { name: "trending sounds", title: "TRENDING NOW: sounds being picked up fast on travel/dog TikTok", lines: trendingSounds(10).map((x) => `sound "${x.name}"${x.author ? ` by ${x.author}` : ""}: ${x.recent} new posts in 3 days (${x.growth.toFixed(1)}x faster)`) },
+    { name: "trending posts", title: "TRENDING NOW: the most-viewed TikTok posts found for our situations", lines: proven.map((p) => `[${p.scene}] "${p.text.slice(0, 120).replace(/\s+/g, " ")}": ${p.views.toLocaleString("en")} views${p.url ? ` (${p.url})` : ""}`) },
+  ];
+}
+
+/** Everything the research pass reads, as text (each fact on its own line, to be quoted as evidence). */
+export function sourcesText(): string {
+  const clips = footageOnHand().slice(0, 70);
+  return [
+    ...sourceSections().map((x) => `\n${x.title}:\n` + (x.lines.length ? x.lines.map((l) => `- ${l}`).join("\n") : "none loaded yet")),
     `\nTHE FOOTAGE ON HAND (unused clips; use their ids in clipIds):\n` + (clips.length ? clips.map((c) => `- ${c.id} [${c.scene ?? "?"}${c.place ? `, ${c.place}` : ""}] ${c.ai!.summary!.slice(0, 160)}`).join("\n") : "none"),
     `\nALREADY COVERED (don't repeat): ${coveredTopics().slice(0, 40).join("; ") || "nothing yet"}`,
   ].join("\n");
+}
+
+const norm = (x: string) => x.toLowerCase().replace(/[“”"']/g, "").replace(/\s+/g, " ").trim();
+
+/**
+ * The evidence an idea quotes, checked against the real source lines: each quote kept only if it's
+ * found in a line (at least 12 characters of it), and turned into that whole line with its source.
+ */
+export function verifyEvidence(quotes: string[], sections = sourceSections()): { source: string; line: string }[] {
+  const out: { source: string; line: string }[] = [];
+  for (const q of quotes) {
+    const n = norm(q).replace(/^- /, "");
+    if (n.length < 12) continue;
+    for (const sec of sections) {
+      const line = sec.lines.find((l) => norm(l).includes(n) || (n.length >= 30 && n.includes(norm(l))));
+      if (line && !out.some((e) => e.line === line)) {
+        out.push({ source: sec.name, line });
+        break;
+      }
+    }
+  }
+  return out;
 }
 
 export const SCHEMA = {
@@ -169,7 +205,7 @@ export const SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["title", "kind", "audience", "specificity", "sources", "demand", "reach", "frequency", "clipIds"],
+        required: ["title", "kind", "audience", "specificity", "sources", "evidence", "demand", "reach", "frequency", "clipIds"],
         properties: {
           title: { type: "string" },
           kind: { type: "string", enum: ["tips", "fun", "inspire"] },
@@ -177,6 +213,7 @@ export const SCHEMA = {
           pillar: { type: "string", enum: ["airline", "destination", "prep"] },
           specificity: { type: "string", enum: ["broad", "specific"] },
           sources: { type: "array", items: { type: "string" } },
+          evidence: { type: "array", items: { type: "string" } },
           demand: { type: "integer" },
           reach: { type: "integer" },
           frequency: { type: "integer" },
@@ -223,7 +260,10 @@ export async function researchTopics(): Promise<TopicBank> {
           `(destination) and Tricks (prep, incl. the airport day); never anything in ALREADY COVERED.\n` +
           `- DEMAND, REACH, FREQUENCY: whole numbers from 1 to 5. DEMAND: rate 1–5 from the numbers in the sources (search volumes, impressions, comment likes, views); say ` +
           `which sources each idea comes from (e.g. "tiktok search", "keyword planner", "autocomplete", "comments", ` +
-          `"faq", "flywith routes", "lex's trips", "trend").\n` +
+          `"faq", "flywith routes", "lex's trips", "trending sounds", "trending posts").\n` +
+          `- EVIDENCE, for every idea: copy the exact line(s) from the data above that it's based on, word for word ` +
+          `(without the leading "- "), into evidence. Every number, trend or post you mention must be in one of those lines: ` +
+          `never a figure or trend that isn't in the data. An idea from your own judgment gets an empty evidence list.\n` +
           `- TRENDS, FOOTAGE FIRST: go through the footage on hand and match clips to the trends, formats and sounds that ` +
           `are working now (and to the searches), so most ideas can be made from clips we already have. Put the fitting ` +
           `clip ids in clipIds (only ids from the list; empty if none fits) and name the trend, format or sound in trend.\n` +
@@ -234,19 +274,30 @@ export async function researchTopics(): Promise<TopicBank> {
     schema: SCHEMA,
     effort: "medium",
   });
+  const sections = sourceSections();
   const ideas: TopicIdea[] = r.ideas
     .filter((x) => x.title?.trim())
-    .map((x, i) => ({
+    .map((x, i) => {
+      // Only what's really in the data counts: sources come from the evidence found, a trend needs a
+      // trending line behind it, and an idea with no evidence is marked as judgment with low demand.
+      const evidence = verifyEvidence((x as { evidence?: string[] }).evidence ?? [], sections);
+      const sources = [...new Set(evidence.map((e) => e.source))];
+      const trendBacked = evidence.some((e) => e.source === "trending sounds" || e.source === "trending posts");
+      return {
       ...x,
+      evidence,
+      sources: sources.length ? sources : ["our judgment"],
+      trend: trendBacked ? x.trend : undefined,
+      demand: evidence.length ? x.demand : Math.min(2, x.demand || 1),
       id: `${Date.now().toString(36)}-${i}`,
       title: x.title.trim().slice(0, 160),
       pillar: x.kind === "tips" ? (x.pillar as EduPillar | undefined) : undefined,
-      demand: Math.max(1, Math.min(5, Math.round(x.demand || 1))),
       reach: Math.max(1, Math.min(5, Math.round(x.reach || 1))),
       frequency: Math.max(1, Math.min(5, Math.round(x.frequency || 1))),
       clipIds: [...new Set(x.clipIds ?? [])].filter((id) => onHand.has(id)).slice(0, 4),
-      sources: (x.sources ?? []).slice(0, 6),
-    }));
+      };
+    })
+    .map((x) => ({ ...x, demand: Math.max(1, Math.min(5, Math.round(x.demand || 1))) }));
   const bank = { at: new Date().toISOString(), ideas };
   store.updateSettings({ topicBank: bank });
   console.log(`[topics] researched ${ideas.length} ideas (${(["tips", "fun", "inspire"] as const).map((k) => `${ideas.filter((x) => x.kind === k).length} ${k}`).join(", ")})`);

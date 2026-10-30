@@ -55,3 +55,15 @@ test("the research's answer format uses nothing the API refuses (no minimum/maxi
   const text = JSON.stringify(SCHEMA);
   assert.ok(!/"minimum"|"maximum"/.test(text));
 });
+
+test("an idea's evidence only counts when it's really in the data; made-up figures are dropped", async () => {
+  const { verifyEvidence } = await import("../src/topicBank.ts");
+  const sections = [
+    { name: "trending posts", title: "", lines: ['[security check] "Service dog vs TSA": 18,400,000 views (https://tiktok.com/x)'] },
+    { name: "flywith routes", title: "", lines: ["tier 1: US → UK: post-Brexit rules confuse people constantly"] },
+  ];
+  const ok = verifyEvidence(['"Service dog vs TSA": 18,400,000 views', "tier 1: US → UK: post-Brexit rules"], sections);
+  assert.deepEqual(ok.map((e) => e.source), ["trending posts", "flywith routes"]);
+  assert.match(ok[0].line, /tiktok\.com/, "the whole line, with its link");
+  assert.equal(verifyEvidence(["Service dog vs TSA got 50M views last week"], sections).length, 0, "not in the data: dropped");
+});

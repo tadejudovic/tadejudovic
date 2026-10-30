@@ -49,3 +49,9 @@ test("the toothbrush test: an everyday problem for many beats a rare one with th
   ] } } as any);
   assert.equal(pickTopic("inspire", undefined)!.id, "daily");
 });
+
+test("the research's answer format uses nothing the API refuses (no minimum/maximum on numbers)", async () => {
+  const { SCHEMA } = await import("../src/topicBank.ts");
+  const text = JSON.stringify(SCHEMA);
+  assert.ok(!/"minimum"|"maximum"/.test(text));
+});

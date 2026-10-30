@@ -134,7 +134,7 @@ export function sourcesText(): string {
   ].join("\n");
 }
 
-const SCHEMA = {
+export const SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["ideas"],
@@ -152,9 +152,9 @@ const SCHEMA = {
           pillar: { type: "string", enum: ["airline", "destination", "prep"] },
           specificity: { type: "string", enum: ["broad", "specific"] },
           sources: { type: "array", items: { type: "string" } },
-          demand: { type: "integer", minimum: 1, maximum: 5 },
-          reach: { type: "integer", minimum: 1, maximum: 5 },
-          frequency: { type: "integer", minimum: 1, maximum: 5 },
+          demand: { type: "integer" },
+          reach: { type: "integer" },
+          frequency: { type: "integer" },
           trend: { type: "string" },
           clipIds: { type: "array", items: { type: "string" } },
           hook: { type: "string" },
@@ -196,7 +196,7 @@ export async function researchTopics(): Promise<TopicBank> {
           `one rule, one moment). Use the flywith.pet routes and the search data for the specific ones.\n` +
           `- VARIETY: no two ideas about the same thing; spread the educational ones over Flights (airline), Trips ` +
           `(destination) and Tricks (prep, incl. the airport day); never anything in ALREADY COVERED.\n` +
-          `- DEMAND: rate 1–5 from the numbers in the sources (search volumes, impressions, comment likes, views); say ` +
+          `- DEMAND, REACH, FREQUENCY: whole numbers from 1 to 5. DEMAND: rate 1–5 from the numbers in the sources (search volumes, impressions, comment likes, views); say ` +
           `which sources each idea comes from (e.g. "tiktok search", "keyword planner", "autocomplete", "comments", ` +
           `"faq", "flywith routes", "lex's trips", "trend").\n` +
           `- TRENDS, FOOTAGE FIRST: go through the footage on hand and match clips to the trends, formats and sounds that ` +

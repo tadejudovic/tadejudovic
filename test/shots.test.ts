@@ -117,3 +117,18 @@ test("a video whose footage left the library can still be redrawn, with other fo
   assert.ok(segs.length && segs.every((x: any) => x.clipId !== "z1"), "the gone clip is replaced");
   assert.ok(Math.abs(segs.reduce((a: number, x: any) => a + x.end - x.start, 0) - 4) < 0.05, "same length");
 });
+
+test("a shot added from the library goes where the creator put it, and the video grows by it", () => {
+  clip("a1", "beach");
+  clip("a2", "beach");
+  clip("extra", "hotel room");
+  const overlays = [{ text: "x", start: 0, end: 5 }];
+  store.addRender({ id: "add1", createdAt: new Date().toISOString(), status: "done", progress: 1, review: "approved", reviewedAt: "2026-10-01T00:00:00Z", options: {} as any,
+    plan: { format: "fun", overlays, hook: "x", segments: [{ clipId: "a1", start: 0, end: 2, speed: 1 }, { clipId: "a2", start: 0, end: 2, speed: 1 }] } } as any);
+  const fresh = editShots("add1", ["keep", "keep", "keep"], { order: [0, 2, 1], adds: [{ index: 2, clipId: "extra", start: 1, end: 3.5 }] });
+  const segs = fresh.plan.segments;
+  assert.deepEqual(segs.map((x: any) => x.clipId), ["a1", "extra", "a2"]);
+  assert.ok(Math.abs(len(segs) - 6.5) < 0.05, `4 s + the added 2.5 s, got ${len(segs)}`);
+  assert.ok(fresh.plan.overlays![0].end >= 6.5, "the text stays to the new end");
+  assert.equal(fresh.review, "approved");
+});

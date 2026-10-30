@@ -1629,7 +1629,7 @@ function shotFrom(clip: Clip, len: number): Segment {
 export function editShots(
   id: string,
   actions: ShotAction[],
-  { order, trims = [], picks = [] }: { order?: number[]; trims?: { index: number; start: number; end: number }[]; picks?: { index: number; clipId: string }[] } = {},
+  { order, trims = [], picks = [], adds = [] }: { order?: number[]; trims?: { index: number; start: number; end: number }[]; picks?: { index: number; clipId: string }[]; adds?: { index: number; clipId: string; start?: number; end?: number }[] } = {},
 ): Render {
   const r = store.render(id);
   if (!r || r.status !== "done") throw new Error("That video isn't ready.");
@@ -1646,8 +1646,21 @@ export function editShots(
     const pos = Array.isArray(order) && order.includes(gone) ? order.indexOf(gone) : gone;
     throw new Error(`Shot ${pos + 1}'s footage is no longer in your library: regenerate or delete that shot.`);
   }
+  // Shots the creator added from the library: numbered after the video's own (their place is in `order`).
+  const base = r.plan.segments.length;
+  const added: Segment[] = adds
+    .filter((a) => a.index >= base)
+    .sort((a, b) => a.index - b.index)
+    .flatMap((a) => {
+      const c = store.clip(a.clipId);
+      if (c?.status !== "ready" || c.kind !== "video") return [];
+      const auto = shotFrom(c, 2.5);
+      const start = Math.max(0, Math.min(Number.isFinite(a.start) ? a.start! : auto.start, c.duration - 0.5));
+      const end = Math.max(start + 0.5, Math.min(Number.isFinite(a.end) ? a.end! : auto.end, c.duration));
+      return [{ clipId: c.id, start, end, speed: 1 }];
+    });
   // Trimmed shots: the creator pulled an end in or out, within the clip (at least half a second).
-  const segs = r.plan.segments.map((seg, i) => {
+  const segs = [...r.plan.segments, ...added].map((seg, i) => {
     const t = trims.find((x) => x.index === i);
     if (!t) return seg;
     const dur = store.clip(seg.clipId)?.duration ?? seg.end;
@@ -1658,7 +1671,8 @@ export function editShots(
   const valid = order && order.length === segs.length && [...order].sort((a, b) => a - b).every((x, i) => x === i);
   const sequence = valid ? order : segs.map((_, i) => i);
   const len = (xs: Segment[]) => xs.reduce((a, x) => a + (x.end - x.start) / (x.speed ?? 1), 0);
-  const total = len(r.plan.segments);
+  // The video keeps its length, plus the shots added (the text's last line stays up over them).
+  const total = len(r.plan.segments) + len(added.filter((_, k) => (actions[base + k] ?? "keep") !== "remove"));
   const inVideo = new Set(segs.map((x) => x.clipId));
   const out: Segment[] = [];
   const missing: number[] = [];
@@ -1681,8 +1695,12 @@ export function editShots(
     len(out) < total - 0.05 ? trimTo(lengthenFootage(out, total, (cid) => store.clip(cid)?.duration ?? 0), total)
     : len(out) > total + 0.05 ? trimTo(out, total)
     : out;
-  const plan = { ...r.plan, segments, editorPass: EDITOR_ATTEMPTS };
-  const fresh = queueRender(plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
+  const grew = total - len(r.plan.segments);
+  // Added shots make the video longer: the text that stays to the end stays to the new end.
+  const overlays = grew > 0.05 ? r.plan.overlays?.map((o) => (o.end >= len(r.plan.segments) - 0.05 ? { ...o, end: o.end + grew } : o)) : r.plan.overlays;
+  const plan = { ...r.plan, segments, overlays, editorPass: EDITOR_ATTEMPTS };
+  // Longer educational videos: the call to action moves to the new last seconds.
+  const fresh = queueRender(r.plan.format === "tips" && grew > 0.05 ? healPlan(plan, store.settings().cta?.site) : plan, r.options, r.batch, { countUse: false, standby: !!r.standby });
   store.updateRender(fresh.id, { ...(r.review === "approved" ? { review: "approved", reviewedAt: r.reviewedAt } : {}), ...(r.editor ? { editor: r.editor } : {}) });
   deleteRender(r.id);
   syncClipUses(fresh.id);

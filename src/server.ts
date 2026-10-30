@@ -1121,8 +1121,11 @@ app.post(
     const picks = Array.isArray(req.body?.picks)
       ? req.body.picks.map((x: any) => ({ index: Number(x?.index), clipId: String(x?.clipId ?? "") })).filter((x: any) => Number.isInteger(x.index) && x.clipId)
       : [];
+    const adds = Array.isArray(req.body?.adds)
+      ? req.body.adds.map((x: any) => ({ index: Number(x?.index), clipId: String(x?.clipId ?? ""), start: Number(x?.start), end: Number(x?.end) })).filter((x: any) => Number.isInteger(x.index) && x.clipId)
+      : [];
     try {
-      res.json(editShots(String(req.params.id), actions, { order, trims, picks }));
+      res.json(editShots(String(req.params.id), actions, { order, trims, picks, adds }));
     } catch (e) {
       res.status(400).json({ error: (e as Error).message });
     }

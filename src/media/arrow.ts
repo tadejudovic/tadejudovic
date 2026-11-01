@@ -115,4 +115,3 @@ export function writeArrow(file: string, width: number, height: number, from: Pt
   fs.writeFileSync(file, png(width, height, rgba));
   return true;
 }
-

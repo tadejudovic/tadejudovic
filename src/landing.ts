@@ -498,39 +498,49 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       el.style.transform = "translateY(" + (1 - v) * 24 + "px)";
       el.classList.toggle("on", v > 0.5);
     };
+    // Where a tile sits inside the screen, and the post drawn between that tile (k=0) and the full screen (k=1).
+    const at = (tile) => { const sr = screen.getBoundingClientRect(), r = tile.getBoundingClientRect(); return { sr, l: r.left - sr.left, t: r.top - sr.top, w: r.width, h: r.height }; };
+    const place = (tile, k) => {
+      const { sr, l, t, w, h } = at(tile);
+      Object.assign(post.style, { left: l * (1 - k) + "px", top: t * (1 - k) + "px", width: w + (sr.width - w) * k + "px", height: h + (sr.height - h) * k + "px", borderRadius: 4 * (1 - k) + "px" });
+      [...post.children].forEach((c) => (c.style.opacity = k > 0.9 ? 1 : 0));
+    };
+    const inView = () => {
+      const box = grid.getBoundingClientRect();
+      return [...g.children].filter((x) => { const r = x.getBoundingClientRect(); return r.top > box.top + 8 && r.bottom < box.bottom - 8; });
+    };
+    // The page opens on the finished post: it came from this tile, at the top of the roll.
+    const home = inView()[7];
+    home.style.background = post.style.background;
     const frame = () => {
       const p = clamp(-rc.getBoundingClientRect().top / (rc.offsetHeight - innerHeight));
       floats.forEach((f) => f.style.setProperty("--y", -p * innerHeight * 1.2 * f.dataset.d + "px"));
       $("rc-hint").style.opacity = 1 - seg(p, 0, 0.05);
-      // The roll scrolls by.
-      g.style.transform = "translateY(" + -(g.offsetHeight - grid.offsetHeight) * (1 - ease(seg(p, 0, 0.3))) + "px)";
+      // Then the roll scrolls on through thousands of photos.
+      g.style.transform = "translateY(" + -(g.offsetHeight - grid.offsetHeight) * 0.6 * ease(seg(p, 0.22, 0.42)) + "px)";
+      home.classList.toggle("on", p > 0.08 && p < 0.24);
       // Photos get checked one by one, then three are picked.
-      if (!picks && p >= 0.3) {
-        const box = grid.getBoundingClientRect();
-        const v = [...g.children].filter((x) => { const r = x.getBoundingClientRect(); return r.top > box.top + 8 && r.bottom < box.bottom - 8; });
+      if (!picks && p >= 0.42) {
+        const v = inView();
         picks = [v[7], v[Math.floor(v.length * 0.45)], v[v.length - 9]];
         picks[0].style.background = post.style.background;
         seen = v.filter(() => Math.random() < 0.55).map((x) => [x, Math.random() * 0.88]);
       }
-      const s = seg(p, 0.3, 0.48);
+      const s = seg(p, 0.42, 0.56);
       if (seen) seen.forEach(([x, at]) => x.classList.toggle("seen", s > 0 && s < 1 && s >= at && s < at + 0.12));
-      if (picks) picks.forEach((x, n) => x.classList.toggle("on", p > 0.48 + n * 0.03));
-      $("rc-bot").style.opacity = p > 0.3 ? 1 : 0;
-      $("rc-msg").textContent = p < 0.48 ? "Finding the best moments…" : Math.min(3, 1 + Math.floor((p - 0.48) / 0.03)) + " of 15,681 picked";
-      // The first pick grows into the post.
-      const k = ease(seg(p, 0.6, 0.75));
-      if (picks) {
-        const sr = screen.getBoundingClientRect(), r = picks[0].getBoundingClientRect();
-        const l = r.left - sr.left, t = r.top - sr.top;
-        Object.assign(post.style, { opacity: p > 0.6 ? 1 : 0, left: l * (1 - k) + "px", top: t * (1 - k) + "px", width: r.width + (sr.width - r.width) * k + "px", height: r.height + (sr.height - r.height) * k + "px", borderRadius: 4 * (1 - k) + "px" });
-        [...post.children].forEach((c) => (c.style.opacity = k > 0.9 ? 1 : 0));
-      }
-      const v = ease(seg(p, 0.74, 0.9));
+      if (picks) picks.forEach((x, n) => x.classList.toggle("on", p > 0.56 + n * 0.03));
+      $("rc-bot").style.opacity = p > 0.42 ? 1 : 0;
+      $("rc-msg").textContent = p < 0.56 ? "Finding the best moments…" : Math.min(3, 1 + Math.floor((p - 0.56) / 0.03)) + " of 15,681 picked";
+      // The post: full at the start, back into its tile, and out again from the new pick.
+      if (p < 0.22) { post.style.opacity = 1; place(home, 1 - ease(seg(p, 0.1, 0.22))); }
+      else if (picks && p > 0.66) { post.style.opacity = 1; place(picks[0], ease(seg(p, 0.66, 0.8))); }
+      else post.style.opacity = 0;
+      const v = p < 0.22 ? 1 : ease(seg(p, 0.8, 0.92));
       $("rc-views").textContent = Math.round(412 * v) + "K";
       $("rc-likes").textContent = (38.2 * v).toFixed(1) + "K";
-      show($("rc-w1"), p, -1, 0, 0.24, 0.3);
-      show($("rc-w2"), p, 0.32, 0.38, 0.6, 0.65);
-      show($("rc-w3"), p, 0.66, 0.74, 2, 3);
+      show($("rc-w1"), p, -1, 0, 0.14, 0.2);
+      show($("rc-w2"), p, 0.26, 0.32, 0.62, 0.67);
+      show($("rc-w3"), p, 0.7, 0.78, 2, 3);
       requestAnimationFrame(frame);
     };
     frame();

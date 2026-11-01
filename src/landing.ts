@@ -88,6 +88,24 @@ const photoBg = (i: number, w = 240) => `url(${photoUrl(i, w, w)}) center/cover,
 export const FAVICON = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20100%20100%22%3E%3Crect%20width=%22100%22%20height=%22100%22%20rx=%2226%22%20fill=%22%23F5A300%22/%3E%3Cellipse%20cx=%2236%22%20cy=%2240%22%20rx=%226.5%22%20ry=%228%22%20fill=%22%232B1A00%22/%3E%3Cpath%20d=%22M57%2041Q64%2034%2071%2041%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%227%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M30%2058Q50%2078%2070%2058%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%228.5%22%20stroke-linecap=%22round%22/%3E%3C/svg%3E";
 export const LOGO_MARK = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%226%206%2088%2088%22%3E%3Crect%20x=%226%22%20y=%226%22%20width=%2288%22%20height=%2288%22%20rx=%2232%22%20fill=%22%23F5A300%22/%3E%3Cellipse%20cx=%2236%22%20cy=%2240%22%20rx=%226.5%22%20ry=%228%22%20fill=%22%232B1A00%22/%3E%3Cpath%20d=%22M57%2041Q64%2034%2071%2041%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%227%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M30%2058Q50%2078%2070%2058%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%228.5%22%20stroke-linecap=%22round%22/%3E%3C/svg%3E";
 
+/**
+ * The camera-roll dump (a trend: "too lazy to post my trip, so here it is"): a wall of tiny tiles
+ * that zooms into the one good moment, which comes out as a post. Tiles cycle through the roll's
+ * photos in a scrambled order; the target tile is the puppy story's photo.
+ */
+const DUMP = { cols: 36, rows: 24, target: { c: 23, r: 13, photo: 5 } };
+function dumpTiles(): string {
+  let seed = 7;
+  const next = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const out: string[] = [];
+  for (let r = 0; r < DUMP.rows; r++)
+    for (let c = 0; c < DUMP.cols; c++) {
+      const i = c === DUMP.target.c && r === DUMP.target.r ? DUMP.target.photo : Math.floor(next() * PHOTOS.length);
+      out.push(`<i style="background:url(${photoUrl(i, 64, 64)}) center/cover,${PHOTOS[i][1]}"></i>`);
+    }
+  return out.join("");
+}
+
 export function landingHtml(opts: { signInUrl: string; google: boolean }): string {
   const first = STORIES[0];
   const heroBg = (tile: number) => `url(${photoUrl(tile, 720, 1520)}) center/cover, ${PHOTOS[tile][1]}`;
@@ -403,6 +421,28 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
   .r{opacity:1;transform:none}
 }
 
+/* ---- The camera-roll dump: the wall zooms into one tile, which comes out as a post ---- */
+.dump{position:relative;margin-top:40px;aspect-ratio:16/10;border-radius:32px;overflow:hidden;background:#1b1206}
+.dump .wall{position:absolute;inset:0;display:grid;grid-template-columns:repeat(36,1fr);grid-template-rows:repeat(24,1fr);gap:1px;
+  transform-origin:calc((var(--tc) + .5) / 36 * 100%) calc((var(--tr) + .5) / 24 * 100%)}
+.dump .wall i{display:block;min-width:0;min-height:0}
+.dump .lazy{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#000;color:#fff;font:800 clamp(15px,2.2vw,26px)/1.2 "Google Sans Flex",Figtree,system-ui,sans-serif;padding:10px 16px;border-radius:10px;text-align:center;width:max-content;max-width:86%}
+.dump .found{position:absolute;left:50%;top:50%;height:86%;aspect-ratio:9/16;transform:translate(-50%,-50%) scale(.2);opacity:0;border-radius:22px;background:var(--c);box-shadow:0 20px 60px rgba(0,0,0,.45);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:16% 8% 8%}
+.dump .found b{background:#F5C400;color:#111;font:800 clamp(11px,1.4vw,17px)/1.2 "Google Sans Flex",Figtree,system-ui,sans-serif;padding:6px 9px;border-radius:7px;text-align:center}
+.dump .found span{display:inline-flex;align-items:center;gap:6px;background:var(--md-primary);color:var(--md-on-primary);font-weight:700;font-size:13px;padding:6px 12px;border-radius:999px}
+.dump .found span .ico{width:14px;height:14px}
+.dump.in .wall{animation:dumpZoom 10s cubic-bezier(.6,0,.3,1) infinite}
+.dump.in .lazy{animation:dumpLazy 10s ease infinite}
+.dump .focus{position:absolute;inset:-30px;background:var(--c);filter:blur(22px) brightness(.75);opacity:0}
+.dump.in .focus{animation:dumpFocus 10s ease infinite}
+@keyframes dumpFocus{0%,40%{opacity:0}47%,84%{opacity:1}94%,100%{opacity:0}}
+.dump.in .found{animation:dumpFound 10s cubic-bezier(.34,1.3,.64,1) infinite}
+@keyframes dumpZoom{0%,22%{transform:none}48%,82%{transform:scale(30)}96%,100%{transform:none}}
+@keyframes dumpLazy{0%,20%{opacity:1}26%,92%{opacity:0}100%{opacity:1}}
+@keyframes dumpFound{0%,46%{opacity:0;transform:translate(-50%,-50%) scale(.2)}54%,80%{opacity:1;transform:translate(-50%,-50%) scale(1)}86%,100%{opacity:0;transform:translate(-50%,-50%) scale(.9)}}
+@media (max-width:700px){.dump{aspect-ratio:4/3;border-radius:24px}}
+@media (prefers-reduced-motion:reduce){.dump .found{opacity:1;transform:translate(-50%,-50%)}.dump .lazy{display:none}}
+
 /* ---- Material 3 Expressive, the same tokens as the app: one amber seed, light and dark following the phone.
    Primary for the one main action, colourful containers for emphasis, big rounded shapes, cookie and sunny marks. ---- */
 :root{--md-primary:#825500;--md-on-primary:#ffffff;--md-primary-container:#ffddb4;--md-on-primary-container:#633f00;--md-secondary:#725b2e;--md-on-secondary:#ffffff;--md-secondary-container:#fedea6;--md-on-secondary-container:#584419;--md-tertiary:#6f5d1b;--md-on-tertiary:#ffffff;--md-tertiary-container:#fbe191;--md-on-tertiary-container:#564502;--md-error:#ba1a1a;--md-on-error:#ffffff;--md-error-container:#ffdad6;--md-on-error-container:#93000a;--md-surface:#fff8f4;--md-surface-dim:#ead7c2;--md-surface-bright:#fff8f4;--md-surface-container-lowest:#ffffff;--md-surface-container-low:#fff1e4;--md-surface-container:#feebd6;--md-surface-container-high:#f8e5d0;--md-surface-container-highest:#f3dfcb;--md-on-surface:#231a0d;--md-on-surface-variant:#534432;--md-outline:#86745f;--md-outline-variant:#d8c3ab;--md-inverse-surface:#3a2f21;--md-inverse-on-surface:#ffeedc;--md-inverse-primary:#ffb952;--md-scrim:#000000;color-scheme:light}
@@ -545,6 +585,18 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
 
 
 <div class="light">
+  <section class="block dumpsec"><div class="wrap">
+    <p class="eyebrow r">The camera roll dump</p>
+    <h2 class="r d1">“Too lazy to post my trip, so here it is.”</h2>
+    <p class="sub r d2">Everyone's posting their whole camera roll at once, because picking the good parts takes hours. Rollcut does the picking for you, and turns each one into a post.</p>
+    <div class="dump r d2" aria-hidden="true">
+      <div class="wall" style="--tc:${DUMP.target.c};--tr:${DUMP.target.r}">${dumpTiles()}</div>
+      <span class="lazy">I'm too lazy to post my trip, so here it is.</span>
+      <div class="focus" style="--c:url(${photoUrl(DUMP.target.photo, 360, 640)}) center/cover, ${PHOTOS[DUMP.target.photo][1]}"></div>
+      <div class="found" style="--c:url(${photoUrl(DUMP.target.photo, 360, 640)}) center/cover, ${PHOTOS[DUMP.target.photo][1]}"><b>he heard the word<br>'walk' from three<br>rooms away</b><span>${ico("check")} Posted</span></div>
+    </div>
+  </div></section>
+
   <section class="block"><div class="wrap">
     <p class="eyebrow r">How it works</p>
     <h2 class="r d1">Three steps. Then it runs itself.</h2>

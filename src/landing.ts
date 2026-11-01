@@ -79,11 +79,11 @@ export const FAVICON = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2
 export const LOGO_MARK = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%226%206%2088%2088%22%3E%3Crect%20x=%226%22%20y=%226%22%20width=%2288%22%20height=%2288%22%20rx=%2232%22%20fill=%22%23F5A300%22/%3E%3Cellipse%20cx=%2236%22%20cy=%2240%22%20rx=%226.5%22%20ry=%228%22%20fill=%22%232B1A00%22/%3E%3Cpath%20d=%22M57%2041Q64%2034%2071%2041%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%227%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M30%2058Q50%2078%2070%2058%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%228.5%22%20stroke-linecap=%22round%22/%3E%3C/svg%3E";
 
 /**
- * The hero, driven by scrolling: a phone holding a camera roll full of photos stays in the middle;
- * the roll scrolls by, photos get checked one by one, three are picked, and the first grows into a
- * finished post. Loose photos float around the phone at different speeds (parallax).
+ * The hero: a phone in the middle plays the story on a loop, with three steps lighting up beside it.
+ * It opens on the finished post, which shrinks back into the camera roll; the roll scrolls through
+ * thousands of photos, they get checked one by one, one is picked and grows back into the post.
  */
-const HERO = { cols: 6, rows: 56, post: 5, lines: ["he heard the word 'walk'", "from three rooms away"], tags: ["dogsoftiktok", "puppylove"] };
+const HERO = { cols: 6, rows: 40, post: 5, lines: ["he heard the word 'walk'", "from three rooms away"], tags: ["dogsoftiktok", "puppylove"] };
 function rollTiles(): string {
   let seed = 11;
   const next = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
@@ -94,18 +94,6 @@ function rollTiles(): string {
     return `<i style="background:url(${photoUrl(i, 120, 120)}) center/cover,${PHOTOS[i][1]}">${len}</i>`;
   }).join("");
 }
-function floatTiles(): string {
-  let seed = 3;
-  const next = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
-  return Array.from({ length: 22 }, (_, k) => {
-    const i = Math.floor(next() * PHOTOS.length);
-    const x = 50 + (k % 2 ? -1 : 1) * (22 + next() * 24);
-    const depth = 0.3 + next() * 1.3;
-    const size = Math.round(60 + next() * 90);
-    return `<i data-d="${depth.toFixed(2)}" style="left:${x.toFixed(1)}%;top:${(-10 + next() * 120).toFixed(1)}%;width:${size}px;height:${size}px;background:url(${photoUrl(i, 200, 200)}) center/cover,${PHOTOS[i][1]};--r:${(-12 + next() * 24).toFixed(1)}deg;opacity:${Math.min(1, 0.35 + depth * 0.4).toFixed(2)};filter:blur(${Math.max(0, (1 - depth) * 3).toFixed(1)}px)"></i>`;
-  }).join("");
-}
-
 export function landingHtml(opts: { signInUrl: string; google: boolean }): string {
   const g = `<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
   const cta = (cls = "") =>
@@ -247,73 +235,58 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
   .r{opacity:1;transform:none}
 }
 
-/* ---- Hero: a phone with a camera roll, driven by scrolling ---- */
-.rc{position:relative;height:420vh;background:#1b1206;color:#fff}
-.rc-stick{position:sticky;top:0;height:100vh;overflow:hidden}
-.rc-nav{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:16px max(20px,calc(50% - 540px))}
-.rc-nav .logo{color:#fff}
-.rc-nav .signin{background:#fff;color:#111}
-.rc-floats i{position:absolute;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.4);transform:translateY(var(--y,0)) rotate(var(--r));will-change:transform}
-.rc-veil{position:absolute;left:0;right:0;top:0;height:46vh;background:linear-gradient(#1b1206 0,#1b1206 55%,rgba(27,18,6,0));z-index:4;pointer-events:none}
-.rc-center{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:3vh}
-.rc-phone{position:relative;height:min(56vh,560px);aspect-ratio:9/19.5;border-radius:46px;background:#0b0b0b;padding:10px;box-shadow:0 0 0 2px #333,0 40px 90px rgba(0,0,0,.7);z-index:5}
-.rc-phone::before{content:"";position:absolute;top:19px;left:50%;width:30%;height:22px;margin-left:-15%;background:#000;border-radius:14px;z-index:9}
-.rc-screen{position:relative;width:100%;height:100%;border-radius:37px;overflow:hidden;background:#fff;display:flex;flex-direction:column}
-.rc-hd{background:rgba(255,255,255,.95);padding:44px 14px 8px;z-index:3;position:relative;color:#111}
-.rc-hd small{font-size:10px;font-weight:600;color:#888}
-.rc-hd b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+/* ---- Hero: the headline, then a phone playing the story on a loop, three steps beside it ---- */
+.rc{position:relative;padding:0 0 56px;background:var(--md-surface,#fff8f4);color:var(--md-on-surface,#231a0d)}
+.rc-top{text-align:center;padding:8px 0 0}
+.rc-top h1{margin:0 auto;font-size:clamp(34px,5vw,64px);line-height:1.02;letter-spacing:-.035em;font-weight:800;max-width:14em}
+.rc-top h1 .y{color:var(--md-primary,#825500)}
+.rc-top p{margin:12px auto 20px;font-size:clamp(16px,1.6vw,19px);line-height:1.45;color:var(--md-on-surface-variant,#534432)}
+.rc-stage{position:relative;display:flex;justify-content:center;margin-top:30px}
+.rc-phone{position:relative;flex:none;height:min(60vh,560px);aspect-ratio:9/19.5;border-radius:44px;background:#111;padding:9px;box-shadow:0 30px 70px rgba(60,30,0,.25)}
+.rc-phone::before{content:"";position:absolute;top:18px;left:50%;width:30%;height:20px;margin-left:-15%;background:#000;border-radius:12px;z-index:9}
+.rc-screen{position:relative;width:100%;height:100%;border-radius:36px;overflow:hidden;background:#fff;display:flex;flex-direction:column;color:#111}
+.rc-hd{padding:40px 12px 6px;background:#fff;z-index:3}
+.rc-hd small{font-size:9px;font-weight:600;color:#888}
+.rc-hd b{display:block;font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
 .rc-grid{flex:1;overflow:hidden;position:relative}
-.rc-g{display:grid;grid-template-columns:repeat(6,1fr);gap:1.5px;will-change:transform}
+.rc-g{display:grid;grid-template-columns:repeat(6,1fr);gap:1.5px;transition:transform 2.2s cubic-bezier(.4,0,.2,1)}
 .rc-g i{aspect-ratio:1;position:relative;display:block}
-.rc-g i em{position:absolute;right:3px;bottom:2px;color:#fff;font-size:7px;font-weight:600;font-style:normal;text-shadow:0 1px 2px rgba(0,0,0,.9)}
-.rc-g i::before{content:"";position:absolute;inset:0;border:2.5px solid #F5C400;opacity:0}
-.rc-g i.seen{z-index:1}
-.rc-g i.seen::before{opacity:1;background:rgba(245,196,0,.18);box-shadow:0 0 10px rgba(245,196,0,.7)}
+.rc-g i em{position:absolute;right:2px;bottom:1px;color:#fff;font-size:7px;font-weight:600;font-style:normal;text-shadow:0 1px 2px rgba(0,0,0,.9)}
+.rc-g i::before{content:"";position:absolute;inset:0;border:2.5px solid #F5C400;opacity:0;transition:opacity .2s}
+.rc-g i.seen::before{opacity:1;background:rgba(245,196,0,.18)}
 .rc-g i.on{z-index:2}
 .rc-g i.on::before{opacity:1;border-width:3px}
-.rc-g i.on::after{content:"";position:absolute;right:3px;bottom:3px;width:14px;height:14px;border-radius:50%;background:#F5C400 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center/62% no-repeat}
-.rc-ft{background:rgba(250,250,250,.97);border-top:1px solid #ddd;height:50px;z-index:3;position:relative;display:flex;justify-content:space-around;align-items:center;font-size:9px;font-weight:700;color:#888}
+.rc-g i.on::after{content:"";position:absolute;right:3px;bottom:3px;width:13px;height:13px;border-radius:50%;background:#F5C400 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center/62% no-repeat}
+.rc-ft{height:46px;border-top:1px solid #ddd;background:#fafafa;display:flex;justify-content:space-around;align-items:center;font-size:8px;font-weight:700;color:#888;position:relative;z-index:3}
 .rc-ft b{color:#0a7aff}
-.rc-cnt{position:absolute;left:0;right:0;top:-22px;text-align:center;font-size:10px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9)}
-.rc-bot{position:absolute;inset:0;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:11px;font-weight:800;opacity:0}
-.rc-bot i{width:14px;height:14px;border-radius:4px;background:#F5A300}
-.rc-post{position:absolute;z-index:6;opacity:0;color:#fff}
-.rc-post>*{transition:opacity .3s;opacity:0}
+.rc-post{position:absolute;z-index:6;color:#fff;transition:all .8s cubic-bezier(.2,.9,.2,1)}
+.rc-post>*{transition:opacity .3s}
+.rc-post.small>*{opacity:0}
 .rc-post .ov{position:absolute;left:0;right:0;top:15%;display:flex;justify-content:center}
-.rc-post .ov b{background:#F5C400;color:#111;font-size:13px;line-height:1.2;font-weight:800;padding:6px 9px;border-radius:7px;text-align:center}
-.rc-post .rail{position:absolute;right:7px;bottom:20%;display:grid;gap:12px;justify-items:center;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.rc-post .ov b{background:#F5C400;color:#111;font-size:12px;line-height:1.2;font-weight:800;padding:6px 9px;border-radius:7px;text-align:center}
+.rc-post .rail{position:absolute;right:6px;bottom:20%;display:grid;gap:10px;justify-items:center;text-shadow:0 1px 4px rgba(0,0,0,.6)}
 .rc-post .rail span{display:grid;justify-items:center;gap:2px}
-.rc-post .rail .ico{width:22px;height:22px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+.rc-post .rail .ico{width:18px;height:18px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
 .rc-post .rail .ico.fill{fill:#fff;stroke:none}
-.rc-post .rail small{font-size:9px;font-weight:700}
-.rc-post .rail .av{width:30px;height:30px;border-radius:50%;background:#F5A300;border:2px solid #fff}
-.rc-post .cap{position:absolute;left:10px;right:54px;bottom:7%;font-size:10px;line-height:1.4;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.7)}
-.rc-post .views{position:absolute;left:10px;top:46px;background:rgba(0,0,0,.55);font-size:10px;font-weight:800;padding:5px 9px;border-radius:999px}
-.rc-post .views em{font-style:normal;color:#F5C400}
-.rc-words{position:absolute;inset:0;pointer-events:none;z-index:8}
-.rc-w{position:absolute;left:0;right:0;top:70px;display:flex;flex-direction:column;align-items:center;text-align:center;opacity:0;padding:0 20px}
-.rc-w.on{pointer-events:auto}
-.rc-w h1,.rc-w h2{margin:0;font-size:clamp(30px,4.2vw,56px);line-height:1.03;letter-spacing:-.035em;font-weight:800;color:#fff}
-.rc-w p{margin:10px 0 0;font-size:17px;line-height:1.45;color:#d8c3ab;max-width:34em}
-.rc-w .y{color:#F5C400}
-.rc .btn{margin-top:16px;background:#F5C400;color:#111}
-.rc-hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;font-weight:700;color:#a08e78;z-index:9}
-@media (max-width:700px){
-  .rc-phone{height:52vh;border-radius:34px;padding:7px}
-  .rc-phone::before{top:13px;height:16px}
-  .rc-screen{border-radius:28px}
-  .rc-w{top:62px}
-  .rc-w h1,.rc-w h2{font-size:28px}
-  .rc-w p{font-size:14px}
-  .rc-post .ov b{font-size:9px;padding:4px 6px}
-  .rc-post .rail{gap:6px;right:4px}
-  .rc-post .rail .ico{width:14px;height:14px}
-  .rc-post .rail .av{width:20px;height:20px}
-  .rc-post .rail small{font-size:7px}
-  .rc-post .cap{font-size:7px;right:34px}
-  .rc-post .views{top:30px;font-size:8px}
+.rc-post .rail small{font-size:8px;font-weight:700}
+.rc-post .rail .av{width:26px;height:26px;border-radius:50%;background:#F5A300;border:2px solid #fff}
+.rc-post .cap{position:absolute;left:10px;right:46px;bottom:6%;font-size:9px;line-height:1.4;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+.rc-steps{position:absolute;left:calc(50% + min(30vh,280px) * 9 / 19.5 + 44px);top:50%;transform:translateY(-50%);display:grid;gap:12px;width:250px}
+.rc-st{display:flex;gap:12px;align-items:center;opacity:.35;transition:opacity .3s}
+.rc-st.on{opacity:1}
+.rc-st b{flex:none;width:34px;height:34px;border-radius:50%;background:var(--md-primary-container,#ffddb4);color:var(--md-on-primary-container,#633f00);display:grid;place-items:center;font-size:15px;font-weight:800;transition:background .3s}
+.rc-st.on b{background:#F5C400;color:#111}
+.rc-st span{font-size:17px;line-height:1.25;font-weight:700}
+.rc-st small{display:block;font-size:13px;font-weight:600;color:var(--md-on-surface-variant,#86745f)}
+@media (max-width:760px){
+  .rc-stage{flex-direction:column;align-items:center;gap:16px;margin-top:22px}
+  .rc-phone{height:50vh}
+  .rc-steps{position:static;transform:none;display:flex;width:auto;gap:8px}
+  .rc-st{flex-direction:column;gap:4px;text-align:center;width:100px}
+  .rc-st span{font-size:12px}
+  .rc-st small{display:none}
+  .rc-st b{width:28px;height:28px;font-size:13px}
 }
-@media (prefers-reduced-motion:reduce){.rc{height:auto}.rc-stick{position:relative}}
 
 /* ---- Material 3 Expressive, the same tokens as the app: one amber seed, light and dark following the phone.
    Primary for the one main action, colourful containers for emphasis, big rounded shapes, cookie and sunny marks. ---- */
@@ -396,27 +369,26 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
 </style></head><body>
 
 <header class="rc" id="rc">
-  <div class="rc-stick">
-    <nav class="rc-nav"><a class="logo" href="/"><i></i>Rollcut</a><a class="signin" href="${opts.signInUrl}">Sign in</a></nav>
-    <div class="rc-floats" id="rc-floats" aria-hidden="true">${floatTiles()}</div>
-    <div class="rc-veil"></div>
-    <div class="rc-center" aria-hidden="true"><div class="rc-phone"><div class="rc-screen" id="rc-screen">
+  <div class="wrap">
+    <nav><a class="logo" href="/"><i></i>Rollcut</a><a class="signin" href="${opts.signInUrl}">Sign in</a></nav>
+    <div class="rc-top"><h1>Your camera roll,<br>turned into <span class="y" id="rc-rot">TikToks.</span></h1><p>For everyone who films everything and posts nothing.</p><div class="ctas" style="justify-content:center">${cta()}</div></div>
+  </div>
+  <div class="rc-stage">
+    <div class="rc-phone" aria-hidden="true"><div class="rc-screen" id="rc-screen">
       <div class="rc-hd"><small>Today</small><b>Recents</b></div>
       <div class="rc-grid" id="rc-grid"><div class="rc-g" id="rc-g">${rollTiles()}</div></div>
-      <div class="rc-ft"><span class="rc-cnt">12,480 Photos, 3,201 Videos</span><b>Library</b><span>For You</span><span>Albums</span><span>Search</span><div class="rc-bot" id="rc-bot"><i></i><span id="rc-msg">Finding the best moments…</span></div></div>
+      <div class="rc-ft"><b>Library</b><span>For You</span><span>Albums</span><span>Search</span></div>
       <div class="rc-post" id="rc-post" style="background:url(${photoUrl(HERO.post, 480, 1040)}) center/cover,${PHOTOS[HERO.post][1]}">
-        <div class="views">${ico("play", "fill")} <em id="rc-views">0</em> views</div>
         <div class="ov"><b>${HERO.lines.join("<br>")}</b></div>
-        <div class="rail"><span class="av"></span><span>${ico("heart", "fill")}<small id="rc-likes">0</small></span><span>${ico("message")}<small>1,204</small></span><span>${ico("share")}<small>3,980</small></span></div>
-        <div class="cap"><strong>@you</strong><br>made from my camera roll ${HERO.tags.map((t) => `#${t}`).join(" ")}</div>
+        <div class="rail"><span class="av"></span><span>${ico("heart", "fill")}<small>38.2K</small></span><span>${ico("message")}<small>1,204</small></span><span>${ico("share")}<small>3,980</small></span></div>
+        <div class="cap"><strong>@you</strong><br>${HERO.tags.map((t) => `#${t}`).join(" ")}</div>
       </div>
-    </div></div></div>
-    <div class="rc-words">
-      <div class="rc-w" id="rc-w1"><h1>Your camera roll,<br>turned into <span class="y" id="rc-rot">TikToks.</span></h1><p>For everyone who films everything and posts nothing.</p>${cta()}</div>
-      <div class="rc-w" id="rc-w2"><h2>Rollcut finds<br>the good parts.</h2><p>It watches every clip and picks the moments worth posting.</p></div>
-      <div class="rc-w" id="rc-w3"><h2>And turns each<br>into a <span class="y">post.</span></h2><p>Text, hashtags and caption ready. Every day. You just swipe.</p>${cta()}</div>
+    </div></div>
+    <div class="rc-steps">
+      <div class="rc-st"><b>1</b><div><span>Your camera roll</span><small>Thousands of photos and videos</small></div></div>
+      <div class="rc-st"><b>2</b><div><span>Best moments picked</span><small>Rollcut checks every clip</small></div></div>
+      <div class="rc-st"><b>3</b><div><span>Ready to post</span><small>Text, hashtags and caption</small></div></div>
     </div>
-    <div class="rc-hint" id="rc-hint">Scroll</div>
   </div>
 </header>
 
@@ -481,69 +453,51 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
 <div class="wrap"><footer><span>© ${new Date().getFullYear()} Rollcut</span><span>Invite-only beta</span></footer></div>
 
 <script>
-  // The hero: everything follows how far the visitor has scrolled through it.
+  // The hero: the story plays on a loop inside the phone, and the step it's on lights up.
   (() => {
     const $ = (id) => document.getElementById(id);
-    const rc = $("rc"), g = $("rc-g"), grid = $("rc-grid"), screen = $("rc-screen"), post = $("rc-post");
-    if (!rc || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      if (rc) { $("rc-w1").style.opacity = 1; $("rc-w1").classList.add("on"); }
-      return;
-    }
-    const floats = [...$("rc-floats").children];
-    const clamp = (v) => Math.max(0, Math.min(1, v)), seg = (p, a, b) => clamp((p - a) / (b - a)), ease = (t) => 1 - Math.pow(1 - t, 3);
-    let picks = null, seen = null;
-    const show = (el, p, a, b, c, d) => {
-      const v = Math.min(seg(p, a, b), 1 - seg(p, c, d));
-      el.style.opacity = v;
-      el.style.transform = "translateY(" + (1 - v) * 24 + "px)";
-      el.classList.toggle("on", v > 0.5);
-    };
-    // Where a tile sits inside the screen, and the post drawn between that tile (k=0) and the full screen (k=1).
-    const at = (tile) => { const sr = screen.getBoundingClientRect(), r = tile.getBoundingClientRect(); return { sr, l: r.left - sr.left, t: r.top - sr.top, w: r.width, h: r.height }; };
-    const place = (tile, k) => {
-      const { sr, l, t, w, h } = at(tile);
-      Object.assign(post.style, { left: l * (1 - k) + "px", top: t * (1 - k) + "px", width: w + (sr.width - w) * k + "px", height: h + (sr.height - h) * k + "px", borderRadius: 4 * (1 - k) + "px" });
-      [...post.children].forEach((c) => (c.style.opacity = k > 0.9 ? 1 : 0));
-    };
+    const g = $("rc-g"), grid = $("rc-grid"), screen = $("rc-screen"), post = $("rc-post");
+    if (!g) return;
+    const steps = [...document.querySelectorAll(".rc-st")];
+    const step = (n) => steps.forEach((x, i) => x.classList.toggle("on", i === n));
+    step(2);
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const inView = () => {
       const box = grid.getBoundingClientRect();
-      return [...g.children].filter((x) => { const r = x.getBoundingClientRect(); return r.top > box.top + 8 && r.bottom < box.bottom - 8; });
+      return [...g.children].filter((x) => { const r = x.getBoundingClientRect(); return r.top > box.top + 6 && r.bottom < box.bottom - 6; });
     };
-    // The page opens on the finished post: it came from this tile, at the top of the roll.
-    const home = inView()[7];
-    home.style.background = post.style.background;
-    const frame = () => {
-      const p = clamp(-rc.getBoundingClientRect().top / (rc.offsetHeight - innerHeight));
-      floats.forEach((f) => f.style.setProperty("--y", -p * innerHeight * 1.2 * f.dataset.d + "px"));
-      $("rc-hint").style.opacity = 1 - seg(p, 0, 0.05);
-      // Then the roll scrolls on through thousands of photos.
-      g.style.transform = "translateY(" + -(g.offsetHeight - grid.offsetHeight) * 0.6 * ease(seg(p, 0.22, 0.42)) + "px)";
-      home.classList.toggle("on", p > 0.08 && p < 0.24);
-      // Photos get checked one by one, then three are picked.
-      if (!picks && p >= 0.42) {
-        const v = inView();
-        picks = [v[7], v[Math.floor(v.length * 0.45)], v[v.length - 9]];
-        picks[0].style.background = post.style.background;
-        seen = v.filter(() => Math.random() < 0.55).map((x) => [x, Math.random() * 0.88]);
-      }
-      const s = seg(p, 0.42, 0.56);
-      if (seen) seen.forEach(([x, at]) => x.classList.toggle("seen", s > 0 && s < 1 && s >= at && s < at + 0.12));
-      if (picks) picks.forEach((x, n) => x.classList.toggle("on", p > 0.56 + n * 0.03));
-      $("rc-bot").style.opacity = p > 0.42 ? 1 : 0;
-      $("rc-msg").textContent = p < 0.56 ? "Finding the best moments…" : Math.min(3, 1 + Math.floor((p - 0.56) / 0.03)) + " of 15,681 picked";
-      // The post: full at the start, back into its tile, and out again from the new pick.
-      if (p < 0.22) { post.style.opacity = 1; place(home, 1 - ease(seg(p, 0.1, 0.22))); }
-      else if (picks && p > 0.66) { post.style.opacity = 1; place(picks[0], ease(seg(p, 0.66, 0.8))); }
-      else post.style.opacity = 0;
-      const v = p < 0.22 ? 1 : ease(seg(p, 0.8, 0.92));
-      $("rc-views").textContent = Math.round(412 * v) + "K";
-      $("rc-likes").textContent = (38.2 * v).toFixed(1) + "K";
-      show($("rc-w1"), p, -1, 0, 0.14, 0.2);
-      show($("rc-w2"), p, 0.26, 0.32, 0.62, 0.67);
-      show($("rc-w3"), p, 0.7, 0.78, 2, 3);
-      requestAnimationFrame(frame);
+    // The post either fills the screen or sits exactly on a tile of the roll.
+    const place = (tile, full) => {
+      const s = screen.getBoundingClientRect(), r = tile.getBoundingClientRect();
+      post.classList.toggle("small", !full);
+      Object.assign(post.style, full
+        ? { left: "0", top: "0", width: s.width + "px", height: s.height + "px", borderRadius: "0" }
+        : { left: r.left - s.left + "px", top: r.top - s.top + "px", width: r.width + "px", height: r.height + "px", borderRadius: "3px" });
     };
-    frame();
+    const jump = async (fn) => { post.style.transition = g.style.transition = "none"; fn(); await wait(30); post.style.transition = g.style.transition = ""; };
+    const loop = async () => {
+      await jump(() => (g.style.transform = "none"));
+      const home = inView()[7];
+      home.style.background = post.style.background;
+      await jump(() => { place(home, true); post.style.opacity = 1; });
+      step(2); await wait(2600);
+      // Back into the roll it came from.
+      step(0); place(home, false); await wait(800);
+      post.style.opacity = 0; home.classList.add("on"); await wait(700); home.classList.remove("on");
+      g.style.transform = "translateY(" + -(g.offsetHeight - grid.offsetHeight) * 0.6 + "px)"; await wait(2300);
+      // Checked one by one, and one is picked.
+      step(1);
+      const v = inView();
+      for (const x of v.filter(() => Math.random() < 0.5).slice(0, 26)) { x.classList.add("seen"); setTimeout(() => x.classList.remove("seen"), 220); await wait(55); }
+      const pick = v[Math.floor(v.length * 0.4)];
+      pick.style.background = post.style.background; pick.classList.add("on"); await wait(900);
+      // Out as the post.
+      step(2); await jump(() => { place(pick, false); post.style.opacity = 1; }); place(pick, true); pick.classList.remove("on"); await wait(2600);
+      loop();
+    };
+    // Starts once the phone's size is known (fonts and layout settled).
+    addEventListener("load", () => loop());
     const words = ["TikToks.", "Reels.", "Shorts.", "posts."];
     let w = 0;
     setInterval(() => { w = (w + 1) % words.length; $("rc-rot").textContent = words[w]; }, 1800);

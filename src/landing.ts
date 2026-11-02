@@ -89,10 +89,20 @@ const HERO = {
   // Each post plays its video (public/landing/<video>.mp4, with a .jpg first frame), or else cuts
   // between three photos.
   posts: [
-    { video: "post-1", shots: ["post-1a", "post-1b", "post-1c"], lines: ["he heard the word 'walk'", "from three rooms away"], views: 412 },
-    { shots: ["post-2a", "post-2b", "post-2c"], lines: ["POV: the energy shift", "at the gate"], views: 268 },
+    { video: "post-1", shots: ["post-1a", "post-1b", "post-1c"], lines: ["he heard the word *walk*", "from three rooms away"], views: 412 },
   ],
 };
+/** Her earlier posts on the profile the new one lands on: public/landing/pf-1.jpg … pf-8.jpg, each with its text. */
+const PROFILE = [
+  { t: "beach *zoomies*", v: "24.1K" },
+  { t: "florence *mornings*", v: "8,902" },
+  { t: "his first *flight*", v: "113K" },
+  { t: "autumn *walks*", v: "15.6K" },
+  { t: "grandma's *favorite*", v: "41.2K" },
+  { t: "coat *season*", v: "6,310" },
+  { t: "after the *swim*", v: "19.8K" },
+  { t: "the *model*", v: "9,447" },
+];
 /**
  * The camera roll: one person's photos (public/landing/roll.jpg, a sheet of square thumbnails) laid
  * out in the order of roll.json, which keeps the same photo from showing up near itself.
@@ -118,7 +128,7 @@ export function landingHtml(opts: { signInUrl: string; google: boolean }): strin
 <meta property="og:description" content="Ready-to-post videos from your camera roll, every day. You just swipe.">
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Google+Sans+Flex:opsz,wght,ROND@6..144,400..900,100&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Instrument+Serif:ital@1&family=Google+Sans+Flex:opsz,wght,ROND@6..144,400..900,100&display=swap" rel="stylesheet">
 <style>
 :root{--ink:#0b0b0f;--paper:#fafafa;--muted:#8b8b98;--accent:#fe2c55;--accent2:#ff8a3d;--cyan:#25f4ee;--yellow:#ffe41a;color-scheme:dark}
 *{box-sizing:border-box}
@@ -252,6 +262,8 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 .rc-top{text-align:center;padding:6px 0 0}
 .rc-top h1{margin:0 auto;font-size:clamp(36px,5.6vw,72px);line-height:1.02;letter-spacing:-.035em;font-weight:800}
 .rc-top h1 .y{color:var(--md-primary,#825500)}
+.acc{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-weight:400;letter-spacing:-.01em}
+.rc-top h1 .acc{font-size:1.12em;padding-right:.04em}
 .rc-top p{margin:12px auto 20px;font-size:clamp(16px,1.7vw,20px);line-height:1.45;color:var(--md-on-surface-variant,#534432)}
 .rc-stage{position:relative;height:min(52vh,520px);margin:26px auto 0;max-width:1100px}
 .rc-phone{position:absolute;left:50%;top:0;height:100%;aspect-ratio:9/19.5;transform:translateX(-50%);border-radius:44px;background:#111;padding:9px;box-shadow:0 30px 70px rgba(60,30,0,.22);z-index:2}
@@ -276,7 +288,8 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 .rc-card .bar{position:absolute;left:10px;right:10px;top:40px;height:3px;border-radius:2px;background:rgba(255,255,255,.35);z-index:2;opacity:0}
 .rc-card .bar i{display:block;height:100%;width:0;background:#fff;border-radius:2px}
 .rc-card .ov{position:absolute;left:0;right:0;top:16%;display:flex;justify-content:center;padding:0 10px;z-index:2}
-.rc-card .ov b{background:#F5C400;color:#111;font-size:13px;line-height:1.2;font-weight:800;padding:6px 9px;border-radius:7px;text-align:center;opacity:0}
+.rc-card .ov b{color:#fff;font-size:16px;line-height:1.15;font-weight:800;text-align:center;opacity:0;text-shadow:0 2px 3px rgba(0,0,0,.55),0 0 16px rgba(0,0,0,.45)}
+.rc-card .ov .acc{color:#F5C400;font-size:1.35em;line-height:.9}
 .rc-card .ov span{display:inline-block;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
 .rc-card .ov span.in{opacity:1;transform:none}
 .rc-card .tags{position:absolute;left:12px;right:12px;bottom:76px;font-size:10px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.8);opacity:0;transition:opacity .3s;z-index:2}
@@ -303,6 +316,9 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 .rc-profile .pf-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5px}
 .rc-profile .pf-grid i{aspect-ratio:3/4;position:relative;display:block}
 .rc-profile .pf-grid em{position:absolute;left:4px;bottom:3px;display:flex;align-items:center;gap:2px;color:#fff;font-size:9px;font-weight:700;font-style:normal;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.rc-profile .pf-grid b{position:absolute;left:0;right:0;top:34%;text-align:center;color:#fff;font-size:9px;font-weight:800;line-height:1.1;padding:0 4px;text-shadow:0 1px 3px rgba(0,0,0,.7),0 0 8px rgba(0,0,0,.4)}
+.rc-profile .pf-grid b .acc{color:#F5C400;font-size:1.4em}
+.rc-profile .pf-grid .new b{display:none}
 .rc-profile .pf-grid em svg{width:8px;height:8px}
 .rc-profile .pf-grid em u{text-decoration:none}
 .rc-profile .pf-grid s{position:absolute;left:4px;top:4px;background:#fe2c55;color:#fff;font-size:8px;font-weight:800;text-decoration:none;padding:2px 5px;border-radius:4px}
@@ -319,7 +335,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 .rc-say b{display:inline-block;font-size:20px;font-weight:800;transition:opacity .25s,transform .25s}
 .rc-say b.out{opacity:0;transform:translateY(6px)}
 @media (max-width:700px){
-  .rc-card .ov b{font-size:10px;padding:4px 7px}
+  .rc-card .ov b{font-size:12px}
   .rc-card .tags{font-size:8px;bottom:60px}
   .rc-card .btns span{width:34px;height:34px}
   .rc-card .btns svg{width:17px;height:17px}
@@ -411,7 +427,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
   <div class="wrap">
     <nav><a class="logo" href="/"><i></i>Rollcut</a><a class="signin" href="${opts.signInUrl}">Sign in</a></nav>
     <div class="rc-top">
-      <h1>Become an <span class="y">influencer.</span></h1>
+      <h1>Become an <span class="y acc">influencer.</span></h1>
       <p>Rollcut turns your phone's best videos into TikToks.</p>
       <div class="ctas" style="justify-content:center">${cta()}</div>
     </div>
@@ -424,7 +440,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       <div class="rc-ft"><b>Library</b><span>For You</span><span>Albums</span><span>Search</span></div>
     </div></div>
   </div>
-  <div class="rc-say"><div class="rc-dots" id="rc-dots"><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div><b id="rc-say">Your camera roll</b></div>
+  <div class="rc-say"><div class="rc-dots" id="rc-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div><b id="rc-say">Your camera roll</b></div>
 </header>
 
 
@@ -522,15 +538,15 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       const travel = g.offsetHeight - grid.offsetHeight;
       // 1. The camera roll: thousands of tiny photos fly by.
       await beat(0, "Your camera roll");
-      await g.animate([{ transform: "translateY(-" + travel + "px)" }, { transform: "translateY(-" + travel * 0.4 + "px)" }], { duration: 1500, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" }).finished;
+      await g.animate([{ transform: "translateY(-" + travel + "px)" }, { transform: "translateY(-" + travel * 0.4 + "px)" }], { duration: 1000, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" }).finished;
       // 2. It slowly zooms in and checks the photos one by one.
       await beat(1, "Looking for the best ones");
       zoom.style.transformOrigin = 30 + Math.random() * 40 + "% " + (35 + Math.random() * 30) + "%";
-      await zoom.animate([{ transform: "scale(1)" }, { transform: "scale(2.6)" }], { duration: 1600, easing: "cubic-bezier(.45,0,.2,1)", fill: "forwards" }).finished;
+      await zoom.animate([{ transform: "scale(1)" }, { transform: "scale(2.6)" }], { duration: 1100, easing: "cubic-bezier(.45,0,.2,1)", fill: "forwards" }).finished;
       const v = inView();
       if (v.length < 4) return void setTimeout(loop, 500);
-      const keep = new Set([Math.floor(v.length * 0.3), Math.floor(v.length * 0.66)]);
-      const order = [...v.keys()].filter((i) => i % 4 === 0 || keep.has(i)).slice(0, 8);
+      const keep = new Set([Math.floor(v.length * 0.45)]);
+      const order = [...v.keys()].filter((i) => i % 5 === 0 || keep.has(i)).slice(0, 6);
       for (const k of keep) if (!order.includes(k)) order.push(k);
       order.sort((a, b) => a - b);
       scope.style.opacity = 1;
@@ -538,7 +554,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
         const r = rel(v[i], grid);
         await scope.animate([{}, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" }], { duration: 110, easing: "ease-out", fill: "forwards" }).finished;
         v[i].classList.add(keep.has(i) ? "keep" : "dim");
-        await wait(keep.has(i) ? 220 : 30);
+        await wait(keep.has(i) ? 200 : 20);
       }
       scope.style.opacity = 0;
       // 3. The best are picked.
@@ -546,16 +562,16 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       v.forEach((x, i) => { if (!keep.has(i)) x.classList.add("dim"); });
       const picks = [...keep].map((i) => v[i]);
       picks.forEach((x, k) => { x.style.background = POSTS[k].bg; x.classList.add("lift"); });
-      await wait(700);
+      await wait(450);
       // 4. Each pick grows into a video on the phone, and is swiped like in the app: the first is
       // skipped (left), the second kept (right), and the kept one is posted to a TikTok-style profile.
       const screen = stage.querySelector(".rc-screen");
-      for (const [n, k] of [1, 0].entries()) {
-        const x = picks[k], keepIt = n === 1;
-        await beat(3 + n, keepIt ? "Keep the ones you love" : "Skip the ones you don't");
+      for (const [n, k] of [0].entries()) {
+        const x = picks[k], keepIt = true;
+        await beat(3 + n, "Edited and ready to post");
         const c = document.createElement("div");
         c.className = "rc-card";
-        const words = POSTS[k].lines.map((l) => l.split(" ").map((w) => "<span>" + w + "</span>").join(" ")).join("<br>");
+        const words = POSTS[k].lines.map((l) => l.split(" ").map((w) => (w.length > 2 && w.startsWith("*") && w.endsWith("*") ? '<span class="acc">' + w.slice(1, -1) + "</span>" : "<span>" + w + "</span>")).join(" ")).join("<br>");
         const vid = POSTS[k].video;
         c.innerHTML = (vid ? '<video class="shot" poster="' + vid + '.jpg" muted playsinline preload="auto"><source src="' + vid + '.webm" type="video/webm"><source src="' + vid + '.mp4" type="video/mp4"></video>' : "") +
           POSTS[k].shots.map((bg, n) => '<i class="shot" style="background:' + bg + (n ? ";opacity:0" : "") + '"></i>').join("") +
@@ -598,14 +614,14 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
         await wait(250);
       }
       // 5. The kept one, posted: a TikTok-style profile with it first in the grid, its views climbing.
-      await beat(5, "Posted to your TikTok");
+      await beat(4, "Posted to your TikTok");
       const pf = document.createElement("div");
       pf.className = "rc-profile";
-      const older = [...g.children].filter((t) => !t.classList.contains("dim") && t !== picks[0]).slice(0, 8);
+      const older = ${JSON.stringify(PROFILE.map((p) => ({ v: p.v, t: p.t.replace(/\*(.+?)\*/, '<span class="acc">$1</span>') })))};
       pf.innerHTML = '<div class="pf-top"><span class="pf-av"></span><b>@you</b><div class="pf-stats"><span><b>48</b>Following</span><span><b class="pf-f">1,204</b>Followers</span><span><b class="pf-l">8,930</b>Likes</span></div></div>' +
         '<div class="pf-tabs"><i class="on"></i><i></i></div><div class="pf-grid">' +
         '<i class="new" style="background:' + POSTS[0].bg.replace(/"/g, "'") + '"><em>' + PLAYS + ' <u>0</u></em><s>New</s></i>' +
-        older.map((t, i) => '<i style="background:' + t.style.background.replace(/"/g, "'") + '"><em>' + PLAYS + ' ' + ["2,104", "988", "13.2K", "641", "3,870", "1,215", "702", "5,440"][i] + '</em></i>').join("") +
+        older.map((p, i) => "<i style='background:url(/landing/pf-" + (i + 1) + ".jpg) center/cover,#c8a888'><b>" + p.t + "</b><em>" + PLAYS + " " + p.v + "</em></i>").join("") +
         '</div><div class="pf-toast">' + YES + ' Posted</div>';
       screen.appendChild(pf);
       await pf.animate([{ transform: "translateY(100%)" }, { transform: "none" }], { duration: 550, easing: "cubic-bezier(.2,.9,.25,1)", fill: "forwards" }).finished;

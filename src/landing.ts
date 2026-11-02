@@ -385,7 +385,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
     <nav><a class="logo" href="/"><i></i>Rollcut</a><a class="signin" href="${opts.signInUrl}">Sign in</a></nav>
     <div class="rc-top">
       <h1>Become an <span class="y">influencer.</span></h1>
-      <p>Rollcut picks the best videos from your phone library and edits them for you.</p>
+      <p>Rollcut turns your phone's best videos into TikToks.</p>
       <div class="ctas" style="justify-content:center">${cta()}</div>
     </div>
   </div>

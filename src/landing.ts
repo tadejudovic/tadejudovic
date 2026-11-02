@@ -290,6 +290,27 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 .rc-card .btns svg{width:22px;height:22px}
 .rc-card .btns .no{background:#fff;color:#dc2626}
 .rc-card .btns .yes{background:#16a34a;color:#fff}
+.rc-profile{position:absolute;inset:0;z-index:7;background:#fff;color:#111;display:flex;flex-direction:column}
+.rc-profile .pf-top{padding:42px 12px 10px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.rc-profile .pf-av{width:54px;height:54px;border-radius:50%;background:url(/landing/post-1.jpg) center/cover,#F5A300;border:2px solid #fff;box-shadow:0 0 0 2px #fe2c55}
+.rc-profile .pf-top>b{font-size:13px;font-weight:800}
+.rc-profile .pf-stats{display:flex;gap:14px;margin-top:4px}
+.rc-profile .pf-stats span{display:grid;justify-items:center;font-size:8px;color:#777}
+.rc-profile .pf-stats b{font-size:13px;color:#111;font-weight:800}
+.rc-profile .pf-tabs{display:flex;border-bottom:1px solid #eee}
+.rc-profile .pf-tabs i{flex:1;height:26px;position:relative}
+.rc-profile .pf-tabs i.on::after{content:"";position:absolute;left:30%;right:30%;bottom:0;height:2px;background:#111}
+.rc-profile .pf-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5px}
+.rc-profile .pf-grid i{aspect-ratio:3/4;position:relative;display:block}
+.rc-profile .pf-grid em{position:absolute;left:4px;bottom:3px;display:flex;align-items:center;gap:2px;color:#fff;font-size:9px;font-weight:700;font-style:normal;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.rc-profile .pf-grid em svg{width:8px;height:8px}
+.rc-profile .pf-grid em u{text-decoration:none}
+.rc-profile .pf-grid s{position:absolute;left:4px;top:4px;background:#fe2c55;color:#fff;font-size:8px;font-weight:800;text-decoration:none;padding:2px 5px;border-radius:4px}
+.rc-profile .pf-grid .new{outline:2px solid #F5C400;outline-offset:-2px;animation:pfIn .5s .2s both cubic-bezier(.3,1.5,.6,1)}
+@keyframes pfIn{from{transform:scale(.6);opacity:0}}
+.rc-profile .pf-toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:5px;background:#111;color:#fff;font-size:11px;font-weight:800;padding:6px 11px;border-radius:999px;animation:pfToast 2.6s .3s both}
+.rc-profile .pf-toast svg{width:12px;height:12px;color:#22c55e}
+@keyframes pfToast{0%{opacity:0;transform:translate(-50%,-8px)}12%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
 .rc-g i.posted{opacity:1;filter:none;outline:2px solid #16a34a;z-index:3}
 .rc-say{text-align:center;margin:18px 20px 0;min-height:56px}
 .rc-dots{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
@@ -403,7 +424,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       <div class="rc-ft"><b>Library</b><span>For You</span><span>Albums</span><span>Search</span></div>
     </div></div>
   </div>
-  <div class="rc-say"><div class="rc-dots" id="rc-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div><b id="rc-say">Your camera roll</b></div>
+  <div class="rc-say"><div class="rc-dots" id="rc-dots"><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div><b id="rc-say">Your camera roll</b></div>
 </header>
 
 
@@ -479,6 +500,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       if (video) return { bg: `url(/landing/${video}.jpg) center/cover,#c8a888`, video: `/landing/${video}`, shots: [], lines: p.lines, views: p.views };
       return { bg: shots[0], shots, lines: p.lines, views: p.views };
     }))};
+    const PLAYS = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>';
     const NO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
     const YES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -494,6 +516,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
     const loop = async () => {
       stage.querySelectorAll(".rc-card").forEach((c) => c.remove());
       g.querySelectorAll(".posted").forEach((x) => x.classList.remove("posted"));
+      stage.querySelectorAll(".rc-profile").forEach((x) => x.remove());
       [...g.children].forEach((x) => (x.className = ""));
       zoom.getAnimations().forEach((a) => a.cancel());
       const travel = g.offsetHeight - grid.offsetHeight;
@@ -525,11 +548,11 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       picks.forEach((x, k) => { x.style.background = POSTS[k].bg; x.classList.add("lift"); });
       await wait(700);
       // 4. Each pick grows into a video on the phone, and is swiped like in the app: the first is
-      // kept (right), the second skipped (left).
+      // skipped (left), the second kept (right), and the kept one is posted to a TikTok-style profile.
       const screen = stage.querySelector(".rc-screen");
-      for (const [k, x] of picks.entries()) {
-        const keepIt = k === 0;
-        await beat(3 + k, keepIt ? "Made into a TikTok" : "You keep only the ones you like");
+      for (const [n, k] of [1, 0].entries()) {
+        const x = picks[k], keepIt = n === 1;
+        await beat(3 + n, keepIt ? "Keep the ones you love" : "Skip the ones you don't");
         const c = document.createElement("div");
         c.className = "rc-card";
         const words = POSTS[k].lines.map((l) => l.split(" ").map((w) => "<span>" + w + "</span>").join(" ")).join("<br>");
@@ -574,7 +597,25 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
         if (keepIt) x.classList.add("posted");
         await wait(250);
       }
-      await wait(900);
+      // 5. The kept one, posted: a TikTok-style profile with it first in the grid, its views climbing.
+      await beat(5, "Posted to your TikTok");
+      const pf = document.createElement("div");
+      pf.className = "rc-profile";
+      const older = [...g.children].filter((t) => !t.classList.contains("dim") && t !== picks[0]).slice(0, 8);
+      pf.innerHTML = '<div class="pf-top"><span class="pf-av"></span><b>@you</b><div class="pf-stats"><span><b>48</b>Following</span><span><b class="pf-f">1,204</b>Followers</span><span><b class="pf-l">8,930</b>Likes</span></div></div>' +
+        '<div class="pf-tabs"><i class="on"></i><i></i></div><div class="pf-grid">' +
+        '<i class="new" style="background:' + POSTS[0].bg.replace(/"/g, "'") + '"><em>' + PLAYS + ' <u>0</u></em><s>New</s></i>' +
+        older.map((t, i) => '<i style="background:' + t.style.background.replace(/"/g, "'") + '"><em>' + PLAYS + ' ' + ["2,104", "988", "13.2K", "641", "3,870", "1,215", "702", "5,440"][i] + '</em></i>').join("") +
+        '</div><div class="pf-toast">' + YES + ' Posted</div>';
+      screen.appendChild(pf);
+      await pf.animate([{ transform: "translateY(100%)" }, { transform: "none" }], { duration: 550, easing: "cubic-bezier(.2,.9,.25,1)", fill: "forwards" }).finished;
+      const count = (el, to, fmt) => { const t0 = performance.now(); const f = (t) => { const q = Math.min(1, (t - t0) / 2200); el.textContent = fmt(to * (1 - Math.pow(1 - q, 3))); if (q < 1) requestAnimationFrame(f); }; requestAnimationFrame(f); };
+      count(pf.querySelector(".new u"), POSTS[0].views * 1000, (v) => (v >= 1000 ? (v / 1000).toFixed(v >= 100000 ? 0 : 1) + "K" : Math.round(v)));
+      count(pf.querySelector(".pf-f"), 1204 + 3100, (v) => Math.round(v).toLocaleString("en-US"));
+      count(pf.querySelector(".pf-l"), 8930 + 38200, (v) => (v >= 10000 ? (v / 1000).toFixed(1) + "K" : Math.round(v).toLocaleString("en-US")));
+      await wait(3600);
+      await pf.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, fill: "forwards" }).finished;
+      pf.remove();
       loop();
     };
     if (document.readyState === "complete") loop(); else addEventListener("load", () => loop());

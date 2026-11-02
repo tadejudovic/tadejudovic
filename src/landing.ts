@@ -79,23 +79,26 @@ export const FAVICON = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2
 export const LOGO_MARK = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%226%206%2088%2088%22%3E%3Crect%20x=%226%22%20y=%226%22%20width=%2288%22%20height=%2288%22%20rx=%2232%22%20fill=%22%23F5A300%22/%3E%3Cellipse%20cx=%2236%22%20cy=%2240%22%20rx=%226.5%22%20ry=%228%22%20fill=%22%232B1A00%22/%3E%3Cpath%20d=%22M57%2041Q64%2034%2071%2041%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%227%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M30%2058Q50%2078%2070%2058%22%20fill=%22none%22%20stroke=%22%232B1A00%22%20stroke-width=%228.5%22%20stroke-linecap=%22round%22/%3E%3C/svg%3E";
 
 /**
- * The hero shows real videos made with Rollcut, each in a phone with its view count. Until the real
- * ones are added, each is a template: a photo with its text, marked "Example". To use a real video,
- * drop hero-1.mp4 … hero-3.mp4 into public/landing/ and fill in its views.
+ * The hero: a phone with a camera roll of thousands of tiny photos. It slowly zooms in, checks the
+ * photos one by one, picks the best and they fly out beside the phone as finished TikToks. A short
+ * caption under the phone names each step. Plays on its own, on a loop.
  */
-const HERO_VIDEOS = [
-  { photo: 9, lines: ["POV: the energy shift", "at the gate"], views: "" },
-  { photo: 5, lines: ["he heard the word 'walk'", "from three rooms away"], views: "" },
-  { photo: 1, lines: ["first class behavior,", "economy ticket"], views: "" },
-];
-/** The proof line under the videos: the account and its real numbers (empty shows a placeholder). */
-const PROOF = { handle: "@lexintheair", views: "", days: 30 };
-/** Before / after: a raw clip from the camera roll (its photo) and the post made from it. */
-const BEFORE_AFTER = { photo: 13, lines: ["the audacity", "of this dog"] };
-const heroVideo = (i: number) => {
-  const name = `hero-${i + 1}.mp4`;
-  return fs.existsSync(path.join(LOCAL_DIR, name)) ? `/landing/${name}` : null;
+const HERO = {
+  cols: 12,
+  rows: 70,
+  posts: [
+    { photo: 5, lines: ["he heard the word 'walk'", "from three rooms away"], views: 412 },
+    { photo: 9, lines: ["POV: the energy shift", "at the gate"], views: 268 },
+  ],
 };
+function rollTiles(): string {
+  let seed = 21;
+  const next = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  return Array.from({ length: HERO.cols * HERO.rows }, () => {
+    const i = Math.floor(next() * PHOTOS.length);
+    return `<i style="background:url(${photoUrl(i, 96, 96)}) center/cover,${PHOTOS[i][1]}"></i>`;
+  }).join("");
+}
 
 export function landingHtml(opts: { signInUrl: string; google: boolean }): string {
   const g = `<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
@@ -238,46 +241,48 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
   .r{opacity:1;transform:none}
 }
 
-/* ---- Hero: the promise, then real videos made with Rollcut, each with its views ---- */
-.rc{position:relative;padding:0 0 64px;background:var(--md-surface,#fff8f4);color:var(--md-on-surface,#231a0d)}
-.rc-top{text-align:center;padding:10px 0 0}
-.rc-top h1{margin:0 auto;font-size:clamp(36px,5.4vw,68px);line-height:1.02;letter-spacing:-.035em;font-weight:800;max-width:13em}
+/* ---- Hero: the headline, then a phone whose camera roll turns into posts ---- */
+.rc{position:relative;padding:0 0 40px;background:var(--md-surface,#fff8f4);color:var(--md-on-surface,#231a0d);overflow:hidden}
+.rc-top{text-align:center;padding:6px 0 0}
+.rc-top h1{margin:0 auto;font-size:clamp(36px,5.6vw,72px);line-height:1.02;letter-spacing:-.035em;font-weight:800}
 .rc-top h1 .y{color:var(--md-primary,#825500)}
-.rc-top p{margin:14px auto 22px;font-size:clamp(16px,1.7vw,20px);line-height:1.45;color:var(--md-on-surface-variant,#534432);max-width:30em}
-.rc-top .note{display:block;margin-top:10px}
-.rc-vids{display:flex;justify-content:center;align-items:center;gap:22px;margin:40px auto 0;padding:0 20px}
-.rc-vid{position:relative;flex:none;width:min(230px,28vw);aspect-ratio:9/16;border-radius:26px;overflow:hidden;background:#111;box-shadow:0 24px 60px rgba(60,30,0,.22);border:6px solid #111}
-.rc-vid:nth-child(2){width:min(270px,33vw);z-index:2}
-.rc-vid img,.rc-vid video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.rc-vid .ov{position:absolute;left:0;right:0;top:14%;display:flex;justify-content:center;padding:0 10px}
-.rc-vid .ov b{background:#F5C400;color:#111;font-size:clamp(11px,1.1vw,14px);line-height:1.2;font-weight:800;padding:6px 9px;border-radius:7px;text-align:center}
-.rc-vid .views{position:absolute;left:10px;bottom:10px;display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px}
-.rc-vid .views .ico{width:12px;height:12px;fill:#fff;stroke:none}
-.rc-vid .ex{background:#fff;color:#111}
-.rc-proof{text-align:center;margin:26px 20px 0;font-size:16px;font-weight:600;color:var(--md-on-surface-variant,#534432)}
-.rc-proof b{color:var(--md-on-surface,#231a0d)}
-.rc-proof .ph{background:var(--md-primary-container,#ffddb4);color:var(--md-on-primary-container,#633f00);padding:1px 8px;border-radius:6px}
-/* before / after */
-.ba{display:flex;justify-content:center;align-items:center;gap:28px;margin-top:36px}
-.ba figure{margin:0;display:grid;gap:10px;justify-items:center}
-.ba figcaption{font-weight:700;font-size:15px;color:var(--md-on-surface-variant)}
-.ba .raw,.ba .done{width:min(220px,38vw);aspect-ratio:9/16;border-radius:22px;overflow:hidden;position:relative;background:#111}
-.ba .raw img,.ba .done img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.ba .raw img{filter:saturate(.8) brightness(.95)}
-.ba .raw em{position:absolute;right:8px;bottom:8px;color:#fff;font-style:normal;font-weight:700;font-size:12px;text-shadow:0 1px 3px rgba(0,0,0,.8)}
-.ba .done{border:6px solid #111}
-.ba .done .ov{position:absolute;left:0;right:0;top:14%;display:flex;justify-content:center;padding:0 10px}
-.ba .done .ov b{background:#F5C400;color:#111;font-size:13px;line-height:1.2;font-weight:800;padding:6px 9px;border-radius:7px;text-align:center}
-.ba .to .ico{width:40px;height:40px;color:var(--md-primary)}
+.rc-top p{margin:12px auto 20px;font-size:clamp(16px,1.7vw,20px);line-height:1.45;color:var(--md-on-surface-variant,#534432)}
+.rc-stage{position:relative;height:min(52vh,520px);margin:26px auto 0;max-width:1100px}
+.rc-phone{position:absolute;left:50%;top:0;height:100%;aspect-ratio:9/19.5;transform:translateX(-50%);border-radius:44px;background:#111;padding:9px;box-shadow:0 30px 70px rgba(60,30,0,.22);z-index:2}
+.rc-phone::before{content:"";position:absolute;top:18px;left:50%;width:30%;height:20px;margin-left:-15%;background:#000;border-radius:12px;z-index:9}
+.rc-screen{position:relative;width:100%;height:100%;border-radius:36px;overflow:hidden;background:#fff;display:flex;flex-direction:column;color:#111}
+.rc-hd{padding:40px 12px 6px;background:#fff;z-index:3}
+.rc-hd small{font-size:9px;font-weight:600;color:#888}
+.rc-hd b{display:block;font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.rc-grid{flex:1;overflow:hidden;position:relative}
+.rc-zoom{transform-origin:50% 50%;will-change:transform}
+.rc-g{display:grid;grid-template-columns:repeat(${HERO.cols},1fr);gap:1px}
+.rc-g i{aspect-ratio:1;position:relative;display:block;transition:opacity .35s,filter .35s,transform .35s}
+.rc-g i.dim{opacity:.28;filter:grayscale(1)}
+.rc-g i.keep::after{content:"";position:absolute;right:1px;top:1px;width:6px;height:6px;border-radius:50%;background:#F5C400 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center/62% no-repeat;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.rc-g i.lift{transform:scale(1.15);z-index:3;box-shadow:0 3px 8px rgba(0,0,0,.35);outline:1.5px solid #F5C400}
+.rc-scope{position:absolute;z-index:4;border:2.5px solid #F5C400;border-radius:4px;box-shadow:0 0 0 3px rgba(245,196,0,.3),0 0 18px rgba(245,196,0,.6);opacity:0;pointer-events:none}
+.rc-ft{height:44px;border-top:1px solid #ddd;background:#fafafa;display:flex;justify-content:space-around;align-items:center;font-size:8px;font-weight:700;color:#888;position:relative;z-index:3}
+.rc-ft b{color:#0a7aff}
+.rc-cnt{position:absolute;left:0;right:0;bottom:50px;text-align:center;z-index:4;font-size:12px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+.rc-card{position:absolute;left:0;top:0;z-index:5;border-radius:18px;overflow:hidden;box-shadow:0 20px 50px rgba(60,30,0,.3);border:5px solid #111;opacity:0;transform-origin:0 0;color:#fff}
+.rc-card .ov{position:absolute;left:0;right:0;top:13%;display:flex;justify-content:center;padding:0 8px;opacity:0;transition:opacity .3s}
+.rc-card .ov b{background:#F5C400;color:#111;font-size:12px;line-height:1.2;font-weight:800;padding:5px 8px;border-radius:6px;text-align:center}
+.rc-card .v{position:absolute;left:8px;bottom:8px;display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.6);font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;opacity:0;transition:opacity .3s}
+.rc-card .v .ico{width:10px;height:10px;fill:#fff;stroke:none}
+.rc-card .v em{font-style:normal;color:#F5C400}
+.rc-card.done .ov,.rc-card.done .v{opacity:1}
+.rc-say{text-align:center;margin:18px 20px 0;min-height:56px}
+.rc-dots{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
+.rc-dots i{width:22px;height:4px;border-radius:2px;background:var(--md-surface-container-highest,#f3dfcb);transition:background .3s}
+.rc-dots i.on{background:var(--md-primary,#825500)}
+.rc-say b{display:inline-block;font-size:20px;font-weight:800;transition:opacity .25s,transform .25s}
+.rc-say b.out{opacity:0;transform:translateY(6px)}
 @media (max-width:700px){
-  .rc-vids{gap:10px;margin-top:30px;padding:0 8px}
-  .rc-vid{width:27vw;border-width:4px;border-radius:18px}
-  .rc-vid:nth-child(2){width:38vw}
-  .rc-vid .views{font-size:10px;padding:4px 7px;left:6px;bottom:6px}
-  .rc-vid .ov b{font-size:9px;padding:4px 6px}
-  .rc-vid:nth-child(2) .ov b{font-size:11px}
-  .ba{gap:12px}
-  .ba .to .ico{width:26px;height:26px}
+  .rc-card{border-width:3px;border-radius:12px}
+  .rc-card .ov b{font-size:8px;padding:3px 5px}
+  .rc-card .v{font-size:8px;padding:3px 6px;left:4px;bottom:4px}
+  .rc-say b{font-size:16px}
 }
 
 /* ---- Material 3 Expressive, the same tokens as the app: one amber seed, light and dark following the phone.
@@ -364,35 +369,25 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
   <div class="wrap">
     <nav><a class="logo" href="/"><i></i>Rollcut</a><a class="signin" href="${opts.signInUrl}">Sign in</a></nav>
     <div class="rc-top">
-      <h1>Your camera roll, turned into <span class="y">TikToks.</span></h1>
-      <p>Rollcut picks the best moments from the videos on your phone and makes them ready to post, every day.</p>
+      <h1>Become an <span class="y">influencer.</span></h1>
+      <p>Your phone's best videos, made into TikToks.</p>
       <div class="ctas" style="justify-content:center">${cta()}</div>
-      <span class="note">Invite-only beta</span>
     </div>
   </div>
-  <div class="rc-vids">
-    ${HERO_VIDEOS.map((v, i) => {
-      const video = heroVideo(i);
-      const poster = photoUrl(v.photo, 540, 960);
-      return `<div class="rc-vid">${video ? `<video src="${video}" poster="${poster}" autoplay muted loop playsinline></video>` : `<img src="${poster}" alt="" style="background:${PHOTOS[v.photo][1]}"><div class="ov"><b>${v.lines.join("<br>")}</b></div>`}<span class="views${v.views ? "" : " ex"}">${v.views ? `${ico("play", "fill")} ${v.views} views` : "Example"}</span></div>`;
-    }).join("")}
+  <div class="rc-stage" id="rc-stage" aria-hidden="true">
+    <div class="rc-phone"><div class="rc-screen">
+      <div class="rc-hd"><small>Today</small><b>Recents</b></div>
+      <div class="rc-grid" id="rc-grid"><div class="rc-zoom" id="rc-zoom"><div class="rc-g" id="rc-g">${rollTiles()}</div></div><div class="rc-scope" id="rc-scope"></div></div>
+      <span class="rc-cnt">12,480 Photos, 3,201 Videos</span>
+      <div class="rc-ft"><b>Library</b><span>For You</span><span>Albums</span><span>Search</span></div>
+    </div></div>
   </div>
-  <p class="rc-proof">Made from <b>${PROOF.handle}</b>'s camera roll: ${PROOF.views ? `<b>${PROOF.views} views</b>` : `<span class="ph">X views</span>`} in ${PROOF.days} days</p>
+  <div class="rc-say"><div class="rc-dots" id="rc-dots"><i class="on"></i><i></i><i></i><i></i></div><b id="rc-say">Your camera roll</b></div>
 </header>
 
 
 
 <div class="light">
-  <section class="block"><div class="wrap" style="text-align:center">
-    <p class="eyebrow r">Before and after</p>
-    <h2 class="r d1">A clip you forgot. A post people watch.</h2>
-    <div class="ba r d2">
-      <figure><div class="raw"><img src="${photoUrl(BEFORE_AFTER.photo, 440, 780)}" alt="" style="background:${PHOTOS[BEFORE_AFTER.photo][1]}"><em>0:47</em></div><figcaption>In your camera roll</figcaption></figure>
-      <span class="to">${ico("arrow")}</span>
-      <figure><div class="done"><img src="${photoUrl(BEFORE_AFTER.photo, 440, 780)}" alt="" style="background:${PHOTOS[BEFORE_AFTER.photo][1]}"><div class="ov"><b>${BEFORE_AFTER.lines.join("<br>")}</b></div></div><figcaption>Made by Rollcut</figcaption></figure>
-    </div>
-  </div></section>
-
   <section class="block"><div class="wrap">
     <p class="eyebrow r">How it works</p>
     <h2 class="r d1">Three steps. Then it runs itself.</h2>
@@ -451,6 +446,89 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
 <div class="wrap"><footer><span>© ${new Date().getFullYear()} Rollcut</span><span>Invite-only beta</span></footer></div>
 
 <script>
+  // The hero: the camera roll zooms in, the best photos are picked, and they fly out as posts.
+  (() => {
+    const $ = (id) => document.getElementById(id);
+    const stage = $("rc-stage"), g = $("rc-g"), zoom = $("rc-zoom"), grid = $("rc-grid"), scope = $("rc-scope"), say = $("rc-say");
+    if (!stage || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const dots = [...$("rc-dots").children];
+    const POSTS = ${JSON.stringify(HERO.posts.map((p) => ({ bg: `url(${photoUrl(p.photo, 480, 860)}) center/cover,${PHOTOS[p.photo][1]}`, text: p.lines.join("<br>"), views: p.views })))};
+    const PLAY = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>';
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const beat = async (n, text) => {
+      dots.forEach((d, i) => d.classList.toggle("on", i <= n));
+      say.classList.add("out"); await wait(220); say.textContent = text; say.classList.remove("out");
+    };
+    const inView = () => {
+      const b = grid.getBoundingClientRect();
+      return [...g.children].filter((x) => { const r = x.getBoundingClientRect(); return r.top > b.top + 4 && r.bottom < b.bottom - 4 && r.left > b.left + 2 && r.right < b.right - 2; });
+    };
+    const rel = (el, to) => { const a = el.getBoundingClientRect(), b = to.getBoundingClientRect(); return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height }; };
+    const loop = async () => {
+      stage.querySelectorAll(".rc-card").forEach((c) => c.remove());
+      [...g.children].forEach((x) => (x.className = ""));
+      zoom.getAnimations().forEach((a) => a.cancel());
+      const travel = g.offsetHeight - grid.offsetHeight;
+      // 1. The camera roll: thousands of tiny photos fly by.
+      await beat(0, "Your camera roll");
+      await g.animate([{ transform: "translateY(-" + travel + "px)" }, { transform: "translateY(-" + travel * 0.4 + "px)" }], { duration: 2600, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" }).finished;
+      // 2. It slowly zooms in and checks the photos one by one.
+      await beat(1, "Looking for the best ones");
+      zoom.style.transformOrigin = 30 + Math.random() * 40 + "% " + (35 + Math.random() * 30) + "%";
+      await zoom.animate([{ transform: "scale(1)" }, { transform: "scale(2.6)" }], { duration: 2600, easing: "cubic-bezier(.45,0,.2,1)", fill: "forwards" }).finished;
+      const v = inView();
+      if (v.length < 4) return void setTimeout(loop, 500);
+      const keep = new Set([Math.floor(v.length * 0.3), Math.floor(v.length * 0.66)]);
+      const order = [...v.keys()].filter((i) => i % 3 === 0 || keep.has(i)).slice(0, 18);
+      for (const k of keep) if (!order.includes(k)) order.push(k);
+      order.sort((a, b) => a - b);
+      scope.style.opacity = 1;
+      for (const i of order) {
+        const r = rel(v[i], grid);
+        await scope.animate([{}, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" }], { duration: 130, easing: "ease-out", fill: "forwards" }).finished;
+        v[i].classList.add(keep.has(i) ? "keep" : "dim");
+        await wait(keep.has(i) ? 320 : 50);
+      }
+      scope.style.opacity = 0;
+      // 3. The best are picked.
+      await beat(2, "Picks the best");
+      v.forEach((x, i) => { if (!keep.has(i)) x.classList.add("dim"); });
+      const picks = [...keep].map((i) => v[i]);
+      picks.forEach((x, k) => { x.style.background = POSTS[k].bg; x.classList.add("lift"); });
+      await wait(1100);
+      // 4. Each flies out of the phone as a finished post.
+      await beat(3, "Turns each into a post");
+      const W = stage.offsetWidth, H = stage.offsetHeight, cw = Math.min((H * 0.62 * 9) / 16, W * 0.3), ch = (cw * 16) / 9;
+      const phoneW = stage.querySelector(".rc-phone").offsetWidth, narrow = innerWidth < 700;
+      const spots = [{ x: W / 2 - phoneW / 2 - (narrow ? cw * 0.55 : cw + 40), y: H * 0.12 }, { x: W / 2 + phoneW / 2 + (narrow ? -cw * 0.45 : 40), y: H * 0.26 }];
+      const flights = picks.map((x, k) => {
+        const c = document.createElement("div");
+        c.className = "rc-card";
+        c.style.background = POSTS[k].bg;
+        c.innerHTML = '<div class="ov"><b>' + POSTS[k].text + '</b></div><span class="v">' + PLAY + ' <em>0</em> views</span>';
+        Object.assign(c.style, { width: cw + "px", height: ch + "px" });
+        stage.appendChild(c);
+        const r = rel(x, stage);
+        const a = c.animate([
+          { opacity: 1, transform: "translate(" + r.x + "px," + r.y + "px) scale(" + r.w / cw + "," + r.h / ch + ")", borderRadius: "3px" },
+          { opacity: 1, transform: "translate(" + spots[k].x + "px," + spots[k].y + "px) rotate(" + (k ? 3 : -3) + "deg)" },
+        ], { duration: 900, delay: k * 180, easing: "cubic-bezier(.2,.9,.25,1.15)", fill: "forwards" });
+        a.finished.then(() => {
+          c.classList.add("done");
+          const el = c.querySelector(".v em"), t0 = performance.now();
+          const tick = (n) => { const q = Math.min(1, (n - t0) / 1500); el.textContent = Math.round(POSTS[k].views * (1 - Math.pow(1 - q, 3))) + "K"; if (q < 1) requestAnimationFrame(tick); };
+          requestAnimationFrame(tick);
+        });
+        return a.finished;
+      });
+      await Promise.all(flights);
+      await wait(3200);
+      stage.querySelectorAll(".rc-card").forEach((c) => c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, fill: "forwards" }));
+      await wait(450);
+      loop();
+    };
+    if (document.readyState === "complete") loop(); else addEventListener("load", () => loop());
+  })();
   // Reveal sections as they scroll into view.
   const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), io.unobserve(e.target))), { threshold: 0.12 });
   document.querySelectorAll(".r").forEach((el) => io.observe(el));

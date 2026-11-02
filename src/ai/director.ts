@@ -1368,10 +1368,23 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
     // (more clips of the moment first), never the text faster.
     let timed = timePoints(overlays, total);
     if (timed.need > total + 0.2) {
-      segments = lengthenFootage(fillWithClips(segments, timed.need, ctx.extraClips ?? []), timed.need, (id) => known.get(id)?.duration ?? 0);
+      // More footage: the moment's other clips, then the lesson's own b-roll and opening footage (a
+      // short main clip on its own would squeeze the points into a fraction of a second each).
+      const inVideo = new Set(segments.map((x) => x.clipId));
+      const fillers = [...(ctx.extraClips ?? []), ...(ctx.opener ? [ctx.opener] : []), ...(ctx.broll ?? [])].filter(
+        (c, i, all) => !inVideo.has(c.id) && all.findIndex((x) => x.id === c.id) === i,
+      );
+      for (const c of fillers) known.set(c.id, c);
+      segments = lengthenFootage(fillWithClips(segments, timed.need, fillers), timed.need, (id) => known.get(id)?.duration ?? 0);
       total = lengthOf(segments);
       timed = timePoints(overlays, total);
     }
+    // Still not enough footage to read every point: fewer points (at least two), never unreadable ones.
+    while (timed.need > total + 0.2 && overlays.length > 3) {
+      overlays.pop();
+      timed = timePoints(overlays, total);
+    }
+    if (timed.need > total + 0.2) throw new Error("Not enough footage for an educational video: every point needs about 3 seconds on screen.");
     overlays.splice(0, overlays.length, ...timed.overlays);
   }
   // Educational: each point over footage that shows it, when there's a clip for it.

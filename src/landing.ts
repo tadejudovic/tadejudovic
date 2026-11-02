@@ -86,9 +86,10 @@ export const LOGO_MARK = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org
 const HERO = {
   cols: 12,
   rows: 70,
-  // Three shots per post (the edit cuts between them), in public/landing/.
+  // Each post plays its video (public/landing/<video>.mp4, with a .jpg first frame), or else cuts
+  // between three photos.
   posts: [
-    { shots: ["post-1a", "post-1b", "post-1c"], lines: ["he heard the word 'walk'", "from three rooms away"], views: 412 },
+    { video: "post-1", shots: ["post-1a", "post-1b", "post-1c"], lines: ["he heard the word 'walk'", "from three rooms away"], views: 412 },
     { shots: ["post-2a", "post-2b", "post-2c"], lines: ["POV: the energy shift", "at the gate"], views: 268 },
   ],
 };
@@ -270,22 +271,26 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 .rc-ft{height:44px;border-top:1px solid #ddd;background:#fafafa;display:flex;justify-content:space-around;align-items:center;font-size:8px;font-weight:700;color:#888;position:relative;z-index:3}
 .rc-ft b{color:#0a7aff}
 .rc-cnt{position:absolute;left:0;right:0;bottom:50px;text-align:center;z-index:4;font-size:12px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9)}
-.rc-card{position:absolute;left:0;top:0;z-index:5;border-radius:18px;overflow:hidden;box-shadow:0 20px 50px rgba(60,30,0,.3);border:5px solid #111;opacity:0;transform-origin:0 0;color:#fff}
-.rc-card .ov{position:absolute;left:0;right:0;top:13%;display:flex;justify-content:center;padding:0 8px;opacity:0;transition:opacity .3s}
-.rc-card .ov b{background:#F5C400;color:#111;font-size:12px;line-height:1.2;font-weight:800;padding:5px 8px;border-radius:6px;text-align:center}
-.rc-card .v{position:absolute;left:8px;bottom:8px;display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.6);font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;opacity:0;transition:opacity .3s}
-.rc-card .v .ico{width:10px;height:10px;fill:#fff;stroke:none}
-.rc-card .v em{font-style:normal;color:#F5C400}
-.rc-card .shot{position:absolute;inset:0;display:block}
-.rc-card .bar{position:absolute;left:8px;right:8px;top:8px;height:3px;border-radius:2px;background:rgba(255,255,255,.35);z-index:2;opacity:0}
+.rc-card{position:absolute;left:0;top:0;z-index:6;overflow:hidden;background:#111;opacity:0;transform-origin:0 0;color:#fff}
+.rc-card .shot{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover}
+.rc-card .bar{position:absolute;left:10px;right:10px;top:40px;height:3px;border-radius:2px;background:rgba(255,255,255,.35);z-index:2;opacity:0}
 .rc-card .bar i{display:block;height:100%;width:0;background:#fff;border-radius:2px}
-.rc-card .ov,.rc-card .v,.rc-card .tags{z-index:2}
-.rc-card .ov b{opacity:0}
+.rc-card .ov{position:absolute;left:0;right:0;top:16%;display:flex;justify-content:center;padding:0 10px;z-index:2}
+.rc-card .ov b{background:#F5C400;color:#111;font-size:13px;line-height:1.2;font-weight:800;padding:6px 9px;border-radius:7px;text-align:center;opacity:0}
 .rc-card .ov span{display:inline-block;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
 .rc-card .ov span.in{opacity:1;transform:none}
-.rc-card .tags{position:absolute;left:8px;right:8px;bottom:34px;font-size:10px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.8);opacity:0;transition:opacity .3s}
-.rc-card.playing .ov,.rc-card.playing .bar{opacity:1}
-.rc-card.done .v,.rc-card.done .tags{opacity:1}
+.rc-card .tags{position:absolute;left:12px;right:12px;bottom:76px;font-size:10px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.8);opacity:0;transition:opacity .3s;z-index:2}
+.rc-card.playing .bar{opacity:1}
+.rc-card.done .tags{opacity:1}
+.rc-card .stamp{position:absolute;top:24%;z-index:3;padding:3px 9px;border:3px solid;border-radius:10px;font-size:20px;font-weight:900;letter-spacing:.04em;background:rgba(255,255,255,.92);opacity:0;transition:opacity .15s}
+.rc-card .stamp.keep{left:14px;color:#16a34a;transform:rotate(-14deg)}
+.rc-card .stamp.nope{right:14px;color:#dc2626;transform:rotate(14deg)}
+.rc-card .btns{position:absolute;left:0;right:0;bottom:16px;display:flex;justify-content:center;gap:26px;z-index:3}
+.rc-card .btns span{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;box-shadow:0 6px 16px rgba(0,0,0,.35)}
+.rc-card .btns svg{width:22px;height:22px}
+.rc-card .btns .no{background:#fff;color:#dc2626}
+.rc-card .btns .yes{background:#16a34a;color:#fff}
+.rc-g i.posted{opacity:1;filter:none;outline:2px solid #16a34a;z-index:3}
 .rc-say{text-align:center;margin:18px 20px 0;min-height:56px}
 .rc-dots{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
 .rc-dots i{width:22px;height:4px;border-radius:2px;background:var(--md-surface-container-highest,#f3dfcb);transition:background .3s}
@@ -293,10 +298,11 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 .rc-say b{display:inline-block;font-size:20px;font-weight:800;transition:opacity .25s,transform .25s}
 .rc-say b.out{opacity:0;transform:translateY(6px)}
 @media (max-width:700px){
-  .rc-card{border-width:3px;border-radius:12px}
-  .rc-card .ov b{font-size:8px;padding:3px 5px}
-  .rc-card .v{font-size:8px;padding:3px 6px;left:4px;bottom:4px}
-  .rc-card .tags{font-size:7px;bottom:22px;left:5px}
+  .rc-card .ov b{font-size:10px;padding:4px 7px}
+  .rc-card .tags{font-size:8px;bottom:60px}
+  .rc-card .btns span{width:34px;height:34px}
+  .rc-card .btns svg{width:17px;height:17px}
+  .rc-card .stamp{font-size:15px}
   .rc-say b{font-size:16px}
 }
 
@@ -397,7 +403,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       <div class="rc-ft"><b>Library</b><span>For You</span><span>Albums</span><span>Search</span></div>
     </div></div>
   </div>
-  <div class="rc-say"><div class="rc-dots" id="rc-dots"><i class="on"></i><i></i><i></i><i></i></div><b id="rc-say">Your camera roll</b></div>
+  <div class="rc-say"><div class="rc-dots" id="rc-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div><b id="rc-say">Your camera roll</b></div>
 </header>
 
 
@@ -469,9 +475,12 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
     const dots = [...$("rc-dots").children];
     const POSTS = ${JSON.stringify(HERO.posts.map((p) => {
       const shots = p.shots.map((f) => `url(/landing/${f}.jpg) center/cover,#c8a888`);
+      const video = "video" in p && fs.existsSync(path.join(LOCAL_DIR, `${p.video}.mp4`)) ? p.video : undefined;
+      if (video) return { bg: `url(/landing/${video}.jpg) center/cover,#c8a888`, video: `/landing/${video}`, shots: [], lines: p.lines, views: p.views };
       return { bg: shots[0], shots, lines: p.lines, views: p.views };
     }))};
-    const PLAY = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>';
+    const NO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+    const YES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const beat = async (n, text) => {
       dots.forEach((d, i) => d.classList.toggle("on", i <= n));
@@ -484,6 +493,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
     const rel = (el, to) => { const a = el.getBoundingClientRect(), b = to.getBoundingClientRect(); return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height }; };
     const loop = async () => {
       stage.querySelectorAll(".rc-card").forEach((c) => c.remove());
+      g.querySelectorAll(".posted").forEach((x) => x.classList.remove("posted"));
       [...g.children].forEach((x) => (x.className = ""));
       zoom.getAnimations().forEach((a) => a.cancel());
       const travel = g.offsetHeight - grid.offsetHeight;
@@ -514,50 +524,57 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       const picks = [...keep].map((i) => v[i]);
       picks.forEach((x, k) => { x.style.background = POSTS[k].bg; x.classList.add("lift"); });
       await wait(700);
-      // 4. Each flies out of the phone as a finished post.
-      await beat(3, "Turns each into a post");
-      const W = stage.offsetWidth, H = stage.offsetHeight, cw = Math.min((H * 0.62 * 9) / 16, W * 0.3), ch = (cw * 16) / 9;
-      const phoneW = stage.querySelector(".rc-phone").offsetWidth, narrow = innerWidth < 700;
-      const spots = [{ x: W / 2 - phoneW / 2 - (narrow ? cw * 0.55 : cw + 40), y: H * 0.12 }, { x: W / 2 + phoneW / 2 + (narrow ? -cw * 0.45 : 40), y: H * 0.26 }];
-      const flights = picks.map((x, k) => {
+      // 4. Each pick grows into a video on the phone, and is swiped like in the app: the first is
+      // kept (right), the second skipped (left).
+      const screen = stage.querySelector(".rc-screen");
+      for (const [k, x] of picks.entries()) {
+        const keepIt = k === 0;
+        await beat(3 + k, keepIt ? "Made into a TikTok" : "You keep only the ones you like");
         const c = document.createElement("div");
         c.className = "rc-card";
         const words = POSTS[k].lines.map((l) => l.split(" ").map((w) => "<span>" + w + "</span>").join(" ")).join("<br>");
-        c.innerHTML = POSTS[k].shots.map((b, n) => '<i class="shot" style="background:' + b + (n ? ';opacity:0' : '') + '"></i>').join("") +
-          '<span class="bar"><i></i></span><div class="ov"><b>' + words + '</b></div><span class="tags">#dogsoftiktok #travelwithdog</span><span class="v">' + PLAY + ' <em>0</em> views</span>';
-        Object.assign(c.style, { width: cw + "px", height: ch + "px" });
-        stage.appendChild(c);
-        const r = rel(x, stage);
-        const a = c.animate([
-          { opacity: 1, transform: "translate(" + r.x + "px," + r.y + "px) scale(" + r.w / cw + "," + r.h / ch + ")", borderRadius: "3px" },
-          { opacity: 1, transform: "translate(" + spots[k].x + "px," + spots[k].y + "px) rotate(" + (k ? 3 : -3) + "deg)" },
-        ], { duration: 900, delay: k * 180, easing: "cubic-bezier(.2,.9,.25,1.15)", fill: "forwards" });
-        // Once it lands, the edit plays: it cuts between shots, the text pops in word by word, then the
-        // hashtags and the views.
-        return a.finished.then(async () => {
-          c.classList.add("playing");
-          const shots = [...c.querySelectorAll(".shot")];
-          shots.forEach((sh) => sh.animate([{ transform: "scale(1)" }, { transform: "scale(1.14)" }], { duration: 3600, easing: "linear", fill: "forwards" }));
-          c.querySelector(".bar i").animate([{ width: "0%" }, { width: "100%" }], { duration: 3600, easing: "linear", fill: "forwards" });
-          const box = c.querySelector(".ov b");
-          box.animate([{ transform: "scale(.4)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { duration: 260, easing: "cubic-bezier(.3,1.6,.6,1)", fill: "forwards" });
-          for (const w of c.querySelectorAll(".ov span")) { w.classList.add("in"); await wait(130); }
-          for (let n = 1; n < shots.length; n++) {
-            await wait(520);
-            shots[n].style.opacity = 1;
-            c.animate([{ filter: "brightness(1.6)" }, { filter: "brightness(1)" }], { duration: 160 });
-          }
-          await wait(500);
-          c.classList.add("done");
-          const el = c.querySelector(".v em"), t0 = performance.now();
-          const tick = (n) => { const q = Math.min(1, (n - t0) / 1300); el.textContent = Math.round(POSTS[k].views * (1 - Math.pow(1 - q, 3))) + "K"; if (q < 1) requestAnimationFrame(tick); };
-          requestAnimationFrame(tick);
-        });
-      });
-      await Promise.all(flights);
-      await wait(2600);
-      stage.querySelectorAll(".rc-card").forEach((c) => c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, fill: "forwards" }));
-      await wait(450);
+        const vid = POSTS[k].video;
+        c.innerHTML = (vid ? '<video class="shot" poster="' + vid + '.jpg" muted playsinline preload="auto"><source src="' + vid + '.webm" type="video/webm"><source src="' + vid + '.mp4" type="video/mp4"></video>' : "") +
+          POSTS[k].shots.map((bg, n) => '<i class="shot" style="background:' + bg + (n ? ";opacity:0" : "") + '"></i>').join("") +
+          '<span class="bar"><i></i></span><div class="ov"><b>' + words + '</b></div><span class="tags">#dogsoftiktok #travelwithdog</span>' +
+          '<span class="stamp keep">POST</span><span class="stamp nope">NOPE</span><div class="btns"><span class="no">' + NO + '</span><span class="yes">' + YES + '</span></div>';
+        screen.appendChild(c);
+        const r = rel(x, screen), sw = screen.offsetWidth, sh = screen.offsetHeight;
+        Object.assign(c.style, { width: sw + "px", height: sh + "px" });
+        // Out of its tile to the full screen.
+        await c.animate([
+          { opacity: 1, transform: "translate(" + r.x + "px," + r.y + "px) scale(" + r.w / sw + "," + r.h / sh + ")", borderRadius: "4px" },
+          { opacity: 1, transform: "none", borderRadius: "0" },
+        ], { duration: 700, easing: "cubic-bezier(.2,.9,.25,1)", fill: "forwards" }).finished;
+        // The edit plays: the video (or cuts between shots), the text word by word, the hashtags.
+        c.classList.add("playing");
+        const clip = c.querySelector("video");
+        if (clip) { clip.currentTime = 0; clip.play().catch(() => {}); }
+        const shots = clip ? [] : [...c.querySelectorAll(".shot")];
+        shots.forEach((el) => el.animate([{ transform: "scale(1)" }, { transform: "scale(1.12)" }], { duration: 3400, easing: "linear", fill: "forwards" }));
+        c.querySelector(".bar i").animate([{ width: "0%" }, { width: "100%" }], { duration: 3600, easing: "linear", fill: "forwards" });
+        c.querySelector(".ov b").animate([{ transform: "scale(.4)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { duration: 260, easing: "cubic-bezier(.3,1.6,.6,1)", fill: "forwards" });
+        for (const w of c.querySelectorAll(".ov span")) { w.classList.add("in"); await wait(120); }
+        for (let n = 1; n < shots.length; n++) {
+          await wait(600);
+          shots[n].style.opacity = 1;
+          c.animate([{ filter: "brightness(1.6)" }, { filter: "brightness(1)" }], { duration: 160 });
+        }
+        c.classList.add("done");
+        await wait(clip ? 1900 : 700);
+        // The swipe: the button is pressed, the stamp shows, the card flies off to that side.
+        const btn = c.querySelector(keepIt ? ".yes" : ".no"), stamp = c.querySelector(keepIt ? ".keep" : ".nope");
+        await btn.animate([{ transform: "scale(1)" }, { transform: "scale(.85)" }, { transform: "scale(1.1)" }, { transform: "scale(1)" }], { duration: 380 }).finished;
+        stamp.style.opacity = 1;
+        await wait(250);
+        const dir = keepIt ? 1 : -1;
+        await c.animate([{ transform: "none", opacity: 1 }, { transform: "translate(" + dir * sw * 1.3 + "px," + sh * 0.06 + "px) rotate(" + dir * 18 + "deg)", opacity: 1 }], { duration: 520, easing: "cubic-bezier(.5,0,.75,0)", fill: "forwards" }).finished;
+        c.remove();
+        x.classList.remove("lift");
+        if (keepIt) x.classList.add("posted");
+        await wait(250);
+      }
+      await wait(900);
       loop();
     };
     if (document.readyState === "complete") loop(); else addEventListener("load", () => loop());

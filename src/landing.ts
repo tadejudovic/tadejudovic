@@ -87,8 +87,8 @@ const HERO = {
   cols: 12,
   rows: 70,
   posts: [
-    { photo: 5, lines: ["he heard the word 'walk'", "from three rooms away"], views: 412 },
-    { photo: 9, lines: ["POV: the energy shift", "at the gate"], views: 268 },
+    { photo: 5, shots: [17, 13], lines: ["he heard the word 'walk'", "from three rooms away"], views: 412 },
+    { photo: 9, shots: [1, 3], lines: ["POV: the energy shift", "at the gate"], views: 268 },
   ],
 };
 function rollTiles(): string {
@@ -271,7 +271,16 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
 .rc-card .v{position:absolute;left:8px;bottom:8px;display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.6);font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;opacity:0;transition:opacity .3s}
 .rc-card .v .ico{width:10px;height:10px;fill:#fff;stroke:none}
 .rc-card .v em{font-style:normal;color:#F5C400}
-.rc-card.done .ov,.rc-card.done .v{opacity:1}
+.rc-card .shot{position:absolute;inset:0;display:block}
+.rc-card .bar{position:absolute;left:8px;right:8px;top:8px;height:3px;border-radius:2px;background:rgba(255,255,255,.35);z-index:2;opacity:0}
+.rc-card .bar i{display:block;height:100%;width:0;background:#fff;border-radius:2px}
+.rc-card .ov,.rc-card .v,.rc-card .tags{z-index:2}
+.rc-card .ov b{opacity:0}
+.rc-card .ov span{display:inline-block;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
+.rc-card .ov span.in{opacity:1;transform:none}
+.rc-card .tags{position:absolute;left:8px;right:8px;bottom:34px;font-size:10px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.8);opacity:0;transition:opacity .3s}
+.rc-card.playing .ov,.rc-card.playing .bar{opacity:1}
+.rc-card.done .v,.rc-card.done .tags{opacity:1}
 .rc-say{text-align:center;margin:18px 20px 0;min-height:56px}
 .rc-dots{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
 .rc-dots i{width:22px;height:4px;border-radius:2px;background:var(--md-surface-container-highest,#f3dfcb);transition:background .3s}
@@ -282,6 +291,7 @@ footer{padding:28px 0 40px;color:var(--muted);font-size:14px;display:flex;justif
   .rc-card{border-width:3px;border-radius:12px}
   .rc-card .ov b{font-size:8px;padding:3px 5px}
   .rc-card .v{font-size:8px;padding:3px 6px;left:4px;bottom:4px}
+  .rc-card .tags{font-size:7px;bottom:22px;left:5px}
   .rc-say b{font-size:16px}
 }
 
@@ -452,7 +462,10 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
     const stage = $("rc-stage"), g = $("rc-g"), zoom = $("rc-zoom"), grid = $("rc-grid"), scope = $("rc-scope"), say = $("rc-say");
     if (!stage || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const dots = [...$("rc-dots").children];
-    const POSTS = ${JSON.stringify(HERO.posts.map((p) => ({ bg: `url(${photoUrl(p.photo, 480, 860)}) center/cover,${PHOTOS[p.photo][1]}`, text: p.lines.join("<br>"), views: p.views })))};
+    const POSTS = ${JSON.stringify(HERO.posts.map((p) => {
+      const bg = (i: number) => `url(${photoUrl(i, 480, 860)}) center/cover,${PHOTOS[i][1]}`;
+      return { bg: bg(p.photo), shots: [p.photo, ...p.shots].map(bg), lines: p.lines, views: p.views };
+    }))};
     const PLAY = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>';
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const beat = async (n, text) => {
@@ -471,23 +484,23 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       const travel = g.offsetHeight - grid.offsetHeight;
       // 1. The camera roll: thousands of tiny photos fly by.
       await beat(0, "Your camera roll");
-      await g.animate([{ transform: "translateY(-" + travel + "px)" }, { transform: "translateY(-" + travel * 0.4 + "px)" }], { duration: 2600, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" }).finished;
+      await g.animate([{ transform: "translateY(-" + travel + "px)" }, { transform: "translateY(-" + travel * 0.4 + "px)" }], { duration: 1500, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" }).finished;
       // 2. It slowly zooms in and checks the photos one by one.
       await beat(1, "Looking for the best ones");
       zoom.style.transformOrigin = 30 + Math.random() * 40 + "% " + (35 + Math.random() * 30) + "%";
-      await zoom.animate([{ transform: "scale(1)" }, { transform: "scale(2.6)" }], { duration: 2600, easing: "cubic-bezier(.45,0,.2,1)", fill: "forwards" }).finished;
+      await zoom.animate([{ transform: "scale(1)" }, { transform: "scale(2.6)" }], { duration: 1600, easing: "cubic-bezier(.45,0,.2,1)", fill: "forwards" }).finished;
       const v = inView();
       if (v.length < 4) return void setTimeout(loop, 500);
       const keep = new Set([Math.floor(v.length * 0.3), Math.floor(v.length * 0.66)]);
-      const order = [...v.keys()].filter((i) => i % 3 === 0 || keep.has(i)).slice(0, 18);
+      const order = [...v.keys()].filter((i) => i % 4 === 0 || keep.has(i)).slice(0, 8);
       for (const k of keep) if (!order.includes(k)) order.push(k);
       order.sort((a, b) => a - b);
       scope.style.opacity = 1;
       for (const i of order) {
         const r = rel(v[i], grid);
-        await scope.animate([{}, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" }], { duration: 130, easing: "ease-out", fill: "forwards" }).finished;
+        await scope.animate([{}, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" }], { duration: 110, easing: "ease-out", fill: "forwards" }).finished;
         v[i].classList.add(keep.has(i) ? "keep" : "dim");
-        await wait(keep.has(i) ? 320 : 50);
+        await wait(keep.has(i) ? 220 : 30);
       }
       scope.style.opacity = 0;
       // 3. The best are picked.
@@ -495,7 +508,7 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       v.forEach((x, i) => { if (!keep.has(i)) x.classList.add("dim"); });
       const picks = [...keep].map((i) => v[i]);
       picks.forEach((x, k) => { x.style.background = POSTS[k].bg; x.classList.add("lift"); });
-      await wait(1100);
+      await wait(700);
       // 4. Each flies out of the phone as a finished post.
       await beat(3, "Turns each into a post");
       const W = stage.offsetWidth, H = stage.offsetHeight, cw = Math.min((H * 0.62 * 9) / 16, W * 0.3), ch = (cw * 16) / 9;
@@ -504,8 +517,9 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
       const flights = picks.map((x, k) => {
         const c = document.createElement("div");
         c.className = "rc-card";
-        c.style.background = POSTS[k].bg;
-        c.innerHTML = '<div class="ov"><b>' + POSTS[k].text + '</b></div><span class="v">' + PLAY + ' <em>0</em> views</span>';
+        const words = POSTS[k].lines.map((l) => l.split(" ").map((w) => "<span>" + w + "</span>").join(" ")).join("<br>");
+        c.innerHTML = POSTS[k].shots.map((b, n) => '<i class="shot" style="background:' + b + (n ? ';opacity:0' : '') + '"></i>').join("") +
+          '<span class="bar"><i></i></span><div class="ov"><b>' + words + '</b></div><span class="tags">#dogsoftiktok #travelwithdog</span><span class="v">' + PLAY + ' <em>0</em> views</span>';
         Object.assign(c.style, { width: cw + "px", height: ch + "px" });
         stage.appendChild(c);
         const r = rel(x, stage);
@@ -513,16 +527,30 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
           { opacity: 1, transform: "translate(" + r.x + "px," + r.y + "px) scale(" + r.w / cw + "," + r.h / ch + ")", borderRadius: "3px" },
           { opacity: 1, transform: "translate(" + spots[k].x + "px," + spots[k].y + "px) rotate(" + (k ? 3 : -3) + "deg)" },
         ], { duration: 900, delay: k * 180, easing: "cubic-bezier(.2,.9,.25,1.15)", fill: "forwards" });
-        a.finished.then(() => {
+        // Once it lands, the edit plays: it cuts between shots, the text pops in word by word, then the
+        // hashtags and the views.
+        return a.finished.then(async () => {
+          c.classList.add("playing");
+          const shots = [...c.querySelectorAll(".shot")];
+          shots.forEach((sh) => sh.animate([{ transform: "scale(1)" }, { transform: "scale(1.14)" }], { duration: 3600, easing: "linear", fill: "forwards" }));
+          c.querySelector(".bar i").animate([{ width: "0%" }, { width: "100%" }], { duration: 3600, easing: "linear", fill: "forwards" });
+          const box = c.querySelector(".ov b");
+          box.animate([{ transform: "scale(.4)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { duration: 260, easing: "cubic-bezier(.3,1.6,.6,1)", fill: "forwards" });
+          for (const w of c.querySelectorAll(".ov span")) { w.classList.add("in"); await wait(130); }
+          for (let n = 1; n < shots.length; n++) {
+            await wait(520);
+            shots[n].style.opacity = 1;
+            c.animate([{ filter: "brightness(1.6)" }, { filter: "brightness(1)" }], { duration: 160 });
+          }
+          await wait(500);
           c.classList.add("done");
           const el = c.querySelector(".v em"), t0 = performance.now();
-          const tick = (n) => { const q = Math.min(1, (n - t0) / 1500); el.textContent = Math.round(POSTS[k].views * (1 - Math.pow(1 - q, 3))) + "K"; if (q < 1) requestAnimationFrame(tick); };
+          const tick = (n) => { const q = Math.min(1, (n - t0) / 1300); el.textContent = Math.round(POSTS[k].views * (1 - Math.pow(1 - q, 3))) + "K"; if (q < 1) requestAnimationFrame(tick); };
           requestAnimationFrame(tick);
         });
-        return a.finished;
       });
       await Promise.all(flights);
-      await wait(3200);
+      await wait(2600);
       stage.querySelectorAll(".rc-card").forEach((c) => c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, fill: "forwards" }));
       await wait(450);
       loop();

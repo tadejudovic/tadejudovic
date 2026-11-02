@@ -86,17 +86,22 @@ export const LOGO_MARK = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org
 const HERO = {
   cols: 12,
   rows: 70,
+  // Three shots per post (the edit cuts between them), in public/landing/.
   posts: [
-    { photo: 5, shots: [17, 13], lines: ["he heard the word 'walk'", "from three rooms away"], views: 412 },
-    { photo: 9, shots: [1, 3], lines: ["POV: the energy shift", "at the gate"], views: 268 },
+    { shots: ["post-1a", "post-1b", "post-1c"], lines: ["he heard the word 'walk'", "from three rooms away"], views: 412 },
+    { shots: ["post-2a", "post-2b", "post-2c"], lines: ["POV: the energy shift", "at the gate"], views: 268 },
   ],
 };
+/**
+ * The camera roll: one person's photos (public/landing/roll.jpg, a sheet of square thumbnails) laid
+ * out in the order of roll.json, which keeps the same photo from showing up near itself.
+ */
+const ROLL = JSON.parse(fs.readFileSync(path.join(LOCAL_DIR, "roll.json"), "utf8")) as { cols: number; rows: number; order: number[] };
 function rollTiles(): string {
-  let seed = 21;
-  const next = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
-  return Array.from({ length: HERO.cols * HERO.rows }, () => {
-    const i = Math.floor(next() * PHOTOS.length);
-    return `<i style="background:url(${photoUrl(i, 96, 96)}) center/cover,${PHOTOS[i][1]}"></i>`;
+  const at = (n: number, of: number) => (of > 1 ? (n / (of - 1)) * 100 : 0).toFixed(3);
+  return Array.from({ length: HERO.cols * HERO.rows }, (_, k) => {
+    const i = ROLL.order[k % ROLL.order.length];
+    return `<i style="background:url(/landing/roll.jpg) ${at(i % ROLL.cols, ROLL.cols)}% ${at(Math.floor(i / ROLL.cols), ROLL.rows)}%/${ROLL.cols * 100}% ${ROLL.rows * 100}%"></i>`;
   }).join("");
 }
 
@@ -463,8 +468,8 @@ footer{border-top:1px solid var(--md-outline-variant);color:var(--md-on-surface-
     if (!stage || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const dots = [...$("rc-dots").children];
     const POSTS = ${JSON.stringify(HERO.posts.map((p) => {
-      const bg = (i: number) => `url(${photoUrl(i, 480, 860)}) center/cover,${PHOTOS[i][1]}`;
-      return { bg: bg(p.photo), shots: [p.photo, ...p.shots].map(bg), lines: p.lines, views: p.views };
+      const shots = p.shots.map((f) => `url(/landing/${f}.jpg) center/cover,#c8a888`);
+      return { bg: shots[0], shots, lines: p.lines, views: p.views };
     }))};
     const PLAY = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>';
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -1399,6 +1399,12 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
       console.warn("[broll]", (err as Error).message);
       return [] as (Clip | undefined)[];
     });
+    // A lesson is only worth posting if viewers SEE what it teaches: most points need footage that
+    // shows them (a pee pad, a relief area). Otherwise no video from this topic; the round tries
+    // another clip and topic instead.
+    const shown = picks.filter(Boolean).length;
+    if (points.length >= 2 && shown < Math.ceil(points.length / 2))
+      throw new Error(`The footage doesn't show what this lesson teaches (${shown} of ${points.length} points have a clip that shows them).`);
     if (picks.some(Boolean)) {
       segments = withBroll(segments, points.map((o, i) => ({ start: o.start, end: Math.min(o.end, total), clip: picks[i] })), total);
       for (const c of picks) if (c) known.set(c.id, c);

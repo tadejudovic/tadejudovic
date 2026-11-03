@@ -1349,6 +1349,29 @@ export async function directClip(clip: Clip, ctx: DirectContext): Promise<VideoP
         ...(px !== undefined && py !== undefined ? { pointTo: { x: px, y: py } } : {}),
       };
     });
+  // Fun and inspirational: too little footage for the joke to land (a 3s clip with nothing that fits
+  // it) is no video; the round tries another clip.
+  if (ctx.format !== "tips" && ctx.format !== "story" && total < Math.min(6, ctx.minSeconds) - 0.2)
+    throw new Error(`Only ${total.toFixed(1)}s of footage fits this video: too short to post.`);
+  if (ctx.format !== "tips" && overlays.length > 1) {
+    // Lines after the headline don't repeat it ("Things I whisper… / line" each time): just the new part.
+    const head = overlays[0].text.split(/\s+\/\s+/)[0].trim().toLowerCase();
+    for (let i = 1; i < overlays.length; i++) {
+      const parts = overlays[i].text.split(/\s+\/\s+/);
+      if (parts.length > 1 && parts[0].trim().toLowerCase() === head) overlays[i] = { ...overlays[i], text: parts.slice(1).join(" / ") };
+    }
+    // Each line comes in on its own, at least 1.5s after the one before; lines with no time left go.
+    const later = overlays.slice(1).sort((a, b) => a.start - b.start);
+    let at = Math.min(2.5, total * 0.35);
+    const kept: Overlay[] = [];
+    for (const o of later) {
+      const start = Math.max(o.start, at);
+      if (start > total - 1.2) continue;
+      kept.push({ ...o, start });
+      at = start + 1.5;
+    }
+    overlays.splice(1, overlays.length - 1, ...kept);
+  }
   // The opening line is the headline, pinned at the top like in every video (a placed y would make
   // it a loose point instead).
   if (ctx.format !== "tips") {

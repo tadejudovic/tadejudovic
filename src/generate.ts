@@ -1808,7 +1808,7 @@ export async function remakeRejected(id: string, { force = false, editorPass = 0
   } else if (r.rejectReason === "clip" || !main || main.status !== "ready") {
     clip = store
       .clips()
-      .filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && c.uses === 0 && !c.disliked && onTopic(c) && !used.has(c.id))
+      .filter((c) => c.status === "ready" && c.kind === "video" && isPortrait(c) && c.uses === 0 && !c.disliked && onTopic(c) && watchable(c) && !used.has(c.id))
       .sort((a, b) => Number(b.scene === main?.scene) - Number(a.scene === main?.scene) || filmedWeek(b) - filmedWeek(a) || bestMoment(b) - bestMoment(a) || b.duration - a.duration)[0];
   }
   if (!clip) return undefined;

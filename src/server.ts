@@ -2010,6 +2010,24 @@ if (!paused && !store.settings().remakePottyV1) {
   }
 }
 
+// Once: the four videos the creator flagged on Nov 2–3 (points flashing by, footage that doesn't show
+// the lesson, 3s fun videos on a blurry clip) are remade with today's rules, on other footage.
+if (!paused && !store.settings().remakeNov3V1) {
+  store.updateSettings({ remakeNov3V1: true });
+  const notes: Record<string, string> = {
+    "944915e43aa8b71a": "The points flashed by unreadably and the footage never showed the check-in steps.",
+    ca91be6f6569a012: "The points flashed by, and no clip showed a pee pad, relief area or grass.",
+    "8cd712dd940d1bf8": "Only 3s long, with every line crammed into the last half second.",
+    "90d69daa5f619995": "Only 3s on a blurry clip where Lex is barely visible.",
+  };
+  Object.entries(notes).forEach(([id, note], i) => {
+    const r = store.render(id);
+    if (!r || r.remadeAs || r.review !== "pending") return;
+    store.updateRender(id, { review: "rejected", reviewedAt: new Date().toISOString(), rejectReason: "clip", rejectNote: note });
+    setTimeout(() => remakeRejected(id, { force: true }).catch((err) => console.warn("[remake]", err)), 25_000 + i * 20_000);
+  });
+}
+
 // Once: this month's bandwidth before the counter existed (Render: over 70% of 5 GB by Oct 19).
 if (!store.settings().bandwidthSeedV1) {
   store.updateSettings({ bandwidthSeedV1: true });

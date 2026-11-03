@@ -137,6 +137,7 @@ export interface Settings {
   bandwidthGb?: number;
   bandwidthSeedV1?: boolean;
   remakePottyV1?: boolean;
+  remakeNov3V1?: boolean;
   scanSinceSep10?: boolean;
   audienceFirstRead?: boolean;
   sparesCapV1?: boolean;

@@ -307,6 +307,14 @@ export const isPortrait = (c: Clip) => c.height >= c.width;
 /** The strongest moment the AI found in a clip (0 when none). */
 export const bestMoment = (c: Clip) => Math.max(0, ...(c.ai?.moments ?? c.moments ?? []).map((m) => m.score));
 
+/**
+ * Footage worth building a video on, picked automatically: its best moment scored at least 0.35 when
+ * the AI looked at it (blurry, static or with the star barely in frame scores lower). Clips not looked
+ * at yet aren't held back. Hand-picked clips are always used.
+ */
+export const WATCHABLE_SCORE = 0.35;
+export const watchable = (c: Clip) => !(c.ai?.moments ?? c.moments)?.length || bestMoment(c) >= WATCHABLE_SCORE;
+
 export function rankClips(clips: Clip[]): Clip[] {
   const best = bestMoment;
   // Recent footage first (by the week it was filmed; the strongest kind of footage counts as two weeks
@@ -617,7 +625,7 @@ export async function plan(
 ): Promise<{ plans: VideoPlan[]; warning?: string }> {
   const all = store.clips().filter((c) => c.status === "ready" && isPortrait(c));
   // Footage the creator rejected is only used when they pick it themselves.
-  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => c.uses === 0 && !c.disliked && onTopic(c) && hasLex(c));
+  const clips = req.clipIds?.length ? all.filter((c) => req.clipIds!.includes(c.id)) : all.filter((c) => c.uses === 0 && !c.disliked && onTopic(c) && hasLex(c) && watchable(c));
   // Out of airport footage but there's footage from the outside themes: the inspirational video still gets made.
   if (!clips.length && !(req.pickFromPool && outsideClips().length)) throw new Error("No analyzed portrait clips available. Import some vertical footage first.");
   const { petName, handle } = store.settings();

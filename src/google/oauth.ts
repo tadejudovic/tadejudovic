@@ -64,7 +64,15 @@ export async function accessToken(): Promise<string> {
   if (!t) throw new Error("Google Photos is not connected.");
   if (Date.now() < t.expires_at) return t.access_token;
   if (!t.refresh_token) throw new Error("Google session expired — please reconnect Google Photos.");
-  const fresh = await tokenRequest({ refresh_token: t.refresh_token, grant_type: "refresh_token" });
+  const fresh = await tokenRequest({ refresh_token: t.refresh_token, grant_type: "refresh_token" }).catch((err: Error) => {
+    // Google no longer accepts this sign-in (it expired or was revoked): forget it, so the app shows
+    // "Connect Google Photos" again instead of failing on every pick.
+    if (/invalid_grant/.test(err.message)) {
+      store.setGoogle(undefined);
+      throw new Error("Google Photos was disconnected by Google. Connect it again to keep picking videos.");
+    }
+    throw err;
+  });
   store.setGoogle({ ...t, access_token: fresh.access_token, expires_at: Date.now() + (fresh.expires_in - 60) * 1000 });
   return fresh.access_token;
 }

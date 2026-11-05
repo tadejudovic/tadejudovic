@@ -121,7 +121,7 @@ window.SITE = {
   contact: {
     heading: "Contacto",
     text: "Booking, prensa y colaboraciones.",
-    email: "",              // e.g. "booking@rociolucero.com"
+    email: "booking@rociolucero.com",
     managementName: "",     // optional, e.g. "Management: Name"
     newsletterLink: "",     // optional link to a signup form (Mailchimp, Google Form, Laylo…)
     newsletterText: "Recibe novedades",

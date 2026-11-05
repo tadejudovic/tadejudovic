@@ -25,6 +25,11 @@
     const m = String(url || "").match(/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(track|album|playlist|artist|episode)\/([A-Za-z0-9]+)/);
     return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator&theme=0` : "";
   }
+  function soundcloudEmbed(url) {
+    const u = String(url || "").trim();
+    if (!/^https:\/\/(www\.|m\.)?soundcloud\.com\/[^\s"']+$/i.test(u)) return "";
+    return `https://w.soundcloud.com/player/?url=${encodeURIComponent(u)}&color=%23${encodeURIComponent((S.theme && S.theme.accent || "#e8a87c").replace("#", ""))}&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&visual=false`;
+  }
   function youtubeId(url) {
     const m = String(url || "").match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([A-Za-z0-9_-]{11})/);
     return m ? m[1] : "";
@@ -93,15 +98,17 @@
   const music = list(S.music);
   render("music", music.length && sectionHead(L.music) + `<div class="grid grid-music">` + music.map((r) => {
     const embed = spotifyEmbed(r.spotify);
-    const link = safeUrl(r.link) || safeUrl(r.spotify);
+    const sc = embed ? "" : soundcloudEmbed(r.soundcloud);
+    const link = safeUrl(r.link) || safeUrl(r.spotify) || safeUrl(r.soundcloud);
     const meta = [r.type, r.year].filter(Boolean).map(esc).join(" · ");
     return `<article class="card">
       ${embed ? `<iframe class="spotify" src="${esc(embed)}" height="152" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" title="${esc(r.title || "Spotify")}"></iframe>` : ""}
+      ${sc ? `<iframe class="spotify" src="${esc(sc)}" height="166" loading="lazy" allow="autoplay" title="${esc(r.title || "SoundCloud")}"></iframe>` : ""}
       <div class="card-body">
         <h3>${esc(r.title)}</h3>
         ${meta ? `<p class="muted">${meta}</p>` : ""}
-        ${link && !embed ? `<a class="text-link" href="${esc(link)}"${ext(link)}>${esc(L.listen)} →</a>` : ""}
-        ${embed && safeUrl(r.link) ? `<a class="text-link" href="${esc(safeUrl(r.link))}"${ext(r.link)}>${esc(L.listen)} →</a>` : ""}
+        ${link && !embed && !sc ? `<a class="text-link" href="${esc(link)}"${ext(link)}>${esc(L.listen)} →</a>` : ""}
+        ${(embed || sc) && safeUrl(r.link) ? `<a class="text-link" href="${esc(safeUrl(r.link))}"${ext(r.link)}>${esc(L.listen)} →</a>` : ""}
       </div>
     </article>`;
   }).join("") + `</div>`);

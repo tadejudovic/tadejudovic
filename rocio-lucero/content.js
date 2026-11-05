@@ -14,9 +14,9 @@
 window.SITE = {
   /* ---------- Basics ---------- */
   name: "Rocío Lucero",
-  tagline: "Cantante · Compositora",
+  tagline: "Cantante",
   // Shown in Google results and when the link is shared
-  description: "Official website of Rocío Lucero — music, videos, live dates and contact.",
+  description: "Rocío Lucero — canciones de fe, esperanza y amor. Música, conciertos y contacto.",
   heroImage: "",            // e.g. "images/hero.jpg" (wide photo). Empty = soft color background.
   language: "es",           // "es" or "en" (used by browsers and screen readers)
 
@@ -29,10 +29,10 @@ window.SITE = {
 
   /* ---------- Big button at the top (latest release) ---------- */
   featured: {
-    label: "Nuevo sencillo",
-    title: "Título de la canción",
-    link: "",               // link to the song (Spotify, YouTube, smart link…). Empty = button hidden.
-    buttonText: "Escuchar ahora",
+    label: "Canciones de fe y esperanza",
+    title: "",              // song title, e.g. "Desde mi mirada"
+    link: "https://www.tiktok.com/@rocioluceromusic",  // link to the song (Spotify, YouTube, smart link…). Empty = button hidden.
+    buttonText: "Escúchala en TikTok",
   },
 
   /* ---------- Social & streaming links ----------
@@ -41,22 +41,32 @@ window.SITE = {
     spotify: "",
     appleMusic: "",
     youtube: "",
-    instagram: "",
-    tiktok: "",
-    soundcloud: "",
+    instagram: "https://www.instagram.com/rocioluceromusic/",
+    tiktok: "https://www.tiktok.com/@rocioluceromusic",
+    soundcloud: "https://soundcloud.com/rociolucero",
     bandcamp: "",
     facebook: "",
   },
 
   /* ---------- Music ----------
      For each release: paste the Spotify link to the song/album
-     (Spotify app → Share → Copy link). The player is created automatically. */
+     (Spotify app → Share → Copy link). The player is created automatically.
+     SoundCloud links work the same way: put them in  soundcloud: "..."  */
   music: [
+    {
+      title: "Desde mi mirada",
+      year: "",
+      type: "Sencillo",
+      spotify: "",
+      soundcloud: "https://soundcloud.com/rociolucero/desde-mi-mirada",
+      link: "",
+    },
     // {
     //   title: "Título",
     //   year: "2026",
     //   type: "Sencillo",           // Sencillo / EP / Álbum
     //   spotify: "https://open.spotify.com/track/....",
+    //   soundcloud: "",               // or a SoundCloud song link
     //   link: "",                    // optional extra link (smart link, Bandcamp…)
     // },
   ],
@@ -85,8 +95,10 @@ window.SITE = {
   about: {
     image: "",              // e.g. "images/portrait.jpg" (vertical photo works best)
     paragraphs: [
-      "Rocío Lucero es cantante y compositora. Escribe aquí tu historia: de dónde vienes, qué te inspira y qué suena en tu música.",
-      "Segundo párrafo: logros, colaboraciones, próximos proyectos.",
+      // DRAFT written from her public posts. Rocío: rewrite it in your own words.
+      "Rocío Lucero canta para quienes siguen esperando, creyendo y confiando en que el tiempo de Dios siempre es perfecto.",
+      "Sus canciones hablan de fe, de promesas que tardan pero llegan, y del amor y el coraje de una madre.",
+      "Escúchala en TikTok e Instagram como @rocioluceromusic.",
     ],
   },
 

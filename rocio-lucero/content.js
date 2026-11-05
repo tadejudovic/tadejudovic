@@ -14,9 +14,9 @@
 window.SITE = {
   /* ---------- Basics ---------- */
   name: "Rocío Lucero",
-  tagline: "Cantante",
+  tagline: "Cantautora",
   // Shown in Google results and when the link is shared
-  description: "Rocío Lucero — canciones de fe, esperanza y amor. Música, conciertos y contacto.",
+  description: "Rocío Lucero, cantautora. Escucha Todos mis ex nada, su primer EP.",
   heroImage: "",            // e.g. "images/hero.jpg" (wide photo). Empty = soft color background.
   language: "es",           // "es" or "en" (used by browsers and screen readers)
 
@@ -29,21 +29,21 @@ window.SITE = {
 
   /* ---------- Big button at the top (latest release) ---------- */
   featured: {
-    label: "Canciones de fe y esperanza",
-    title: "",              // song title, e.g. "Desde mi mirada"
-    link: "https://www.tiktok.com/@rocioluceromusic",  // link to the song (Spotify, YouTube, smart link…). Empty = button hidden.
-    buttonText: "Escúchala en TikTok",
+    label: "Primer EP · ya disponible",
+    title: "Todos mis ex nada",
+    link: "https://open.spotify.com/artist/3aCOUbBAkayyHXx3W3qPg4",  // tip: replace with the EP's own Spotify link
+    buttonText: "Escuchar en Spotify",
   },
 
   /* ---------- Social & streaming links ----------
      Paste the full address. Leave "" to hide an icon. */
   links: {
-    spotify: "",
+    spotify: "https://open.spotify.com/artist/3aCOUbBAkayyHXx3W3qPg4",
     appleMusic: "",
     youtube: "",
     instagram: "https://www.instagram.com/rocioluceromusic/",
-    tiktok: "https://www.tiktok.com/@rocioluceromusic",
-    soundcloud: "https://soundcloud.com/rociolucero",
+    tiktok: "",
+    soundcloud: "",
     bandcamp: "",
     facebook: "",
   },
@@ -54,11 +54,19 @@ window.SITE = {
      SoundCloud links work the same way: put them in  soundcloud: "..."  */
   music: [
     {
-      title: "Desde mi mirada",
-      year: "",
+      // Spotify's artist player: shows her top songs, including the EP.
+      // Tip: once you have the EP's own link (Spotify → the EP → Share → Copy link), paste it here instead.
+      title: "Todos mis ex nada",
+      year: "2026",
+      type: "EP · 6 canciones",
+      spotify: "https://open.spotify.com/artist/3aCOUbBAkayyHXx3W3qPg4",
+      link: "",
+    },
+    {
+      title: "Aquel verano",
+      year: "2019",
       type: "Sencillo",
-      spotify: "",
-      soundcloud: "https://soundcloud.com/rociolucero/desde-mi-mirada",
+      spotify: "https://open.spotify.com/album/6p1EAvwJ0uVelQLLAkstjr",
       link: "",
     },
     // {
@@ -95,10 +103,10 @@ window.SITE = {
   about: {
     image: "",              // e.g. "images/portrait.jpg" (vertical photo works best)
     paragraphs: [
-      // DRAFT written from her public posts. Rocío: rewrite it in your own words.
-      "Rocío Lucero canta para quienes siguen esperando, creyendo y confiando en que el tiempo de Dios siempre es perfecto.",
-      "Sus canciones hablan de fe, de promesas que tardan pero llegan, y del amor y el coraje de una madre.",
-      "Escúchala en TikTok e Instagram como @rocioluceromusic.",
+      // DRAFT written from what's public about her. Rocío: rewrite it in your own words.
+      "Rocío Lucero es cantautora. Convierte sus historias, sus emociones y sus contradicciones en canciones.",
+      "En abril de 2026 publicó Todos mis ex nada, su primer EP: seis canciones nacidas de todo lo que hemos vivido, perdido y aprendido en el amor.",
+      "Lo presentó en directo el 8 de mayo de 2026 en la Sala Cultural El Desleal, en La Laguna (Tenerife), en un formato íntimo y cercano.",
     ],
   },
 

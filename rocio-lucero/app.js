@@ -2,7 +2,7 @@
 (function () {
   const S = window.SITE || {};
   const L = Object.assign(
-    { music: "Music", videos: "Videos", shows: "Shows", about: "About", press: "Press", contact: "Contact", tickets: "Tickets", listen: "Listen" },
+    { music: "Music", videos: "Videos", shows: "Shows", photos: "Photos", about: "About", press: "Press", contact: "Contact", tickets: "Tickets", listen: "Listen" },
     S.labels || {}
   );
 
@@ -71,8 +71,13 @@
 
   // ---------- hero ----------
   const hero = safeUrl(S.heroImage);
-  if (hero) $("heroBg").style.backgroundImage = `url("${hero.replace(/"/g, "%22")}")`;
-  else $("hero").classList.add("hero--plain");
+  if (hero) {
+    // Photo beside the text, with a soft blurred copy of it behind the whole area.
+    $("heroBg").style.backgroundImage = `url("${hero.replace(/"/g, "%22")}")`;
+    $("hero").classList.add("hero--photo");
+    const img = $("heroPhoto");
+    img.src = hero; img.alt = S.name || ""; img.hidden = false;
+  } else $("hero").classList.add("hero--plain");
 
   const f = S.featured || {};
   const fLink = safeUrl(f.link);
@@ -153,6 +158,13 @@
       }).join("") + `</ul>`
     : `<p class="muted center">${esc(S.showsEmptyText)}</p>`));
 
+  // Photos
+  const photos = list(S.photos).filter((ph) => safeUrl(ph.src));
+  render("photos", photos.length && sectionHead(L.photos) + `<div class="gallery">` + photos.map((ph) => {
+    const src = safeUrl(ph.src);
+    return `<a class="gallery-item" href="${esc(src)}"${ext(src)}><img src="${esc(src)}" alt="${esc(ph.alt || S.name)}" loading="lazy"></a>`;
+  }).join("") + `</div>`);
+
   // About
   const ab = S.about || {};
   const paras = list(ab.paragraphs);
@@ -182,7 +194,7 @@
   </div>`);
 
   // ---------- menu (only lists sections that are visible) ----------
-  const navLabels = { music: L.music, videos: L.videos, shows: L.shows, about: L.about, press: L.press, contact: L.contact };
+  const navLabels = { music: L.music, videos: L.videos, shows: L.shows, photos: L.photos, about: L.about, press: L.press, contact: L.contact };
   $("navLinks").innerHTML = shown.map((id) => `<a href="#${id}">${esc(navLabels[id])}</a>`).join("");
   const toggle = $("navToggle");
   toggle.addEventListener("click", () => {

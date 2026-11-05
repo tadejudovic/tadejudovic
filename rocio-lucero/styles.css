@@ -71,6 +71,28 @@ img { max-width: 100%; display: block; }
   filter: blur(10px);
 }
 .hero-inner { position: relative; max-width: 900px; }
+
+/* Hero with a photo: text left, photo right (stacked on phones) */
+.hero--photo {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 80px);
+  text-align: left; padding-inline: max(24px, calc((100vw - 1200px) / 2));
+}
+.hero--photo .hero-bg { filter: blur(70px) saturate(1.2); opacity: .45; transform: scale(1.2); }
+.hero--photo .hero-name { font-size: clamp(3.2rem, 8vw, 7rem); }
+.hero--photo .hero-featured { align-items: flex-start; }
+.hero--photo .socials { justify-content: flex-start; }
+.hero-photo {
+  position: relative; width: 100%; max-width: 480px; justify-self: center;
+  aspect-ratio: 4 / 5; max-height: 78svh; object-fit: cover; border-radius: 20px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .5);
+}
+@media (max-width: 860px) {
+  .hero--photo { grid-template-columns: 1fr; text-align: center; padding-top: 88px; gap: 28px; min-height: auto; }
+  .hero--photo .hero-photo { order: -1; max-width: 420px; max-height: 60svh; }
+  .hero--photo .hero-featured { align-items: center; }
+  .hero--photo .socials { justify-content: center; }
+  .hero--photo .hero-name { margin-bottom: 24px; }
+}
 .eyebrow { text-transform: uppercase; letter-spacing: .3em; font-size: .8rem; color: var(--accent); margin: 0 0 12px; }
 .hero-name {
   font-family: var(--serif); font-weight: 400; font-style: italic;
@@ -153,6 +175,13 @@ img { max-width: 100%; display: block; }
   .show { grid-template-columns: 64px 1fr; }
   .show-action { grid-column: 2; }
 }
+
+/* Photos */
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 42vw), 1fr)); gap: 16px; max-width: 760px; margin: 0 auto; }
+@media (max-width: 560px) { .gallery { gap: 10px; } }
+.gallery-item { display: block; overflow: hidden; border-radius: 14px; }
+.gallery-item img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; transition: transform .5s; }
+.gallery-item:hover img { transform: scale(1.04); }
 
 /* About */
 .about { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: clamp(28px, 5vw, 64px); align-items: center; }

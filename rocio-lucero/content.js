@@ -17,7 +17,7 @@ window.SITE = {
   tagline: "Cantautora",
   // Shown in Google results and when the link is shared
   description: "Rocío Lucero, cantautora. Escucha Todos mis ex nada, su primer EP.",
-  heroImage: "",            // e.g. "images/hero.jpg" (wide photo). Empty = soft color background.
+  heroImage: "images/hero.jpg",  // main photo at the top. Empty = soft color background.
   language: "es",           // "es" or "en" (used by browsers and screen readers)
 
   /* ---------- Look & feel ---------- */
@@ -98,10 +98,18 @@ window.SITE = {
   ],
   showsEmptyText: "Nuevas fechas muy pronto.",  // shown when there are no upcoming shows
 
+  /* ---------- Photos ----------
+     Upload photos to the /images folder and list them here.
+     "alt" describes the photo for people who can't see it. */
+  photos: [
+    { src: "images/backstage.jpg", alt: "Rocío Lucero con su guitarra, entre bastidores" },
+    { src: "images/hero.jpg", alt: "Rocío Lucero en el camerino" },
+  ],
+
   /* ---------- About ----------
      One entry per paragraph. */
   about: {
-    image: "",              // e.g. "images/portrait.jpg" (vertical photo works best)
+    image: "images/portrait.jpg",  // vertical photo works best. Empty = no photo.
     paragraphs: [
       // DRAFT written from what's public about her. Rocío: rewrite it in your own words.
       "Rocío Lucero es cantautora. Convierte sus historias, sus emociones y sus contradicciones en canciones.",
@@ -132,6 +140,7 @@ window.SITE = {
     music: "Música",
     videos: "Videos",
     shows: "Conciertos",
+    photos: "Fotos",
     about: "Sobre mí",
     press: "Prensa",
     contact: "Contacto",

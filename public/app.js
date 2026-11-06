@@ -245,6 +245,18 @@ async function loadTopics() {
         x.evidence?.length ? h("ul", { class: "topic-evidence" }, ...x.evidence.map((e) => h("li", {}, `${e.source}: ${e.line}`))) : null)));
   }));
 }
+// The whole topic bank as plain text, to paste anywhere (a chat, a doc).
+$("#topics-copy").addEventListener("click", async (e) => {
+  const t = await api("/api/topics").catch(() => null);
+  if (!t?.ideas?.length) return banner("No topics yet: research first.");
+  const tb = (x) => (x.reach ?? x.demand) * (x.frequency ?? 3);
+  const text = Object.entries(TOPIC_KIND).map(([kind, label]) => {
+    const ideas = t.ideas.filter((x) => x.kind === kind).sort((a, b) => tb(b) - tb(a) || b.demand - a.demand);
+    return `${label} (${ideas.length})\n` + ideas.map((x, i) =>
+      `${i + 1}. ${x.title} [${[TOPIC_AUDIENCE[x.audience], x.pillar ? THEME_LABEL[x.pillar] : "", `demand ${x.demand}/5`, x.clipIds.length ? `${x.clipIds.length} clips fit` : "no clip yet"].filter(Boolean).join(", ")}]`).join("\n");
+  }).join("\n\n");
+  await navigator.clipboard.writeText(text).then(() => { e.target.textContent = "Copied"; setTimeout(() => (e.target.textContent = "Copy list"), 2000); }, () => banner("Couldn't copy: your browser blocked it."));
+});
 $("#topics-refresh").addEventListener("click", async () => {
   const r = await api("/api/topics/refresh", { method: "POST" }).catch((err) => ({ error: { message: err.message } }));
   if (r?.error && !r.running) {
